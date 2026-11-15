@@ -1,0 +1,39 @@
+name: iOS build
+
+# Compiles the iPhone app for the simulator whenever its source changes, so a
+# change that does not build is caught before it reaches main. Compiler errors
+# are reported as annotations on the commit.
+on:
+  push:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-build.yml'
+  pull_request:
+    paths:
+      - 'ios/**'
+
+jobs:
+  build:
+    name: Build for the simulator
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/YardLink.xcodeproj \
+            -scheme YardLink \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build.log | grep -E "error:|warning: .*deprecated|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Report compiler errors
+        if: failure()
+        run: |
+          grep -E "^/.*:[0-9]+:[0-9]+: error: " build.log | sort -u \
+            | sed -E "s#^$GITHUB_WORKSPACE/([^:]+):([0-9]+):([0-9]+): error: (.*)#::error file=\1,line=\2,col=\3::\4#"
