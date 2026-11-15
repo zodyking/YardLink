@@ -1,0 +1,693 @@
+<script setup lang="ts">
+import { CONTAINER_TYPE_LABELS, EQUIPMENT_TYPE_SHORT, LOCATION_TYPE_LABELS } from '#shared/utils/domain'
+import { formatChassisNumber, formatContainerNumber } from '#shared/utils/iso6346'
+import { formatLocationExportList } from '#shared/utils/location-export'
+import { downloadLocationDirectoryCsv } from '~/utils/download-text'
+import { LOCATION_NOTE_BODY_MAX, locationNoteReviewIndex } from '#shared/utils/location-notes'
+import { formatPhoneDisplay, toE164 } from '#shared/utils/phone'
+import { SHIPCSX_CHECK_TIMEOUT_MS } from '#shared/utils/csx-lookup'
+import { shipcsxPublicError } from '#shared/utils/shipcsx-status'
+
+const { user } = useUserSession()
+setPageLayout(user.value?.role === 'ADMIN' ? 'admin' : 'default')
+
+const route = useRoute()
+const locationId = computed(() => String(route.params.id))
+
+const { data, status, error, refresh } = await useFetch(() => `/api/locations/${locationId.value}`)
+const checkingCsx = ref(false)
+const csxError = ref('')
+
+const isTerminus = computed(() => {
+  const type = data.value?.location.type
+  return type === 'MARINE_TERMINAL' || type === 'RAIL_TERMINAL'
+})
+const isCustomer = computed(() => data.value?.location.type === 'CUSTOMER')
+
+function snapshotFor(containerId: string) {
+  return data.value?.csxSnapshots?.find(row => row.containerId === containerId) ?? null
+}
+
+async function checkLocationCsx() {
+  if (checkingCsx.value) return
+  checkingCsx.value = true
+  csxError.value = ''
+  try {
+    await $fetch(`/api/locations/${locationId.value}/shipcsx`, {
+      method: 'POST',
+      timeout: SHIPCSX_CHECK_TIMEOUT_MS,
+    })
+    await refresh()
+  }
+  catch (err) {
+    csxError.value = shipcsxPublicError(apiErrorMessage(err, 'Could not check ShipCSX.'))
+  }
+  finally {
+    checkingCsx.value = false
+  }
+}
+
+async function cancelRelease(releaseId: string) {
+  try {
+    await $fetch(`/api/locations/${locationId.value}/csx-releases/${releaseId}`, { method: 'DELETE' })
+    await refresh()
+  }
+  catch (err) {
+    csxError.value = apiErrorMessage(err, 'Could not cancel that release.')
+  }
+}
+
+useHead({ title: () => data.value?.location.name ?? 'Location' })
+
+const menuOpen = ref(false)
+const exportOpen = ref(false)
+const confirmOpen = ref(false)
+const notesMenuOpen = ref(false)
+const addNoteOpen = ref(false)
+const noteBody = ref('')
+const savingNote = ref(false)
+const deletingNoteId = ref('')
+const noteError = ref('')
+const deleting = ref(false)
+const actionError = ref('')
+
+const subtitle = computed(() => {
+  const loc = data.value?.location
+  if (!loc) return ''
+  if (loc.isUncategorized) return 'Holding site for equipment from deleted locations'
+  return [LOCATION_TYPE_LABELS[loc.type], loc.addressLine1, [loc.city, loc.state].filter(Boolean).join(', ')]
+    .filter(Boolean)
+    .join(' · ')
+})
+
+function openEdit() {
+  menuOpen.value = false
+  navigateTo(`/locations/${locationId.value}/edit`)
+}
+
+const notes = computed(() => data.value?.notes ?? [])
+const reviewOpen = ref(false)
+const reviewIndex = ref(0)
+const reviewForId = ref('')
+
+watch(
+  [locationId, notes],
+  ([id, list]) => {
+    if (reviewForId.value === id) {
+      if (!list.length) reviewOpen.value = false
+      else if (reviewIndex.value >= list.length) reviewIndex.value = list.length - 1
+      return
+    }
+    if (!data.value || data.value.location.id !== id) return
+    reviewForId.value = id
+    reviewIndex.value = 0
+    reviewOpen.value = list.length > 0
+  },
+  { immediate: true },
+)
+
+function closeNoteReview() {
+  reviewOpen.value = false
+}
+
+function stepNoteReview(step: 1 | -1) {
+  reviewIndex.value = locationNoteReviewIndex(reviewIndex.value, notes.value.length, step)
+}
+
+const includeExportNotes = ref(false)
+
+const exportText = computed(() => formatLocationExportList({
+  locationName: data.value?.location.name ?? '',
+  containers: data.value?.containers ?? [],
+  chassis: data.value?.chassis ?? [],
+  notes: notes.value,
+  includeNotes: includeExportNotes.value,
+}))
+
+function openExport() {
+  menuOpen.value = false
+  includeExportNotes.value = false
+  exportOpen.value = true
+}
+
+async function exportSiteCsv() {
+  menuOpen.value = false
+  actionError.value = ''
+  try {
+    await downloadLocationDirectoryCsv(locationId.value)
+  }
+  catch (err) {
+    actionError.value = apiErrorMessage(err, 'Could not export this location.')
+  }
+}
+
+function openAddNote() {
+  notesMenuOpen.value = false
+  noteError.value = ''
+  noteBody.value = ''
+  addNoteOpen.value = true
+}
+
+async function saveNote() {
+  if (savingNote.value || !noteBody.value.trim()) return
+  savingNote.value = true
+  noteError.value = ''
+  try {
+    await $fetch(`/api/locations/${locationId.value}/notes`, {
+      method: 'POST',
+      body: { body: noteBody.value },
+    })
+    addNoteOpen.value = false
+    noteBody.value = ''
+    await refresh()
+  }
+  catch (err) {
+    noteError.value = apiErrorMessage(err, 'Could not save the note.')
+  }
+  finally {
+    savingNote.value = false
+  }
+}
+
+async function deleteNote(noteId: string) {
+  if (deletingNoteId.value) return
+  deletingNoteId.value = noteId
+  noteError.value = ''
+  try {
+    await $fetch(`/api/locations/${locationId.value}/notes/${noteId}`, { method: 'DELETE' })
+    await refresh()
+  }
+  catch (err) {
+    noteError.value = apiErrorMessage(err, 'Could not delete that note.')
+  }
+  finally {
+    deletingNoteId.value = ''
+  }
+}
+
+function requestDelete() {
+  menuOpen.value = false
+  actionError.value = ''
+  confirmOpen.value = true
+}
+
+async function confirmDelete() {
+  if (deleting.value) return
+  deleting.value = true
+  actionError.value = ''
+  try {
+    const result = await $fetch<{
+      uncategorizedLocationId: string
+      movedContainers: number
+      movedChassis: number
+    }>(`/api/locations/${locationId.value}`, { method: 'DELETE' })
+    confirmOpen.value = false
+    const moved = result.movedContainers + result.movedChassis
+    await navigateTo(moved ? `/locations/${result.uncategorizedLocationId}` : '/locations')
+  }
+  catch (err) {
+    actionError.value = apiErrorMessage(err, 'Could not delete this location.')
+  }
+  finally {
+    deleting.value = false
+  }
+}
+</script>
+
+<template>
+  <section :class="user?.role === 'ADMIN' ? '' : 'd-page'">
+    <div
+      v-if="status === 'pending'"
+      class="card p-6 text-center text-sm text-[var(--color-ink-500)]"
+      role="status"
+    >
+      Loading location…
+    </div>
+
+    <p
+      v-else-if="error"
+      class="banner err"
+      role="alert"
+    >
+      <span aria-hidden="true">✕</span>
+      <span>{{ apiErrorMessage(error, 'Location not found.') }}</span>
+    </p>
+
+    <template v-else-if="data">
+      <PageHeader
+        eyebrow="Location"
+        :title="data.location.name"
+        back-to="/locations"
+        back-label="Locations"
+      >
+        <template #actions>
+          <button
+            type="button"
+            class="icon-btn"
+            aria-label="Location actions"
+            aria-haspopup="menu"
+            :aria-expanded="menuOpen"
+            @click="menuOpen = true"
+          >
+            ⋮
+          </button>
+        </template>
+      </PageHeader>
+      <p class="mb-4 flex items-center gap-2 text-sm text-[var(--color-ink-500)]">
+        <LocationIcon
+          v-if="!data.location.isUncategorized"
+          :name="data.location.type"
+          :size="20"
+        />
+        <span>{{ subtitle }}</span>
+      </p>
+      <p
+        v-if="actionError"
+        class="banner err"
+        role="alert"
+      >
+        <span aria-hidden="true">✕</span>
+        <span>{{ actionError }}</span>
+      </p>
+      <div
+        v-if="data.location.mainPhone || data.location.contactPhone"
+        class="card mb-4 p-4 text-sm"
+      >
+        <p
+          v-if="data.location.mainPhone"
+          class="mb-0"
+        >
+          <span class="eyebrow">Main number</span>
+          <a
+            class="mt-1 block font-semibold"
+            :href="`tel:${toE164(data.location.mainPhone)}`"
+          >{{ formatPhoneDisplay(data.location.mainPhone) }}</a>
+        </p>
+        <p
+          v-if="data.location.contactPhone"
+          class="mb-0"
+          :class="data.location.mainPhone ? 'mt-3' : ''"
+        >
+          <span class="eyebrow">Contact</span>
+          <a
+            class="mt-1 block font-semibold"
+            :href="`tel:${toE164(data.location.contactPhone)}`"
+          >
+            <template v-if="data.location.contactName">{{ data.location.contactName }} · </template>
+            {{ formatPhoneDisplay(data.location.contactPhone) }}
+          </a>
+        </p>
+      </div>
+
+      <LocationTypeCounts
+        class="mt-4"
+        :counts="data.typeCounts"
+        :occupancy="data.occupancy"
+      />
+
+      <p
+        v-if="csxError"
+        class="banner err"
+        role="alert"
+      >
+        <span aria-hidden="true">✕</span>
+        <span>{{ csxError }}</span>
+      </p>
+
+      <NuxtLink
+        :to="`/locations/${locationId}/add`"
+        class="btn-dark mt-4 w-full"
+      >
+        Add Equipment
+      </NuxtLink>
+      <NuxtLink
+        v-if="isTerminus"
+        :to="`/locations/${locationId}/csx`"
+        class="btn-ghost mt-2 w-full"
+      >
+        Upload CSX pickup list
+      </NuxtLink>
+      <button
+        v-if="isCustomer && data.containers.length"
+        type="button"
+        class="btn-ghost mt-2 w-full"
+        :disabled="checkingCsx"
+        @click="checkLocationCsx"
+      >
+        {{ checkingCsx ? 'Checking ShipCSX…' : 'Check CSX' }}
+      </button>
+      <NuxtLink
+        v-if="user?.role === 'ADMIN' && !data.location.isUncategorized && !data.location.boundary"
+        :to="`/locations/${locationId}/yard/setup`"
+        class="btn-ghost mt-2 w-full"
+      >
+        Draw yard zone
+      </NuxtLink>
+      <NuxtLink
+        v-if="!data.location.isUncategorized"
+        :to="`/locations/${locationId}/yard`"
+        class="btn-ghost mt-2 w-full"
+      >
+        Yard
+      </NuxtLink>
+
+      <template v-if="isTerminus">
+        <div class="section-label mt-6">
+          <span>CSX empties · {{ data.csxReleases?.length ?? 0 }}</span>
+        </div>
+        <div
+          v-if="data.csxReleases?.length"
+          class="card rowlist"
+        >
+          <div
+            v-for="item in data.csxReleases"
+            :key="item.id"
+            class="row"
+          >
+            <span class="row-main">
+              <b class="font-mono">{{ formatContainerNumber(item.containerNumber) || item.containerNumber }}</b>
+              <small>Pickup {{ item.pickupNumber }}</small>
+            </span>
+            <button
+              type="button"
+              class="trip-spec-open"
+              @click="cancelRelease(item.id)"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+        <EmptyState
+          v-else
+          glyph="┼"
+          title="No CSX pickups listed"
+          description="Empties to pull from this terminal go here. They do not stay on the yard after a return."
+        />
+      </template>
+
+      <div class="section-label mt-6">
+        <span>On site · {{ data.occupancy }}</span>
+      </div>
+
+      <div
+        v-if="data.containers.length"
+        class="card rowlist"
+      >
+        <NuxtLink
+          v-for="item in data.containers"
+          :key="item.id"
+          :to="`/containers/${item.id}`"
+          class="row"
+        >
+          <span
+            class="type-swatch"
+            :class="item.containerType"
+            aria-hidden="true"
+          />
+          <span class="row-main">
+            <span class="row-titleline">
+              <b class="font-mono">{{ formatContainerNumber(item.number) || item.number }}</b>
+              <span
+                v-if="item.occupancy"
+                class="row-occupancy"
+              >
+                <em>{{ item.occupancy.daysLabel }}</em>
+                <small>{{ item.occupancy.pickedUpLabel }}</small>
+              </span>
+            </span>
+            <small>
+              {{ CONTAINER_TYPE_LABELS[item.containerType] }}
+              · {{ EQUIPMENT_TYPE_SHORT[item.equipmentType] }}
+              · {{ item.isLoaded ? 'Loaded' : 'Empty' }}
+              <template v-if="item.chassisNumber"> · {{ formatChassisNumber(item.chassisNumber) }}</template>
+              <template v-if="snapshotFor(item.id)?.inGateReadiness">
+                · {{ snapshotFor(item.id)?.inGateReadiness }}
+              </template>
+            </small>
+          </span>
+          <span
+            class="row-end"
+            aria-hidden="true"
+          >›</span>
+        </NuxtLink>
+      </div>
+
+      <EmptyState
+        v-else
+        glyph="▣"
+        title="No containers on site"
+        description="Drop off from a trip or add equipment here."
+      />
+
+      <template v-if="data.chassis?.length">
+        <div class="section-label mt-6">
+          <span>Chassis · {{ data.chassis.length }}</span>
+        </div>
+        <div class="card rowlist">
+          <NuxtLink
+            v-for="item in data.chassis"
+            :key="item.id"
+            :to="`/chassis/${item.id}`"
+            class="row"
+          >
+            <span class="row-main">
+              <b class="font-mono">{{ formatChassisNumber(item.number) || item.number }}</b>
+              <small>{{ [item.provider, item.sizeCompatibility].filter(Boolean).join(' · ') || 'Available' }}</small>
+            </span>
+            <span
+              class="row-end"
+              aria-hidden="true"
+            >›</span>
+          </NuxtLink>
+        </div>
+      </template>
+
+      <div class="section-label loc-notes-head">
+        <span>Notes · {{ notes.length }}</span>
+        <button
+          type="button"
+          class="icon-btn"
+          aria-label="Note actions"
+          aria-haspopup="menu"
+          :aria-expanded="notesMenuOpen"
+          @click="notesMenuOpen = true"
+        >
+          ⋮
+        </button>
+      </div>
+      <p
+        v-if="noteError && !addNoteOpen"
+        class="banner err"
+        role="alert"
+      >
+        <span aria-hidden="true">✕</span>
+        <span>{{ noteError }}</span>
+      </p>
+      <template v-if="notes.length">
+        <article
+          v-for="item in notes"
+          :key="item.id"
+          class="card loc-note"
+        >
+          <p class="loc-note-body">
+            {{ item.body }}
+          </p>
+          <div class="loc-note-meta">
+            <span>{{ item.authorName }} · {{ formatRelative(item.createdAt) }}</span>
+            <button
+              v-if="item.mine"
+              type="button"
+              class="loc-note-delete"
+              :disabled="deletingNoteId === item.id"
+              @click="deleteNote(item.id)"
+            >
+              {{ deletingNoteId === item.id ? 'Removing…' : 'Delete' }}
+            </button>
+          </div>
+        </article>
+      </template>
+      <EmptyState
+        v-else
+        glyph="✎"
+        title="No notes yet"
+        description="Leave a note for the yard. Each one expires after one month."
+      />
+
+      <BottomSheet
+        :open="menuOpen"
+        title="Location"
+        @close="menuOpen = false"
+      >
+        <button
+          type="button"
+          class="menu-row"
+          @click="openExport"
+        >
+          Export list
+        </button>
+        <button
+          v-if="!data.location.isUncategorized"
+          type="button"
+          class="menu-row"
+          @click="exportSiteCsv"
+        >
+          Export site CSV
+        </button>
+        <button
+          type="button"
+          class="menu-row"
+          @click="menuOpen = false; navigateTo(`/locations/${locationId}/audit`)"
+        >
+          Audit
+        </button>
+        <button
+          v-if="!data.location.isUncategorized"
+          type="button"
+          class="menu-row"
+          @click="menuOpen = false; navigateTo(`/locations/${locationId}/yard`)"
+        >
+          Yard
+        </button>
+        <button
+          v-if="user?.role === 'ADMIN' && !data.location.isUncategorized && !data.location.boundary"
+          type="button"
+          class="menu-row"
+          @click="menuOpen = false; navigateTo(`/locations/${locationId}/yard/setup`)"
+        >
+          Draw yard zone
+        </button>
+        <button
+          type="button"
+          class="menu-row"
+          @click="openEdit"
+        >
+          Edit
+        </button>
+        <button
+          v-if="!data.location.isUncategorized"
+          type="button"
+          class="menu-row danger"
+          @click="requestDelete"
+        >
+          Delete
+        </button>
+      </BottomSheet>
+
+      <BottomSheet
+        :open="confirmOpen"
+        title="Delete location?"
+        @close="confirmOpen = false"
+      >
+        <p
+          v-if="actionError"
+          class="banner err"
+          role="alert"
+        >
+          <span aria-hidden="true">✕</span>
+          <span>{{ actionError }}</span>
+        </p>
+        <p class="text-sm text-[var(--color-ink-700)]">
+          <template v-if="data.occupancy">
+            Containers and chassis here will move to Uncategorized. This cannot be undone.
+          </template>
+          <template v-else>
+            This location will be removed from the company pool. This cannot be undone.
+          </template>
+        </p>
+        <div class="sheet-actions">
+          <button
+            type="button"
+            class="btn-cancel"
+            :disabled="deleting"
+            @click="confirmOpen = false"
+          >
+            Keep location
+          </button>
+          <button
+            type="button"
+            class="btn-save danger"
+            :disabled="deleting"
+            @click="confirmDelete"
+          >
+            {{ deleting ? 'Deleting…' : 'Delete' }}
+          </button>
+        </div>
+      </BottomSheet>
+
+      <BottomSheet
+        :open="notesMenuOpen"
+        title="Notes"
+        @close="notesMenuOpen = false"
+      >
+        <button
+          type="button"
+          class="menu-row"
+          @click="openAddNote"
+        >
+          Add note
+        </button>
+      </BottomSheet>
+
+      <BottomSheet
+        :open="addNoteOpen"
+        title="Add note"
+        @close="addNoteOpen = false"
+      >
+        <p
+          v-if="noteError"
+          class="banner err"
+          role="alert"
+        >
+          <span aria-hidden="true">✕</span>
+          <span>{{ noteError }}</span>
+        </p>
+        <label class="field">
+          <span>Note</span>
+          <textarea
+            v-model="noteBody"
+            class="textarea"
+            rows="4"
+            :maxlength="LOCATION_NOTE_BODY_MAX"
+            placeholder="What should the next person on this yard know?"
+          />
+          <small class="field-hint">Expires after one month. Anyone on the company can read it.</small>
+        </label>
+        <div class="sheet-actions">
+          <button
+            type="button"
+            class="btn-cancel"
+            :disabled="savingNote"
+            @click="addNoteOpen = false"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="btn-save"
+            :disabled="savingNote || !noteBody.trim()"
+            @click="saveNote"
+          >
+            {{ savingNote ? 'Saving…' : 'Save note' }}
+          </button>
+        </div>
+      </BottomSheet>
+
+      <LocationNotesReviewSheet
+        :open="reviewOpen"
+        :notes="notes"
+        :index="reviewIndex"
+        @close="closeNoteReview"
+        @back="stepNoteReview(-1)"
+        @next="stepNoteReview(1)"
+      />
+
+      <LocationExportSheet
+        v-model:include-notes="includeExportNotes"
+        :open="exportOpen"
+        :text="exportText"
+        :note-count="notes.length"
+        @close="exportOpen = false"
+      />
+    </template>
+  </section>
+</template>

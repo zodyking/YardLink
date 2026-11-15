@@ -1,0 +1,218 @@
+<script setup lang="ts">
+import { roleLabel } from '#shared/utils/domain'
+import { downloadLocationDirectoryCsv } from '~/utils/download-text'
+
+useHead({ title: 'More' })
+
+const { user, clear, fetch: refreshSession } = useUserSession()
+setPageLayout(user.value?.role === 'ADMIN' ? 'admin' : 'default')
+
+const isDriver = computed(() => user.value?.role === 'DRIVER')
+const { data: features, refresh: refreshFeatures } = await useFetch('/api/features')
+const unlocked = ref<string[]>(features.value?.unlocked ?? [])
+watch(() => features.value?.unlocked, (next) => {
+  if (next) unlocked.value = [...next]
+}, { immediate: true })
+
+const initials = computed(() =>
+  `${user.value?.firstName?.[0] ?? ''}${user.value?.lastName?.[0] ?? ''}`.toUpperCase() || '—',
+)
+
+const signingOut = ref(false)
+const systemCode = ref('')
+const codeBusy = ref(false)
+const codeFlash = ref('')
+const exportingLocations = ref(false)
+const exportFlash = ref('')
+
+const showReset = computed(() => unlocked.value.includes('RESET'))
+
+async function submitCode() {
+  if (codeBusy.value) return
+  const code = systemCode.value.trim()
+  if (!code) return
+  codeBusy.value = true
+  codeFlash.value = ''
+  try {
+    const result = await $fetch('/api/features/unlock', {
+      method: 'POST',
+      body: { code },
+    })
+    systemCode.value = ''
+    codeFlash.value = result.enabled ? 'On' : 'Off'
+    await Promise.all([refreshFeatures(), refreshSession()])
+    unlocked.value = [...result.unlocked]
+  }
+  catch (error) {
+    codeFlash.value = apiErrorMessage(error, 'That code did not match.')
+  }
+  finally {
+    codeBusy.value = false
+  }
+}
+
+async function exportLocations() {
+  if (exportingLocations.value) return
+  exportingLocations.value = true
+  exportFlash.value = ''
+  try {
+    await downloadLocationDirectoryCsv()
+    exportFlash.value = 'Saved'
+  }
+  catch (error) {
+    exportFlash.value = apiErrorMessage(error, 'Could not export locations.')
+  }
+  finally {
+    exportingLocations.value = false
+  }
+}
+
+async function signOut() {
+  signingOut.value = true
+  await $fetch('/api/auth/logout', { method: 'POST' })
+  await clear()
+  await navigateTo('/login', { replace: true })
+}
+
+const buildLabel = computed(() => {
+  const raw = useRuntimeConfig().public.buildTime
+  if (!raw) return ''
+  const stamp = new Date(raw)
+  if (Number.isNaN(stamp.getTime())) return String(raw)
+  return stamp.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+})
+</script>
+
+<template>
+  <section class="d-page">
+    <span class="eyebrow">Account</span>
+    <h1 class="d-title">
+      More
+    </h1>
+    <div class="card rowlist">
+      <div class="row">
+        <div class="av">
+          {{ initials }}
+        </div>
+        <div class="row-main">
+          <b>{{ user?.fullName }}</b>
+          <small>{{ roleLabel(user?.role) }} · {{ user?.companyName }}</small>
+        </div>
+      </div>
+      <NuxtLink
+        :to="isDriver ? '/settings' : '/admin/account'"
+        class="row"
+      >
+        <div
+          class="row-ico"
+          aria-hidden="true"
+        >
+          ⚙
+        </div>
+        <div class="row-main">
+          <b>Settings</b>
+          <small>Edit your account information</small>
+        </div>
+        <div
+          class="row-end"
+          aria-hidden="true"
+        >
+          ›
+        </div>
+      </NuxtLink>
+      <button
+        type="button"
+        class="row"
+        :disabled="exportingLocations"
+        @click="exportLocations"
+      >
+        <div
+          class="row-ico"
+          aria-hidden="true"
+        >
+          ⇩
+        </div>
+        <div class="row-main">
+          <b>Export locations</b>
+          <small>{{ exportFlash || 'Name, address, phones, and contacts as CSV' }}</small>
+        </div>
+      </button>
+      <NuxtLink
+        v-if="showReset"
+        to="/reset"
+        class="row"
+      >
+        <div
+          class="row-ico"
+          aria-hidden="true"
+        >
+          ⌫
+        </div>
+        <div class="row-main">
+          <b>Clear records</b>
+          <small>Delete company data by type</small>
+        </div>
+        <div
+          class="row-end"
+          aria-hidden="true"
+        >
+          ›
+        </div>
+      </NuxtLink>
+    </div>
+
+    <p class="section-label">
+      System code
+    </p>
+    <form
+      class="card p-4"
+      novalidate
+      @submit.prevent="submitCode"
+    >
+      <div class="system-code">
+        <label
+          class="sr-only"
+          for="system-code"
+        >System code</label>
+        <input
+          id="system-code"
+          v-model="systemCode"
+          class="input mono"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          maxlength="40"
+        >
+        <button
+          class="btn-dark system-code-go"
+          type="submit"
+          :disabled="codeBusy || !systemCode.trim()"
+        >
+          {{ codeBusy ? '…' : 'Enter' }}
+        </button>
+      </div>
+      <p
+        v-if="codeFlash"
+        class="field-hint mt-2"
+        role="status"
+      >
+        {{ codeFlash }}
+      </p>
+    </form>
+
+    <button
+      class="btn-ghost mt-5 w-full"
+      :disabled="signingOut"
+      @click="signOut"
+    >
+      {{ signingOut ? 'Signing out…' : 'Sign out' }}
+    </button>
+
+    <p
+      v-if="buildLabel"
+      class="app-build"
+    >
+      Build {{ buildLabel }}
+    </p>
+  </section>
+</template>

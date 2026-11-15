@@ -1,0 +1,204 @@
+import type { ContainerType, PickupEquipmentSize, TripKind } from './domain'
+import { isCompleteChassisNumber, maskChassisInput, validateContainerNumber } from './iso6346'
+import { missingLoadedSeal, sealForLoad } from './seal'
+
+export const LOCATION_AUDIT_ACTIONS = ['check', 'add', 'move', 'delete'] as const
+export type LocationAuditAction = (typeof LOCATION_AUDIT_ACTIONS)[number]
+
+export const LOCATION_AUDIT_ACTION_LABELS: Record<LocationAuditAction, string> = {
+  check: 'Checklist',
+  add: 'Add equipment',
+  move: 'Move',
+  delete: 'Delete',
+}
+
+export const LOCATION_AUDIT_ACTION_HINTS: Record<LocationAuditAction, string> = {
+  check: 'Tick what is actually on this yard',
+  add: 'Boxes and chassis onto this yard, one card at a time',
+  move: 'Bring Uncategorized here, or send boxes away',
+  delete: 'Send boxes to Uncategorized, or remove them there',
+}
+
+export const LOCATION_AUDIT_STEPS = [
+  'action',
+  'equipment',
+  'pick',
+  'destination',
+  'confirm',
+] as const
+export type LocationAuditStep = (typeof LOCATION_AUDIT_STEPS)[number]
+
+export const LOCATION_AUDIT_MAX = 80
+
+export const AUDIT_EQUIPMENT_STAGES = ['kind', 'numbers', 'classify', 'load', 'done'] as const
+export type AuditEquipmentStage = (typeof AUDIT_EQUIPMENT_STAGES)[number]
+
+export type LocationAuditEquipmentKind = Extract<TripKind, 'CONTAINER' | 'BARE_CHASSIS'>
+
+/** One-screen-per-question path for the location audit wizard. */
+export function locationAuditSteps(
+  action: LocationAuditAction | null,
+  options?: { holdOnly?: boolean },
+): LocationAuditStep[] {
+  if (action === 'check') return ['action', 'pick', 'confirm']
+  if (action === 'add') return ['action', 'equipment', 'confirm']
+  if (action === 'move') {
+    return options?.holdOnly
+      ? ['action', 'pick', 'confirm']
+      : ['action', 'pick', 'destination', 'confirm']
+  }
+  if (action === 'delete') return ['action', 'pick', 'confirm']
+  return ['action']
+}
+
+export type LocationAuditEquipmentDraft = {
+  id: string
+  stage: AuditEquipmentStage
+  kind: LocationAuditEquipmentKind | null
+  containerNumber: string
+  chassisNumber: string
+  containerType: ContainerType | null
+  equipmentType: PickupEquipmentSize | null
+  isLoaded: boolean | null
+  sealNumber: string
+}
+
+export type LocationAuditAddContainerItem = {
+  kind: 'CONTAINER'
+  containerNumber: string
+  chassisNumber?: string | null
+  containerType: ContainerType
+  equipmentType: PickupEquipmentSize
+  isLoaded: boolean
+  sealNumber?: string | null
+}
+
+export type LocationAuditAddChassisItem = {
+  kind: 'BARE_CHASSIS'
+  chassisNumber: string
+}
+
+export type LocationAuditAddItem = LocationAuditAddContainerItem | LocationAuditAddChassisItem
+
+export function createAuditEquipmentDraft(
+  kind: LocationAuditEquipmentKind | null = null,
+): LocationAuditEquipmentDraft {
+  return {
+    id: crypto.randomUUID(),
+    stage: kind ? 'numbers' : 'kind',
+    kind,
+    containerNumber: '',
+    chassisNumber: '',
+    containerType: null,
+    equipmentType: null,
+    isLoaded: null,
+    sealNumber: '',
+  }
+}
+
+export function auditCardNumbersReady(draft: LocationAuditEquipmentDraft): boolean {
+  if (draft.kind === 'BARE_CHASSIS') return isCompleteChassisNumber(draft.chassisNumber)
+  if (draft.kind !== 'CONTAINER') return false
+  const validation = validateContainerNumber(draft.containerNumber)
+  if (!validation.structureValid || !validation.normalized) return false
+  if (draft.chassisNumber && !isCompleteChassisNumber(draft.chassisNumber)) return false
+  return true
+}
+
+export function auditCardClassifyReady(draft: LocationAuditEquipmentDraft): boolean {
+  return draft.kind === 'CONTAINER' && Boolean(draft.containerType && draft.equipmentType)
+}
+
+export function auditCardLoadReady(draft: LocationAuditEquipmentDraft): boolean {
+  if (draft.kind !== 'CONTAINER' || draft.isLoaded === null) return false
+  return !missingLoadedSeal(draft.isLoaded, draft.sealNumber)
+}
+
+export function auditCardTitle(draft: LocationAuditEquipmentDraft): string {
+  if (draft.stage === 'numbers') return draft.kind === 'BARE_CHASSIS' ? 'Chassis' : 'Numbers'
+  if (draft.stage === 'classify') return 'Type and size'
+  if (draft.stage === 'load') return 'Load'
+  if (draft.stage === 'done') return draft.kind === 'BARE_CHASSIS' ? 'Chassis' : 'Container'
+  return 'Equipment'
+}
+
+export function auditCardBackStage(draft: LocationAuditEquipmentDraft): AuditEquipmentStage | null {
+  if (draft.stage === 'numbers') return 'kind'
+  if (draft.stage === 'classify') return 'numbers'
+  if (draft.stage === 'load') return 'classify'
+  if (draft.stage === 'done') return draft.kind === 'BARE_CHASSIS' ? 'numbers' : 'load'
+  return null
+}
+
+export function auditCardNextStage(draft: LocationAuditEquipmentDraft): AuditEquipmentStage | null {
+  if (draft.stage === 'kind' && draft.kind) return 'numbers'
+  if (draft.stage === 'numbers' && auditCardNumbersReady(draft)) {
+    return draft.kind === 'CONTAINER' ? 'classify' : 'done'
+  }
+  if (draft.stage === 'classify' && auditCardClassifyReady(draft)) return 'load'
+  if (draft.stage === 'load' && auditCardLoadReady(draft)) return 'done'
+  return null
+}
+
+export function auditEquipmentItemFromDraft(
+  draft: LocationAuditEquipmentDraft,
+): LocationAuditAddItem | null {
+  if (draft.kind === 'BARE_CHASSIS') {
+    if (!isCompleteChassisNumber(draft.chassisNumber)) return null
+    return {
+      kind: 'BARE_CHASSIS',
+      chassisNumber: maskChassisInput(draft.chassisNumber),
+    }
+  }
+  if (draft.kind !== 'CONTAINER') return null
+  const validation = validateContainerNumber(draft.containerNumber)
+  if (!validation.structureValid || !validation.normalized) return null
+  if (draft.chassisNumber && !isCompleteChassisNumber(draft.chassisNumber)) return null
+  if (!draft.containerType || !draft.equipmentType) return null
+  if (draft.isLoaded === null) return null
+  if (missingLoadedSeal(draft.isLoaded, draft.sealNumber)) return null
+  return {
+    kind: 'CONTAINER',
+    containerNumber: validation.normalized,
+    chassisNumber: draft.chassisNumber ? maskChassisInput(draft.chassisNumber) : null,
+    containerType: draft.containerType,
+    equipmentType: draft.equipmentType,
+    isLoaded: draft.isLoaded,
+    sealNumber: sealForLoad(draft.isLoaded, draft.sealNumber),
+  }
+}
+
+export function auditEquipmentIdentityKey(draft: LocationAuditEquipmentDraft): string | null {
+  if (draft.kind === 'BARE_CHASSIS') {
+    return isCompleteChassisNumber(draft.chassisNumber)
+      ? `CH:${maskChassisInput(draft.chassisNumber)}`
+      : null
+  }
+  const validation = validateContainerNumber(draft.containerNumber)
+  return validation.normalized ? `CT:${validation.normalized}` : null
+}
+
+export function auditAddItemIdentityKey(item: LocationAuditAddItem): string {
+  return item.kind === 'BARE_CHASSIS'
+    ? `CH:${maskChassisInput(item.chassisNumber)}`
+    : `CT:${item.containerNumber}`
+}
+
+export function auditAddItemLabel(item: LocationAuditAddItem): string {
+  return item.kind === 'BARE_CHASSIS' ? item.chassisNumber : item.containerNumber
+}
+
+export function readyAuditAddItems(drafts: LocationAuditEquipmentDraft[]): LocationAuditAddItem[] {
+  const items: LocationAuditAddItem[] = []
+  const seen = new Set<string>()
+  for (const draft of drafts) {
+    const item = auditEquipmentItemFromDraft(draft)
+    if (!item) continue
+    const key = auditAddItemIdentityKey(item)
+    if (seen.has(key)) continue
+    seen.add(key)
+    items.push(item)
+    if (items.length >= LOCATION_AUDIT_MAX) break
+  }
+  return items
+}

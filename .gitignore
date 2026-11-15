@@ -1,0 +1,34 @@
+# Dependencies
+node_modules
+
+# Nuxt / Nitro
+.nuxt
+.output
+.data
+dist
+
+# Env (keep the template)
+.env
+.env.*
+
+
+# Internal Agent-Files notes stay local; the HTML design template is tracked.
+Agent-Files/*
+!Agent-Files/design-template.html
+
+# Logs and OS
+*.log
+.DS_Store
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Tests
+coverage
+__pycache__/
+*.py[cod]
+
+# Generated yard ortho clips
+data/yard-cache/
