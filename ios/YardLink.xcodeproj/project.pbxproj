@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1B2C3D40000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000011 /* Assets.xcassets */; };
 		A1B2C3D40000000000000015 /* YardLinkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000014 /* YardLinkApp.swift */; };
 		A1B2C3D40000000000000017 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000016 /* AppModel.swift */; };
 		A1B2C3D40000000000000019 /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000018 /* API.swift */; };
@@ -19,11 +20,18 @@
 		A1B2C3D40000000000000027 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000026 /* HomeView.swift */; };
 		A1B2C3D40000000000000029 /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000028 /* MessagesView.swift */; };
 		A1B2C3D4000000000000002B /* MoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000002A /* MoreView.swift */; };
-		A1B2C3D40000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000011 /* Assets.xcassets */; };
+		A1B2C3D40000000000000041 /* WorkModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000040 /* WorkModels.swift */; };
+		A1B2C3D40000000000000043 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000042 /* Components.swift */; };
+		A1B2C3D40000000000000045 /* TripsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000044 /* TripsView.swift */; };
+		A1B2C3D40000000000000047 /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000046 /* TasksView.swift */; };
+		A1B2C3D40000000000000049 /* LocationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000048 /* LocationsView.swift */; };
+		A1B2C3D4000000000000004B /* EquipmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000004A /* EquipmentView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A1B2C3D40000000000000007 /* YardLink.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YardLink.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1B2C3D40000000000000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A1B2C3D40000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1B2C3D40000000000000014 /* YardLinkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YardLinkApp.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000016 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000018 /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
@@ -36,8 +44,12 @@
 		A1B2C3D40000000000000026 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000028 /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000002A /* MoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoreView.swift; sourceTree = "<group>"; };
-		A1B2C3D40000000000000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A1B2C3D40000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3D40000000000000040 /* WorkModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkModels.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000042 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000044 /* TripsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripsView.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000046 /* TasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksView.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000048 /* LocationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationsView.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000004A /* EquipmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -59,14 +71,6 @@
 			);
 			sourceTree = "<group>";
 		};
-		A1B2C3D40000000000000006 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				A1B2C3D40000000000000007 /* YardLink.app */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
 		A1B2C3D40000000000000004 /* YardLink */ = {
 			isa = PBXGroup;
 			children = (
@@ -74,6 +78,7 @@
 				A1B2C3D40000000000000016 /* AppModel.swift */,
 				A1B2C3D40000000000000018 /* API.swift */,
 				A1B2C3D4000000000000001A /* Models.swift */,
+				A1B2C3D40000000000000040 /* WorkModels.swift */,
 				A1B2C3D4000000000000001C /* Theme.swift */,
 				A1B2C3D40000000000000005 /* Views */,
 				A1B2C3D40000000000000011 /* Assets.xcassets */,
@@ -92,8 +97,21 @@
 				A1B2C3D40000000000000026 /* HomeView.swift */,
 				A1B2C3D40000000000000028 /* MessagesView.swift */,
 				A1B2C3D4000000000000002A /* MoreView.swift */,
+				A1B2C3D40000000000000042 /* Components.swift */,
+				A1B2C3D40000000000000044 /* TripsView.swift */,
+				A1B2C3D40000000000000046 /* TasksView.swift */,
+				A1B2C3D40000000000000048 /* LocationsView.swift */,
+				A1B2C3D4000000000000004A /* EquipmentView.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		A1B2C3D40000000000000006 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D40000000000000007 /* YardLink.app */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -124,7 +142,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					A1B2C3D40000000000000002 = {
 						CreatedOnToolsVersion = 15.0;
@@ -177,6 +195,12 @@
 				A1B2C3D40000000000000027 /* HomeView.swift in Sources */,
 				A1B2C3D40000000000000029 /* MessagesView.swift in Sources */,
 				A1B2C3D4000000000000002B /* MoreView.swift in Sources */,
+				A1B2C3D40000000000000041 /* WorkModels.swift in Sources */,
+				A1B2C3D40000000000000043 /* Components.swift in Sources */,
+				A1B2C3D40000000000000045 /* TripsView.swift in Sources */,
+				A1B2C3D40000000000000047 /* TasksView.swift in Sources */,
+				A1B2C3D40000000000000049 /* LocationsView.swift in Sources */,
+				A1B2C3D4000000000000004B /* EquipmentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -187,16 +211,45 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = UN7DY83BZF;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				SDKROOT = iphoneos;
-				DEBUG_INFORMATION_FORMAT = dwarf;
-				ENABLE_TESTABILITY = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -206,13 +259,42 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = UN7DY83BZF;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				SDKROOT = iphoneos;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -225,10 +307,9 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = YardLink/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link";
+				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link Driver";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Yard Link uses the camera to scan your employer's connection code and to photograph containers and paperwork.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -239,7 +320,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.yardlink.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zodyking.yardlink;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -256,10 +337,9 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = YardLink/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link";
+				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link Driver";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Yard Link uses the camera to scan your employer's connection code and to photograph containers and paperwork.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -270,7 +350,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.yardlink.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zodyking.yardlink;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
