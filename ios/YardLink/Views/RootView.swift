@@ -37,8 +37,9 @@ private struct LaunchView: View {
     }
 }
 
-/// The signed-in app. Drivers get their working tabs; dispatchers get
-/// Messages and More here and use the web console for the desk.
+/// The signed-in app. Drivers get the five working tabs, with Messages one
+/// tap away on Home. Dispatchers get Messages and More here and run the desk
+/// from the web console.
 struct MainTabs: View {
     @EnvironmentObject private var model: AppModel
     let user: SessionUser
@@ -48,13 +49,24 @@ struct MainTabs: View {
             if user.isDriver {
                 HomeView(user: user)
                     .tabItem { Label("Home", systemImage: "house.fill") }
+                    .badge(model.unreadMessages)
+                TripsView()
+                    .tabItem { Label("Trips", systemImage: "arrow.triangle.swap") }
+                TasksView()
+                    .tabItem { Label("Tasks", systemImage: "checklist") }
+                LocationsView()
+                    .tabItem { Label("Locations", systemImage: "mappin.and.ellipse") }
+            } else {
+                MessagesView(user: user)
+                    .tabItem { Label("Messages", systemImage: "bubble.left.and.bubble.right.fill") }
+                    .badge(model.unreadMessages)
+                LocationsView()
+                    .tabItem { Label("Locations", systemImage: "mappin.and.ellipse") }
             }
-            MessagesView(user: user)
-                .tabItem { Label("Messages", systemImage: "bubble.left.and.bubble.right.fill") }
-                .badge(model.unreadMessages)
             MoreView(user: user)
                 .tabItem { Label("More", systemImage: "ellipsis.circle.fill") }
         }
+        .tint(Brand.linkBlue)
         .task {
             // Keep the Messages badge current while the app is open.
             while !Task.isCancelled {

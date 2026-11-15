@@ -8,6 +8,7 @@ struct HomeView: View {
     @State private var home: HomePayload?
     @State private var loading = true
     @State private var errorMessage: String?
+    @State private var showingMessages = false
 
     var body: some View {
         NavigationStack {
@@ -23,10 +24,11 @@ struct HomeView: View {
                             .foregroundColor(Brand.navy)
 
                         if let active = home.active {
-                            TripCardView(title: home.swapPartner == nil ? "Active trip" : "Swap · first container", active: active)
+                            tripLink(title: home.swapPartner == nil ? "Active trip" : "Swap · first container", active: active)
                             if let partner = home.swapPartner {
-                                TripCardView(title: "Swap · second container", active: partner)
+                                tripLink(title: "Swap · second container", active: partner)
                             }
+                            WebStepLink(title: "Swap, add a container or change drop-off on the web", path: "/")
                         } else {
                             Card {
                                 Text("No active trip")
@@ -35,6 +37,7 @@ struct HomeView: View {
                                 Text("Start a pickup to put a container on this card.")
                                     .font(.subheadline)
                                     .foregroundColor(Brand.muted)
+                                WebStepLink(title: "Start a pickup on the web", path: "/pickups/new", systemImage: "plus.circle")
                             }
                         }
 
@@ -64,21 +67,6 @@ struct HomeView: View {
                             }
                         }
 
-                        if let server = model.serverURL {
-                            Card {
-                                Text("Pickups, drop-offs, yard and time cards")
-                                    .font(.headline)
-                                    .foregroundColor(Brand.navy)
-                                Text("These steps run in the Yard Link web app for now, signed in to the same server.")
-                                    .font(.subheadline)
-                                    .foregroundColor(Brand.muted)
-                                Link(destination: server) {
-                                    Label("Open Yard Link on the web", systemImage: "safari")
-                                        .frame(maxWidth: .infinity, minHeight: 48)
-                                }
-                                .buttonStyle(SecondaryButtonStyle())
-                            }
-                        }
                     } else if loading {
                         ProgressView("Loading your day…")
                             .frame(maxWidth: .infinity, minHeight: 200)
@@ -89,9 +77,45 @@ struct HomeView: View {
             .background(Brand.mist.ignoresSafeArea())
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: String.self) { tripId in
+                TripDetailView(tripId: tripId, onChanged: { Task { await load() } })
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showingMessages = true
+                    } label: {
+                        Image(systemName: model.unreadMessages > 0 ? "bubble.left.and.bubble.right.fill" : "bubble.left.and.bubble.right")
+                            .overlay(alignment: .topTrailing) {
+                                if model.unreadMessages > 0 {
+                                    Text("\(model.unreadMessages)")
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundColor(.white)
+                                        .padding(4)
+                                        .background(Brand.danger)
+                                        .clipShape(Circle())
+                                        .offset(x: 10, y: -8)
+                                }
+                            }
+                    }
+                    .accessibilityLabel(model.unreadMessages > 0 ? "Messages, \(model.unreadMessages) unread" : "Messages")
+                }
+            }
+            .sheet(isPresented: $showingMessages, onDismiss: { Task { await model.refreshUnread() } }) {
+                MessagesView(user: user)
+            }
             .refreshable { await load() }
             .task { await load() }
         }
+    }
+
+    /// The card opens the trip, where Arrive and Cancel live.
+    private func tripLink(title: String, active: HomePayload.Active) -> some View {
+        NavigationLink(value: active.trip.id) {
+            TripCardView(title: title, active: active)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens the trip")
     }
 
     private func load() async {

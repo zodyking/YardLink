@@ -72,6 +72,14 @@ final class APIClient {
         try await send(method: "POST", path: path, query: [:], body: Data("{}".utf8))
     }
 
+    func patch<T: Decodable, Body: Encodable>(_ path: String, body: Body) async throws -> T {
+        try await send(method: "PATCH", path: path, query: [:], body: try encoder.encode(body))
+    }
+
+    func delete<T: Decodable>(_ path: String) async throws -> T {
+        try await send(method: "DELETE", path: path, query: [:], body: Optional<Data>.none)
+    }
+
     /// Address of a protected file (photo, document) for use with `data(for:)`.
     func url(_ path: String, query: [String: String] = [:]) -> URL {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) ?? URLComponents()

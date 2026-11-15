@@ -66,7 +66,7 @@ State key: **Carried** unchanged · **Changed** deliberately different · **New*
 | Drivers | `/admin/drivers` | Carried + approvals |
 | Settings and system status | `/admin/settings` | Rebuilt: editable, with the connection code |
 | Messages | — | New: `/messages` |
-| Console layout and assignment improvements | — | **Open** (section 6) |
+| Console layout and assignment improvements | — | **Open** (section 7) |
 
 ## 4. Equipment history (rebuilt)
 
@@ -98,10 +98,32 @@ Yard Link:
 | File storage | Not implemented (SeaweedFS placeholder; no upload route) | Files on the server's data volume; upload, list, delete routes | New |
 | Deployment | External Postgres, SeaweedFS, required environment variables | One compose file with its own database; no environment variables | Changed |
 
-## 6. Open work
+## 6. iPhone app: what is native
 
-1. **iPhone app screens.** Connect, sign-in, Home (read-only), Messages and More are native. Pickup, arrive, swap, tasks, trips and time card, locations and audit, scanning, and equipment pages are not built natively yet.
+The iPhone app keeps no rules of its own. Each screen below calls the same server route the web app calls.
+
+| Screen | Native | Still opens the web app |
+| :-- | :-- | :-- |
+| Connect to Your Employer (QR or typed address), sign in, sign out, disconnect | Yes | |
+| Home: active trip and swap pair, today's tasks, unread messages | Yes | Start a pickup, swap, add a container to a chassis, clear trip |
+| Trip page: equipment, route, site phone lines, history | Yes | Documents, seal correction, send update |
+| Arrive: drop both / drop the box and keep the chassis; keep or park a bare chassis; notes | Yes | Yard placement pin, GPS stamp |
+| Cancel a live trip, delete a finished trip | Yes | |
+| Trips list by day | Yes | Calendar, trip gaps (bobtail / missing), time cards |
+| Tasks: dispatch cards and notes by day, tick steps, mark done, remove own note, add a note | Yes | Split / merge steps, start a pickup from a task |
+| Locations: grouped list, search by location or equipment number | Yes | Add / edit a location |
+| Location page: details, phone lines, containers and bare chassis on site, notes (add, delete own) | Yes | Add equipment, audit, CSX list, exports, yard view |
+| Container page: status, duty-cycle selector, cycle summary and timeline | Yes | Photos and documents, ShipCSX check, edit, move, delete |
+| Chassis page: status, containers carried with their duty cycle, full trail | Yes | Edit, release, delete |
+| Messages | Yes | |
+| New pickup wizard, attach, change drop-off, scanning (camera OCR), time card | No | All of it |
+
+A step that opens the web app uses Safari, which does not share the app's sign-in, so the driver signs in there once.
+
+## 7. Open work
+
+1. **iPhone app, remaining native screens**: the pickup wizard (with camera number reading), attach, swap, change drop-off, documents, time card with background GPS, trip gaps, add equipment, audit, CSX list. Listed in section 6.
 2. **Dispatcher console redesign** and dispatch assignment improvements. The dispatcher screens carry the Yard Link palette but keep the original layout.
 3. **Trip documents on the server.** The Documents sheet still keeps files on the phone. They reach the server only when sent with an update.
 4. **Push notifications** for messages and assignments (the apps poll today).
-5. **Nothing here has been run as a whole yet.** See the README for how to build; the rule tests were run, the server and both apps were not.
+5. **Nothing here has been run as a whole yet.** The rule tests were run. The server, the web app and the iPhone app have not been built and run together.
