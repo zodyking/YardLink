@@ -7,6 +7,10 @@ struct SignInView: View {
     @State private var working = false
     @State private var errorMessage: String?
     @State private var confirmingChange = false
+    /// The password was right but the email address is not confirmed yet.
+    @State private var needsConfirmation = false
+    @State private var resending = false
+    @State private var resendNote: String?
     @FocusState private var focus: Field?
 
     private enum Field { case email, password }
@@ -36,6 +40,19 @@ struct SignInView: View {
 
                     if let errorMessage {
                         ErrorBanner(message: errorMessage)
+                    }
+
+                    if needsConfirmation {
+                        Card {
+                            Button(resending ? "Sending…" : "Send the Email Again", action: resend)
+                                .buttonStyle(SecondaryButtonStyle())
+                                .disabled(resending)
+                            if let resendNote {
+                                Text(resendNote)
+                                    .font(.footnote)
+                                    .foregroundColor(Brand.muted)
+                            }
+                        }
                     }
 
                     Card {
@@ -103,15 +120,29 @@ struct SignInView: View {
         guard !working, !email.isEmpty, !password.isEmpty else { return }
         working = true
         errorMessage = nil
+        needsConfirmation = false
+        resendNote = nil
         focus = nil
         Task {
             do {
                 try await model.signIn(email: email.trimmingCharacters(in: .whitespaces), password: password)
                 password = ""
             } catch {
-                errorMessage = (error as? APIError)?.message ?? "Could not sign in. Try again."
+                let apiError = error as? APIError
+                errorMessage = apiError?.message ?? "Could not sign in. Try again."
+                needsConfirmation = apiError?.flags["emailUnverified"] == true
             }
             working = false
+        }
+    }
+
+    private func resend() {
+        guard !resending else { return }
+        resending = true
+        resendNote = nil
+        Task {
+            resendNote = await model.resendConfirmation(email: email.trimmingCharacters(in: .whitespaces))
+            resending = false
         }
     }
 }

@@ -1,0 +1,87 @@
+# Yard Link — self-hosted in one command:
+#
+#   docker compose up -d
+#
+# Then open http://<this-computer>:3847 and follow the setup wizard.
+#
+# There is nothing to configure in this file and no .env to write. The
+# session secret is generated on first start and kept in the
+# `yardlink-secrets` volume; the database, company details, the first
+# dispatcher account, email and every other setting are entered in the web app.
+#
+# Database: the setup wizard asks for an external PostgreSQL connection
+# string. Skipping it uses the `db` container below, whose records live in the
+# `yardlink-db` volume on this server and are lost if that volume is removed.
+# A host can also pass DATABASE_URL instead of using the wizard.
+#
+# Volumes — back these up:
+#   yardlink-data     photos, documents and the saved database address
+#   yardlink-secrets  generated passwords
+#   yardlink-db       the built-in database (unused with an external one)
+
+name: yardlink
+
+services:
+  # Makes the passwords once, then exits.
+  secrets:
+    image: alpine:3.20
+    restart: "no"
+    volumes:
+      - yardlink-secrets:/run/yardlink
+    command:
+      - sh
+      - -c
+      - |
+        set -eu
+        make() {
+          if [ ! -s "/run/yardlink/$$1" ]; then
+            head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "/run/yardlink/$$1"
+            echo "[secrets] generated $$1"
+          fi
+          chmod 444 "/run/yardlink/$$1"
+        }
+        make db-password
+        make session-secret
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    depends_on:
+      secrets:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_USER: yardlink
+      POSTGRES_DB: yardlink
+      POSTGRES_PASSWORD_FILE: /run/yardlink/db-password
+    volumes:
+      - yardlink-db:/var/lib/postgresql/data
+      - yardlink-secrets:/run/yardlink:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yardlink -d yardlink"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # Not published: only the app talks to the database.
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: yardlink:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Optional. Leave unset to choose the database in the setup wizard.
+      DATABASE_URL: ${DATABASE_URL:-}
+    ports:
+      - "3847:3847"
+    volumes:
+      - yardlink-data:/data
+      - yardlink-secrets:/run/yardlink:ro
+
+volumes:
+  yardlink-db:
+  yardlink-data:
+  yardlink-secrets:

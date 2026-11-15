@@ -12,13 +12,14 @@ State key: **Carried** unchanged · **Changed** deliberately different · **New*
 | :-- | :-- | :-- | :-- |
 | Sign in with email and password | `/login` | Same | Carried |
 | Sign up as driver or dispatcher with a company code | `/signup`, code from an environment variable | Same page; the **join code** lives in the database and is replaced from Settings | Changed |
-| Confirm the account | Emailed link (`/verify-email`, resend) | A dispatcher approves under Drivers (can be turned off in Settings) | Changed |
+| Confirm the account | Emailed link (`/verify-email`, resend) | Both: a dispatcher approves under Drivers (can be turned off in Settings), and when email is set up the person gets a welcome email and confirms the address from it (`/verify-email`, resend) | Carried + New |
 | Locked account message | Login | Same | Carried |
 | Driver roster, search, lock/unlock, reset password, last sign-in | `/admin/drivers` | Same, plus **Waiting for approval** | Carried + New |
-| Profile, email, password, phone, CDL / truck details for time cards | More → Settings, `/admin/account` | Same. The "your email was changed" email is gone | Carried |
+| Profile, email, password, phone, CDL / truck details for time cards | More → Settings, `/admin/account` | Same, plus switches for email copies (work assignments, new messages, new accounts to approve) | Carried + New |
 | Hidden operator codes (`SL-CLR` clear records, `SL-API` connections) | More | `SL-CLR` kept. `SL-API` opened the Quo page, which no longer exists | Changed |
 | Clear records by type | `/reset` | Same | Carried |
-| First-run setup | Environment variables | Setup wizard at `/setup` | New |
+| First-run setup | Environment variables | Setup wizard at `/setup`: database, company, first dispatcher, email, phone address | New |
+| Database | `DATABASE_URL` environment variable | External PostgreSQL string entered in the wizard (or `DATABASE_URL`); skipping uses the built-in database with a data-loss warning | Changed |
 | Company profile, timezone | Read-only page, values from environment | Editable under Settings | Changed |
 
 ## 2. Driver workflows
@@ -61,7 +62,7 @@ State key: **Carried** unchanged · **Changed** deliberately different · **New*
 | Workflow | Screens | State |
 | :-- | :-- | :-- |
 | Map board of locations and the container pool, inspect a box | `/admin` | Carried |
-| Dispatch desk: pick driver and day, build task cards, bulk add from a location, draft / send, history | `/admin/dispatch` | Carried. The driver is told in Messages, not by email |
+| Dispatch desk: pick driver and day, build task cards, bulk add from a location, draft / send, history | `/admin/dispatch` | Carried. The driver is told in Messages, and by email if they turned that on |
 | Inventory: locations table and containers table with filters and paging | `/admin/inventory` | Carried |
 | Drivers | `/admin/drivers` | Carried + approvals |
 | Settings and system status | `/admin/settings` | Rebuilt: editable, with the connection code |
@@ -90,7 +91,7 @@ Yard Link:
 
 | Integration | Original | Yard Link | State |
 | :-- | :-- | :-- | :-- |
-| Email (SMTP) | Verification, email-change notice, task assignment mail, test send | Removed | Changed |
+| Email (SMTP) | Verification, email-change notice, task assignment mail, test send; configured by environment variables | All four kept, plus welcome, approval, new-message and new-sign-up emails in the Yard Link brand. Configured in the wizard and under Settings; optional | Carried + New |
 | Quo SMS | Settings page, inbound webhook → tasks | Removed | Changed |
 | OCR | On-server OpenOCR worker | Same | Carried |
 | ShipCSX public lookup | Manual check and 30-minute poll, enabled by environment variable | Same; terminal and on/off are in Settings | Changed |
