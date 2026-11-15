@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Container Tracker — multi-stage production image (Nuxt 4 / Nitro node-server).
+# Yard Link — multi-stage production image (Nuxt 4 / Nitro node-server).
 
 # ---------------------------------------------------------------------------
 # builder: install deps, compile Nuxt, and vendor a self-contained migrator
