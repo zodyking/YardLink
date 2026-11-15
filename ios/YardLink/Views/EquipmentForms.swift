@@ -359,91 +359,25 @@ struct ContainerEditView: View {
 
 /// Record that a container is now at another location, without a trip.
 struct MoveContainerView: View {
-    @EnvironmentObject private var model: AppModel
-    @Environment(\.dismiss) private var dismiss
     let containerId: String
     let currentLocationId: String?
     let onMoved: () -> Void
 
-    @State private var locations: [LocationListItem] = []
-    @State private var search = ""
-    @State private var loading = true
-    @State private var movingTo: String?
-    @State private var errorMessage: String?
     @State private var eventId = UUID().uuidString.lowercased()
-
-    private var options: [LocationListItem] {
-        let pool = locations.filter { $0.id != currentLocationId }
-        let needle = search.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !needle.isEmpty else { return pool }
-        return pool.filter { $0.name.lowercased().contains(needle) || ($0.city ?? "").lowercased().contains(needle) }
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    if let errorMessage { ErrorBanner(message: errorMessage) }
-                    Text("Use this when the container is already somewhere else and no trip recorded it.")
-                        .font(.footnote)
-                        .foregroundColor(Brand.muted)
-                    SearchField(prompt: "Search locations", text: $search)
-                    if loading {
-                        ProgressView().frame(maxWidth: .infinity, minHeight: 120)
-                    } else {
-                        ForEach(options) { location in
-                            OptionRow(
-                                symbol: Words.locationSymbol(location.type),
-                                title: location.name,
-                                detail: location.addressLine,
-                                trailing: movingTo == location.id ? "MOVING" : nil
-                            ) { Task { await move(to: location) } }
-                        }
-                    }
-                }
-                .padding(16)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .screenBackground()
-            .navigationTitle("Move Container")
-            .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }.tint(.white)
-                }
-            }
-            .task { await load() }
-        }
-    }
-
-    private func load() async {
-        guard let api = model.api else { return }
-        do {
-            let list: LocationList = try await api.get("/api/locations", query: ["limit": "200", "lite": "1"])
-            locations = list.items.filter { !($0.isUncategorized ?? false) }
-        } catch {
-            errorMessage = model.handle(error)
-        }
-        loading = false
-    }
 
     private struct Move: Encodable {
         let eventId: String
         let destinationLocationId: String
     }
 
-    private func move(to location: LocationListItem) async {
-        guard let api = model.api, movingTo == nil else { return }
-        movingTo = location.id
-        errorMessage = nil
-        defer { movingTo = nil }
-        do {
+    var body: some View {
+        LocationPickerSheet(
+            title: "Move Container",
+            hint: "Use this when the container is already somewhere else and no trip recorded it.",
+            excludeId: currentLocationId
+        ) { location, api in
             let _: OkResult = try await api.post("/api/containers/\(containerId)/move", body: Move(eventId: eventId, destinationLocationId: location.id))
             onMoved()
-            dismiss()
-        } catch {
-            errorMessage = model.handle(error)
         }
     }
 }

@@ -205,6 +205,17 @@ struct LocationDetailView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle())
 
+                    NavigationLink {
+                        LocationAuditView(locationId: locationId, locationName: detail.location.name)
+                    } label: {
+                        Label("Audit This Location", systemImage: "checklist.checked")
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .font(.headline)
+                            .foregroundColor(Brand.navy)
+                            .cardSurface(radius: Brand.controlRadius)
+                    }
+                    .buttonStyle(.plain)
+
                     if ["MARINE_TERMINAL", "RAIL_TERMINAL"].contains(detail.location.type ?? "") {
                         NavigationLink {
                             CsxListView(locationId: locationId)

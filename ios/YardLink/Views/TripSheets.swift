@@ -99,16 +99,18 @@ enum TripUpdate {
     }
 }
 
-// MARK: - Drop-off
+// MARK: - Picking a location
 
-/// Set or change where a live trip is going.
-struct DestinationPickerView: View {
+/// A searchable list of the company's locations. Tapping one runs `onPick`;
+/// the sheet closes when that succeeds and shows the reason when it does not.
+struct LocationPickerSheet: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    let tripId: String
-    let currentId: String?
-    let originId: String?
-    let onSaved: () -> Void
+    let title: String
+    var hint: String?
+    var selectedId: String?
+    var excludeId: String?
+    let onPick: (LocationListItem, APIClient) async throws -> Void
 
     @State private var locations: [LocationListItem] = []
     @State private var search = ""
@@ -117,7 +119,7 @@ struct DestinationPickerView: View {
     @State private var errorMessage: String?
 
     private var options: [LocationListItem] {
-        let pool = locations.filter { $0.id != originId }
+        let pool = locations.filter { $0.id != excludeId }
         let needle = search.trimmingCharacters(in: .whitespaces).lowercased()
         guard !needle.isEmpty else { return pool }
         return pool.filter {
@@ -132,11 +134,14 @@ struct DestinationPickerView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     if let errorMessage { ErrorBanner(message: errorMessage) }
+                    if let hint {
+                        Text(hint).font(.footnote).foregroundColor(Brand.muted)
+                    }
                     SearchField(prompt: "Search locations", text: $search)
                     if loading {
                         ProgressView().frame(maxWidth: .infinity, minHeight: 120)
                     } else if options.isEmpty {
-                        EmptyNote(title: "No locations match", detail: "Pick the yard, terminal or customer you are taking it to.")
+                        EmptyNote(title: "No locations match", detail: "Pick a yard, terminal or customer.")
                     } else {
                         ForEach(options) { location in
                             OptionRow(
@@ -144,8 +149,8 @@ struct DestinationPickerView: View {
                                 title: location.name,
                                 detail: location.addressLine,
                                 trailing: savingId == location.id ? "SAVING" : nil,
-                                selected: currentId == location.id
-                            ) { Task { await save(location) } }
+                                selected: selectedId == location.id
+                            ) { Task { await pick(location) } }
                         }
                     }
                 }
@@ -153,7 +158,7 @@ struct DestinationPickerView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .screenBackground()
-            .navigationTitle("Drop-off")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .navyBar()
             .toolbar {
@@ -176,21 +181,37 @@ struct DestinationPickerView: View {
         loading = false
     }
 
-    private struct Payload: Encodable {
-        let destinationLocationId: String
-    }
-
-    private func save(_ location: LocationListItem) async {
+    private func pick(_ location: LocationListItem) async {
         guard let api = model.api, savingId == nil else { return }
         savingId = location.id
         errorMessage = nil
         defer { savingId = nil }
         do {
-            let _: OkResult = try await api.post("/api/trips/\(tripId)/destination", body: Payload(destinationLocationId: location.id))
-            onSaved()
+            try await onPick(location, api)
             dismiss()
         } catch {
             errorMessage = model.handle(error)
+        }
+    }
+}
+
+// MARK: - Drop-off
+
+/// Set or change where a live trip is going.
+struct DestinationPickerView: View {
+    let tripId: String
+    let currentId: String?
+    let originId: String?
+    let onSaved: () -> Void
+
+    private struct Payload: Encodable {
+        let destinationLocationId: String
+    }
+
+    var body: some View {
+        LocationPickerSheet(title: "Drop-off", selectedId: currentId, excludeId: originId) { location, api in
+            let _: OkResult = try await api.post("/api/trips/\(tripId)/destination", body: Payload(destinationLocationId: location.id))
+            onSaved()
         }
     }
 }
