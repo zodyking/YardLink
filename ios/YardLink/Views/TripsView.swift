@@ -5,8 +5,14 @@ struct TripsView: View {
     @EnvironmentObject private var model: AppModel
 
     @State private var trips: [TripListItem] = []
+    @State private var gapAnswers: [String: String] = [:]
     @State private var loading = true
     @State private var errorMessage: String?
+
+    /// Gaps by the later trip, which is the row they are shown above.
+    private var gapsByNextTrip: [String: TripGap] {
+        Dictionary(TripGap.find(in: trips).map { ($0.nextTripId, $0) }, uniquingKeysWith: { first, _ in first })
+    }
 
     private var days: [(day: Date, trips: [TripListItem])] {
         let calendar = Calendar.current
@@ -45,9 +51,15 @@ struct TripsView: View {
                         EmptyNote(title: "No trips yet", detail: "Trips appear here once you confirm a pickup.")
                     }
 
+                    let gaps = gapsByNextTrip
                     ForEach(days, id: \.day) { group in
                         SectionTitle(text: Format.day(group.day))
                         ForEach(group.trips) { trip in
+                            if let gap = gaps[trip.id] {
+                                GapCard(gap: gap, answer: gapAnswers[gap.id]) { resolution in
+                                    Task { await answer(gap, resolution) }
+                                }
+                            }
                             NavigationLink(value: trip) {
                                 TripRow(trip: trip)
                             }
@@ -75,11 +87,86 @@ struct TripsView: View {
         do {
             let list: TripList = try await api.get("/api/trips", query: ["limit": "200"])
             trips = list.items
+            gapAnswers = Dictionary(
+                (list.gapResolutions ?? []).map { ("\($0.priorTripId):\($0.nextTripId)", $0.resolution) },
+                uniquingKeysWith: { _, last in last }
+            )
             errorMessage = nil
         } catch {
             errorMessage = model.handle(error)
         }
         loading = false
+    }
+
+    private struct GapPayload: Encodable {
+        let priorTripId: String
+        let nextTripId: String
+        let resolution: String
+    }
+
+    private func answer(_ gap: TripGap, _ resolution: String) async {
+        guard let api = model.api else { return }
+        do {
+            let _: OkResult = try await api.post("/api/trips/gaps", body: GapPayload(
+                priorTripId: gap.priorTripId,
+                nextTripId: gap.nextTripId,
+                resolution: resolution
+            ))
+            await load()
+        } catch {
+            errorMessage = model.handle(error)
+        }
+    }
+}
+
+/// Asks about a break between two trips, or shows the bobtail that explains it.
+private struct GapCard: View {
+    let gap: TripGap
+    let answer: String?
+    let onAnswer: (String) -> Void
+
+    private var isBobtail: Bool { answer == "BOBTAIL" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label(isBobtail ? "Bobtail" : "Missing trip", systemImage: isBobtail ? "box.truck" : "questionmark.circle.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(isBobtail ? Brand.ink : Brand.warn)
+                Spacer()
+                if isBobtail {
+                    Menu {
+                        Button("This was a missing trip") { onAnswer("MISSING") }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .frame(minWidth: 44, minHeight: 32)
+                    }
+                    .accessibilityLabel("Bobtail actions")
+                }
+            }
+            HStack(spacing: 8) {
+                Text(gap.fromName).lineLimit(1)
+                Image(systemName: "arrow.right").font(.caption.weight(.bold))
+                Text(gap.toName).lineLimit(1)
+            }
+            .font(.subheadline)
+            .foregroundColor(Brand.ink)
+            if !isBobtail {
+                Text("The trip before this ended somewhere else. Record the trip that is missing, or confirm you drove there without a chassis.")
+                    .font(.footnote)
+                    .foregroundColor(Brand.muted)
+                Button("Yes, I Made a Bobtail Move") { onAnswer("BOBTAIL") }
+                    .buttonStyle(DarkButtonStyle())
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background((isBobtail ? Brand.mist : Brand.warn.opacity(0.08)))
+        .clipShape(RoundedRectangle(cornerRadius: Brand.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Brand.radius, style: .continuous)
+                .stroke(isBobtail ? Brand.line : Brand.warn.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+        )
     }
 }
 

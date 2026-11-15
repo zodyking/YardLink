@@ -40,6 +40,8 @@ struct TripListItem: Decodable, Identifiable, Hashable {
     let chassisNumber: String?
     let kind: String?
     let swapPairTripId: String?
+    let originLocationId: String?
+    let destinationLocationId: String?
     let originName: String?
     let destinationName: String?
 
@@ -53,8 +55,60 @@ struct TripListItem: Decodable, Identifiable, Hashable {
     var day: Date { pickedUpAt ?? createdAt ?? droppedOffAt ?? Date() }
 }
 
+/// What the driver said about a break between two trips.
+struct TripGapAnswer: Decodable, Hashable {
+    let priorTripId: String
+    let nextTripId: String
+    /// MISSING or BOBTAIL.
+    let resolution: String
+}
+
 struct TripList: Decodable {
     let items: [TripListItem]
+    let gapResolutions: [TripGapAnswer]?
+}
+
+/// A break in the chain of trips: the earlier one ended somewhere other than
+/// where the later one started. Either a trip was not recorded, or the
+/// driver moved the tractor alone (a bobtail).
+struct TripGap: Identifiable, Hashable {
+    let priorTripId: String
+    let nextTripId: String
+    let fromName: String
+    let toName: String
+
+    var id: String { "\(priorTripId):\(nextTripId)" }
+
+    /// Same reading of the trip list as the web app: oldest to newest, a gap
+    /// wherever a drop-off is not the next pickup.
+    static func find(in trips: [TripListItem]) -> [TripGap] {
+        func stamp(_ trip: TripListItem) -> Date { trip.pickedUpAt ?? trip.createdAt ?? .distantPast }
+        func place(_ name: String?) -> String {
+            (name ?? "").lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        let ordered = trips.sorted { stamp($0) == stamp($1) ? $0.id < $1.id : stamp($0) < stamp($1) }
+        var gaps: [TripGap] = []
+        for (prior, next) in zip(ordered, ordered.dropFirst()) {
+            let fromName = (prior.destinationName ?? "").trimmingCharacters(in: .whitespaces)
+            let toName = (next.originName ?? "").trimmingCharacters(in: .whitespaces)
+            if prior.destinationLocationId == nil && fromName.isEmpty { continue }
+            if next.originLocationId == nil && toName.isEmpty { continue }
+            let same: Bool
+            if let from = prior.destinationLocationId, let to = next.originLocationId {
+                same = from == to
+            } else {
+                same = !place(fromName).isEmpty && place(fromName) == place(toName)
+            }
+            if same { continue }
+            gaps.append(TripGap(
+                priorTripId: prior.id,
+                nextTripId: next.id,
+                fromName: fromName.isEmpty ? "Unknown stop" : fromName,
+                toName: toName.isEmpty ? "Unknown stop" : toName
+            ))
+        }
+        return gaps
+    }
 }
 
 struct TripRecord: Decodable, Hashable {
