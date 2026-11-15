@@ -1,14 +1,15 @@
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { companyMemberships, drivers, users } from '../../../../database/schema'
+import { sendApprovedEmail } from '../../../../services/emails'
 import { postSystemNotice } from '../../../../services/messages'
 import { requireAdmin } from '../../../../utils/session'
 
 const schema = z.object({ approve: z.boolean() })
 
 /**
- * Approve or decline someone who signed up with the join code. This replaces
- * the emailed confirmation link: a dispatcher, not an inbox, vouches for them.
+ * Approve or decline someone who signed up with the join code. A dispatcher
+ * vouches for the person; when email is set up they are told the result.
  */
 export default defineEventHandler(async (event) => {
   const auth = await requireAdmin(event)
@@ -49,6 +50,12 @@ export default defineEventHandler(async (event) => {
         body: `${auth.fullName} approved your account. Message dispatch here any time.`,
       })
     }
+    const [person] = await db
+      .select({ email: users.email, firstName: users.firstName })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+    if (person) await sendApprovedEmail(db, person, auth.fullName)
     return { ok: true, status: 'ACTIVE' }
   }
 

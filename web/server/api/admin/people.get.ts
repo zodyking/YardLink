@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
       firstName: users.firstName,
       lastName: users.lastName,
       email: users.email,
+      emailVerifiedAt: users.emailVerifiedAt,
       mobileNumber: users.mobileNumber,
       role: companyMemberships.role,
       status: companyMemberships.status,

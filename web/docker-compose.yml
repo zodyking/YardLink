@@ -5,14 +5,19 @@
 # Then open http://<this-computer>:3847 and follow the setup wizard.
 #
 # There is nothing to configure in this file and no .env to write. The
-# database password and session secret are generated on first start and kept
-# in the `yardlink-secrets` volume; company details, the first dispatcher
-# account and every other setting are entered in the web app.
+# session secret is generated on first start and kept in the
+# `yardlink-secrets` volume; the database, company details, the first
+# dispatcher account, email and every other setting are entered in the web app.
 #
-# Your data lives in three volumes — back these up:
-#   yardlink-db       the database
-#   yardlink-data     photos and documents
-#   yardlink-secrets  generated passwords (needed to read the database)
+# Database: the setup wizard asks for an external PostgreSQL connection
+# string. Skipping it uses the `db` container below, whose records live in the
+# `yardlink-db` volume on this server and are lost if that volume is removed.
+# A host can also pass DATABASE_URL instead of using the wizard.
+#
+# Volumes — back these up:
+#   yardlink-data     photos, documents and the saved database address
+#   yardlink-secrets  generated passwords
+#   yardlink-db       the built-in database (unused with an external one)
 
 name: yardlink
 
@@ -67,6 +72,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    environment:
+      # Optional. Leave unset to choose the database in the setup wizard.
+      DATABASE_URL: ${DATABASE_URL:-}
     ports:
       - "3847:3847"
     volumes:

@@ -2,10 +2,12 @@ import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { isBlankOrValidPhone, toE164 } from '#shared/utils/phone'
 import { companies, companyMemberships, users } from '../../database/schema'
+import { verifySmtp } from '../../services/mail'
 import { generateInviteCode, loadPrimaryCompany } from '../../utils/company'
 import { cleanPublicUrl, loadCompanySettings } from '../../utils/settings'
 import { needsSetup } from '../../utils/setup'
 import { startUserSession } from '../../utils/sign-in'
+import { resolveSmtpInput, saveSmtpConfig, smtpInputSchema } from '../../utils/smtp-settings'
 
 function isTimezone(value: string): boolean {
   try {
@@ -32,12 +34,18 @@ const schema = z.object({
     password: z.string().min(10, 'Use at least 10 characters.').max(200),
   }),
   publicUrl: z.string().trim().max(300).optional().default(''),
+  /** Outgoing email. Left out when the person skips that step. */
+  email: smtpInputSchema.optional(),
 })
 
 /**
- * First-run setup. Creates the company and its first dispatcher, then signs
- * that person in. Only works while the install has no dispatcher account —
- * afterwards it answers 409 and Settings is the place to make changes.
+ * First-run setup. Creates the company and its first dispatcher, saves the
+ * email settings if any were entered, then signs that person in. Only works
+ * while the install has no dispatcher account — afterwards it answers 409 and
+ * Settings is the place to make changes.
+ *
+ * The database was chosen one step earlier (`/api/setup/database`), so
+ * everything here is written to the database the employer picked.
  */
 export default defineEventHandler(async (event) => {
   const body = await readValidatedJson(event, schema)
@@ -48,6 +56,20 @@ export default defineEventHandler(async (event) => {
   }
 
   const publicUrl = cleanPublicUrl(body.publicUrl) || cleanPublicUrl(getRequestURL(event).origin)
+
+  // Settings that cannot reach the mail server are refused here, before
+  // anything is created, so the wizard can send the person back to that step.
+  const smtp = body.email ? resolveSmtpInput(body.email, null, body.company.name) : null
+  if (smtp) {
+    const check = await verifySmtp(smtp)
+    if (!check.ok) {
+      throw createError({
+        statusCode: 422,
+        statusMessage: `The email settings did not work: ${check.message}`,
+        data: { step: 'email' },
+      })
+    }
+  }
   const passwordHash = await hashPassword(body.admin.password)
 
   const result = await db.transaction(async (tx) => {
@@ -103,6 +125,8 @@ export default defineEventHandler(async (event) => {
       .insert(companyMemberships)
       .values({ companyId: company.id, userId: user.id, role: 'ADMIN', status: 'ACTIVE' })
       .returning()
+
+    if (smtp) await saveSmtpConfig(tx, company.id, smtp)
 
     return { company, user, membership: membership! }
   })

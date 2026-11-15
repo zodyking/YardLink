@@ -11,8 +11,9 @@ import {
 } from '../database/schema'
 
 /**
- * Built-in messaging. This is what replaced email and SMS: drivers and
- * dispatch talk inside Yard Link, on the employer's own server.
+ * Built-in messaging. This is what replaced SMS: drivers and dispatch talk
+ * inside Yard Link, on the employer's own server. People who ask for it also
+ * get an email copy (`services/emails.ts`).
  *
  * Every driver has one DISPATCH thread shared by all dispatchers, so whoever
  * is on the desk sees and answers it — the same job the dispatch phone number

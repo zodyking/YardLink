@@ -12,6 +12,7 @@ export interface AccountUser {
   firstName: string
   lastName: string
   mobileNumber: string | null
+  emailPrefs: Record<string, boolean>
 }
 
 /** Load the signed-in user row, or treat a missing/disabled account as signed out. */
@@ -25,6 +26,7 @@ export async function loadAccountUser(userId: string): Promise<AccountUser> {
       firstName: users.firstName,
       lastName: users.lastName,
       mobileNumber: users.mobileNumber,
+      emailPrefs: users.emailPrefs,
       disabledAt: users.disabledAt,
     })
     .from(users)

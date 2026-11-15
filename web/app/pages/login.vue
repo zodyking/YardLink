@@ -13,8 +13,33 @@ const submitting = ref(false)
 const errorMessage = ref('')
 const accountLocked = ref(false)
 
-/** Set when the password was correct but the address is unconfirmed. */
-const needsVerification = ref(false)
+/** The password was correct but a dispatcher has not approved the account yet. */
+const awaitingApproval = ref(false)
+/** The password was correct but the address has not been confirmed yet. */
+const needsConfirmation = ref(false)
+const resending = ref(false)
+const resendMessage = ref('')
+/** Arrived from setup after reconnecting a database that already had a company. */
+const restored = route.query.restored === '1'
+
+async function resend() {
+  if (resending.value) return
+  resending.value = true
+  resendMessage.value = ''
+  try {
+    const result = await $fetch<{ message: string }>('/api/auth/resend-verification', {
+      method: 'POST',
+      body: { email: email.value },
+    })
+    resendMessage.value = result.message
+  }
+  catch (error) {
+    resendMessage.value = apiErrorMessage(error, 'Could not send the email. Try again in a minute.')
+  }
+  finally {
+    resending.value = false
+  }
+}
 
 if (route.query.locked === '1') {
   accountLocked.value = true
@@ -30,7 +55,9 @@ async function submit() {
   if (submitting.value) return
   submitting.value = true
   errorMessage.value = ''
-  needsVerification.value = false
+  awaitingApproval.value = false
+  needsConfirmation.value = false
+  resendMessage.value = ''
   accountLocked.value = false
 
   try {
@@ -50,9 +77,10 @@ async function submit() {
     await withLoader(() => navigateTo(redirect), { caption: 'Welcome' })
   }
   catch (error) {
-    const detail = (error as { data?: { data?: { approvalPending?: boolean } } })
+    const detail = (error as { data?: { data?: { approvalPending?: boolean, emailUnverified?: boolean } } })
       .data?.data
-    needsVerification.value = Boolean(detail?.approvalPending)
+    awaitingApproval.value = Boolean(detail?.approvalPending)
+    needsConfirmation.value = Boolean(detail?.emailUnverified)
     accountLocked.value = lockedFromError(error)
     errorMessage.value = accountLocked.value
       ? ACCOUNT_LOCKED_MESSAGE
@@ -80,6 +108,15 @@ async function submit() {
       novalidate
       @submit.prevent="submit"
     >
+      <p
+        v-if="restored && !errorMessage"
+        class="banner ok"
+        role="status"
+      >
+        <span aria-hidden="true">✓</span>
+        <span>Your database is connected and your records are in place. Sign in with your existing account.</span>
+      </p>
+
       <p
         v-if="errorMessage"
         class="banner"
@@ -123,12 +160,30 @@ async function submit() {
       </button>
 
       <p
-        v-if="needsVerification"
+        v-if="awaitingApproval"
         class="field-hint mt-2"
         role="status"
       >
         Dispatchers approve new accounts under Drivers in Yard Link.
       </p>
+
+      <template v-if="needsConfirmation">
+        <button
+          class="btn-ghost mt-3 w-full"
+          type="button"
+          :disabled="resending"
+          @click="resend"
+        >
+          {{ resending ? 'Sending…' : 'Send the email again' }}
+        </button>
+        <p
+          v-if="resendMessage"
+          class="field-hint mt-2"
+          role="status"
+        >
+          {{ resendMessage }}
+        </p>
+      </template>
     </form>
 
     <p class="mt-6 text-center text-sm text-[var(--color-ink-500)]">

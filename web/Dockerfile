@@ -36,6 +36,7 @@ ENV PORT=3847
 ENV HOST=0.0.0.0
 ENV HOME=/tmp
 ENV YARDLINK_DATA_DIR=/data
+ENV YARDLINK_MIGRATIONS_DIR=/app/migrator/drizzle
 ENV HF_HOME=/tmp/huggingface
 ENV OPENOCR_WORKER=/app/ocr/openocr_worker.py
 ENV YARD_WORKER=/app/yard/generate_worker.py

@@ -117,6 +117,19 @@ final class AppModel: ObservableObject {
         stage = .ready(user)
     }
 
+    /// Ask the server to send the welcome email again. Always answers with
+    /// a sentence to show under the button.
+    func resendConfirmation(email: String) async -> String {
+        guard let api else { return "Connect to your employer first." }
+        struct Address: Encodable { let email: String }
+        do {
+            let result: MessageResult = try await api.post("/api/auth/resend-verification", body: Address(email: email))
+            return result.message
+        } catch {
+            return (error as? APIError)?.message ?? "Could not send the email. Try again in a minute."
+        }
+    }
+
     func signOut() async {
         if let api {
             let _: OkResult? = try? await api.post("/api/auth/logout")

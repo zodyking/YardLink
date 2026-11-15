@@ -69,6 +69,29 @@ struct OkResult: Decodable {
     let ok: Bool?
 }
 
+/// A sentence from the server to show as is.
+struct MessageResult: Decodable {
+    let message: String
+}
+
+// MARK: - Account
+
+/// The part of the account the phone shows: which topics this person can
+/// also get by email, which are on, and whether the employer set up email.
+struct AccountInfo: Decodable {
+    struct Notifications: Decodable {
+        let emailAvailable: Bool
+        let emailTopics: [String]
+        let emailPrefs: [String: Bool]
+    }
+
+    let notifications: Notifications
+}
+
+struct EmailPrefsResult: Decodable {
+    let prefs: [String: Bool]
+}
+
 // MARK: - Home
 
 struct HomePayload: Decodable {

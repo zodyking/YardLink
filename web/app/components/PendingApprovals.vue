@@ -1,13 +1,15 @@
 <script setup lang="ts">
 /**
  * People who signed up with the join code and are waiting to be let in.
- * Approving replaces the emailed confirmation link Yard Link no longer sends.
+ * A dispatcher vouches for each person. With email set up, the person also
+ * confirms their own address, and the row says whether they have yet.
  */
 interface Pending {
   userId: string
   firstName: string
   lastName: string
   email: string
+  emailVerifiedAt: string | null
   mobileNumber: string | null
   role: 'DRIVER' | 'ADMIN'
   requestedAt: string
@@ -68,7 +70,7 @@ function asked(value: string) {
     >
       <div>
         <b>{{ person.firstName }} {{ person.lastName }}</b>
-        <small>{{ person.role === 'ADMIN' ? 'Dispatcher' : 'Driver' }} · {{ person.email }} · signed up {{ asked(person.requestedAt) }}</small>
+        <small>{{ person.role === 'ADMIN' ? 'Dispatcher' : 'Driver' }} · {{ person.email }} · signed up {{ asked(person.requestedAt) }}{{ person.emailVerifiedAt ? '' : ' · email not confirmed yet' }}</small>
       </div>
       <div class="approvals-actions">
         <button

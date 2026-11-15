@@ -37,6 +37,31 @@ const fieldErrors = ref<Record<string, string>>({})
 const submittedEmail = ref('')
 /** True when a dispatcher has to approve the account before sign-in works. */
 const approvalRequired = ref(true)
+/** True when the employer has email set up: the address must be confirmed. */
+const verificationRequired = ref(false)
+/** False when the welcome email could not be sent. */
+const emailSent = ref(true)
+const resending = ref(false)
+const resendMessage = ref('')
+
+async function resend() {
+  if (resending.value) return
+  resending.value = true
+  resendMessage.value = ''
+  try {
+    const result = await $fetch<{ message: string }>('/api/auth/resend-verification', {
+      method: 'POST',
+      body: { email: submittedEmail.value },
+    })
+    resendMessage.value = result.message
+  }
+  catch (error) {
+    resendMessage.value = apiErrorMessage(error, 'Could not send the email. Try again in a minute.')
+  }
+  finally {
+    resending.value = false
+  }
+}
 
 async function submit() {
   if (submitting.value) return
@@ -51,6 +76,8 @@ async function submit() {
     })
     submittedEmail.value = result.email
     approvalRequired.value = result.approvalRequired
+    verificationRequired.value = result.verificationRequired
+    emailSent.value = result.emailSent
   }
   catch (error) {
     const issues = (error as { data?: { data?: { issues?: Array<{ path: string, message: string }> } } })
@@ -77,31 +104,69 @@ async function submit() {
       <BrandLogo />
     </div>
     <AuthHeader
-      :title="approvalRequired ? 'Waiting for approval' : 'Account created'"
-      :subtitle="approvalRequired ? 'One more step' : 'You are ready'"
+      :title="verificationRequired ? 'Check your email' : approvalRequired ? 'Waiting for approval' : 'Account created'"
+      :subtitle="verificationRequired || approvalRequired ? 'One more step' : 'You are ready'"
     />
 
     <div class="card p-4">
-      <p
-        v-if="approvalRequired"
-        class="text-[15px] leading-relaxed"
-      >
-        Your account for <b class="break-all">{{ submittedEmail }}</b> was created.
-        A dispatcher has been notified and needs to approve it before you can sign in.
-      </p>
-      <p
-        v-else
-        class="text-[15px] leading-relaxed"
-      >
-        Your account for <b class="break-all">{{ submittedEmail }}</b> is ready. Sign in to get started.
-      </p>
+      <template v-if="verificationRequired">
+        <p
+          v-if="!emailSent"
+          class="banner warn"
+          role="alert"
+        >
+          <span aria-hidden="true">!</span>
+          <span>Your account was created, but the welcome email could not be sent. Try sending it again below, or tell your dispatcher.</span>
+        </p>
+        <p class="text-[15px] leading-relaxed">
+          Welcome, {{ form.firstName }}. We sent an email to <b class="break-all">{{ submittedEmail }}</b>.
+          Open it and tap <b>Confirm My Email</b> to finish.
+        </p>
+        <p class="field-hint mt-3">
+          {{ approvalRequired
+            ? 'After you confirm, a dispatcher approves your account. You can sign in as soon as they do.'
+            : 'After you confirm, you are signed in and ready to go.' }}
+          The email can take a minute. Check your spam folder if you do not see it.
+        </p>
+        <button
+          class="btn-ghost mt-4 w-full"
+          type="button"
+          :disabled="resending"
+          @click="resend"
+        >
+          {{ resending ? 'Sending…' : 'Send the email again' }}
+        </button>
+        <p
+          v-if="resendMessage"
+          class="field-hint mt-2"
+          role="status"
+        >
+          {{ resendMessage }}
+        </p>
+      </template>
 
-      <p
-        v-if="approvalRequired"
-        class="field-hint mt-3"
-      >
-        Let your dispatcher know you signed up. Once they approve you, sign in with the email and password you just chose.
-      </p>
+      <template v-else>
+        <p
+          v-if="approvalRequired"
+          class="text-[15px] leading-relaxed"
+        >
+          Your account for <b class="break-all">{{ submittedEmail }}</b> was created.
+          A dispatcher has been notified and needs to approve it before you can sign in.
+        </p>
+        <p
+          v-else
+          class="text-[15px] leading-relaxed"
+        >
+          Your account for <b class="break-all">{{ submittedEmail }}</b> is ready. Sign in to get started.
+        </p>
+
+        <p
+          v-if="approvalRequired"
+          class="field-hint mt-3"
+        >
+          Let your dispatcher know you signed up. Once they approve you, sign in with the email and password you just chose.
+        </p>
+      </template>
 
       <NuxtLink
         to="/login"
@@ -217,6 +282,7 @@ async function submit() {
           autocomplete="email"
           required
         >
+        <small class="field-hint">You sign in with this address, and account emails go here.</small>
         <small
           v-if="fieldErrors.email"
           class="field-error"

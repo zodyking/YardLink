@@ -9,7 +9,7 @@
  */
 import { roleHomePath } from '#shared/utils/domain'
 
-const PUBLIC_ROUTES = new Set(['/login', '/signup', '/setup'])
+const PUBLIC_ROUTES = new Set(['/login', '/signup', '/setup', '/verify-email'])
 
 export default defineNuxtRouteMiddleware(async (to) => {
   const { loggedIn, user } = useUserSession()

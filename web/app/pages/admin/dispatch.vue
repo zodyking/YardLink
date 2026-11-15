@@ -374,7 +374,7 @@ watch(workDate, () => {
                 variant="ok"
                 label="Sent to driver"
               />
-              <span>Edits here notify {{ selectedDriver.name }} by email.</span>
+              <span>Edits here are sent to {{ selectedDriver.name }} in Messages.</span>
             </div>
             <div
               v-else-if="planStatus === 'draft'"

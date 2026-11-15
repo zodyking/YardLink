@@ -3,12 +3,16 @@
  * Company settings. Everything an employer configures is here — the server
  * needs no files edited and no restart for any of it.
  */
+import { checkEmailSettings, emptyEmailSettings } from '#shared/utils/email-settings'
+
 definePageMeta({ layout: 'admin' })
 useHead({ title: 'Settings' })
 
 interface SettingsPayload {
   company: { id: string, name: string, legalName: string | null, usdotNumber: string | null, timezone: string, inviteCode: string }
   settings: { publicUrl: string, shipcsxDefaultTerminal: string, shipcsxPoll: boolean, approveNewAccounts: boolean }
+  email: { configured: boolean, host: string, port: number, user: string, fromName: string, fromEmail: string, hasPassword: boolean }
+  database: { source: 'builtin' | 'wizard' | 'env', external: boolean, label: string }
   shipcsxTerminals: string[]
   counts: { containers: number, activeContainers: number, locations: number, drivers: number, trucks: number, admins: number }
   services: Array<{ key: string, name: string, healthy: boolean, detail: string, phase: string }>
@@ -40,8 +44,64 @@ const form = reactive({
   approveNewAccounts: true,
 })
 
+/* Outgoing email has its own form: it is checked against the mail server
+   before it is saved, and it can be tested and turned off. */
+const emailForm = ref(emptyEmailSettings())
+const emailErrors = ref<Record<string, string>>({})
+const emailBusy = ref<'save' | 'test' | 'off' | null>(null)
+const emailResult = ref<{ ok: boolean, message: string } | null>(null)
+const confirmEmailOff = ref(false)
+
+function emailBody() {
+  return { ...emailForm.value, port: Number(emailForm.value.port) }
+}
+
+async function runEmail(action: 'save' | 'test' | 'off') {
+  if (emailBusy.value) return
+  emailResult.value = null
+  if (action !== 'off') {
+    emailErrors.value = checkEmailSettings(emailForm.value)
+    if (Object.keys(emailErrors.value).length) return
+  }
+  emailBusy.value = action
+  try {
+    if (action === 'save') {
+      await $fetch('/api/admin/email', { method: 'PUT', body: emailBody() })
+      emailResult.value = { ok: true, message: 'Email settings saved. Yard Link signed in to the mail server successfully.' }
+    }
+    else if (action === 'test') {
+      const result = await $fetch<{ message: string }>('/api/admin/email/test', { method: 'POST', body: { settings: emailBody() } })
+      emailResult.value = { ok: true, message: `${result.message} Check that inbox.` }
+    }
+    else {
+      await $fetch('/api/admin/email', { method: 'DELETE' })
+      emailResult.value = { ok: true, message: 'Email is turned off.' }
+    }
+    if (action !== 'test') await refresh()
+  }
+  catch (err) {
+    emailResult.value = { ok: false, message: apiErrorMessage(err, 'That did not work. Check the settings and try again.') }
+  }
+  finally {
+    emailBusy.value = null
+  }
+}
+
+async function turnEmailOff() {
+  confirmEmailOff.value = false
+  await runEmail('off')
+}
+
 function fill() {
   if (!data.value) return
+  emailForm.value = {
+    host: data.value.email.host,
+    port: data.value.email.port,
+    user: data.value.email.user,
+    password: '',
+    fromName: data.value.email.fromName,
+    fromEmail: data.value.email.fromEmail,
+  }
   form.name = data.value.company.name
   form.legalName = data.value.company.legalName ?? ''
   form.usdotNumber = data.value.company.usdotNumber ?? ''
@@ -379,6 +439,105 @@ const countCards = computed(() => {
         </label>
       </section>
 
+      <!-- ── Email ───────────────────────────────────────────────── -->
+      <div class="section-label">
+        <span>Email</span>
+      </div>
+      <form
+        class="card p-5 settings-form"
+        novalidate
+        @submit.prevent="runEmail('save')"
+      >
+        <div class="settings-status">
+          <StatusChip
+            :variant="data.email.configured ? 'ok' : 'idle'"
+            :label="data.email.configured ? 'Email is on' : 'Email is off'"
+          />
+          <span>
+            {{ data.email.configured
+              ? 'New people get a welcome email and confirm their address. Anyone can choose to get work assignments and messages by email in their own settings.'
+              : 'Yard Link sends no email. Enter the settings from your email provider to turn it on.' }}
+          </span>
+        </div>
+
+        <EmailSettingsFields
+          v-model="emailForm"
+          :errors="emailErrors"
+          :has-password="data.email.hasPassword"
+          :company-name="data.company.name"
+        />
+
+        <p
+          v-if="emailResult"
+          class="banner"
+          :class="emailResult.ok ? 'ok' : 'err'"
+          :role="emailResult.ok ? 'status' : 'alert'"
+        >
+          <span aria-hidden="true">{{ emailResult.ok ? '✓' : '✕' }}</span>
+          <span>{{ emailResult.message }}</span>
+        </p>
+
+        <div class="settings-actions">
+          <button
+            class="btn-primary-action settings-save"
+            type="submit"
+            :disabled="emailBusy !== null"
+          >
+            {{ emailBusy === 'save' ? 'Checking…' : 'Save email settings' }}
+          </button>
+          <button
+            class="btn-ghost"
+            type="button"
+            :disabled="emailBusy !== null"
+            @click="runEmail('test')"
+          >
+            {{ emailBusy === 'test' ? 'Sending…' : 'Send me a test email' }}
+          </button>
+          <button
+            v-if="data.email.configured"
+            class="btn-ghost"
+            type="button"
+            :disabled="emailBusy !== null"
+            @click="confirmEmailOff = true"
+          >
+            Turn email off
+          </button>
+        </div>
+      </form>
+
+      <!-- ── Database ────────────────────────────────────────────── -->
+      <div class="section-label">
+        <span>Database</span>
+      </div>
+      <section class="card p-5 settings-form">
+        <div class="settings-status">
+          <StatusChip
+            :variant="data.database.external ? 'ok' : 'warn'"
+            :label="data.database.external ? 'Your own database' : 'Built-in database'"
+          />
+          <span
+            v-if="data.database.external"
+            class="mono setup-break"
+          >{{ data.database.label }}</span>
+        </div>
+        <p
+          v-if="data.database.external"
+          class="field-hint"
+        >
+          Your records are kept outside Yard Link, so they stay when Yard Link is updated or redeployed. Back this database up with your database provider.
+        </p>
+        <p
+          v-else
+          class="banner warn"
+        >
+          <span aria-hidden="true">!</span>
+          <span>
+            <b>Your data can be deleted on any update or redeployment.</b>
+            Records are kept inside this installation. To keep them safe, install Yard Link again with your own PostgreSQL database chosen in the setup wizard. Records in the built-in database are not moved for you.
+          </span>
+        </p>
+      </section>
+
       <!-- ── ShipCSX ─────────────────────────────────────────────── -->
       <div class="section-label">
         <span>ShipCSX</span>
@@ -483,6 +642,32 @@ const countCards = computed(() => {
         </table>
       </section>
     </template>
+
+    <BottomSheet
+      :open="confirmEmailOff"
+      title="Turn email off?"
+      @close="confirmEmailOff = false"
+    >
+      <p class="px-4 pb-2 text-sm">
+        Yard Link stops sending email and forgets these settings. New accounts will no longer confirm an address. Work and messages still reach everyone inside Yard Link.
+      </p>
+      <div class="sheet-actions">
+        <button
+          type="button"
+          class="btn-cancel"
+          @click="confirmEmailOff = false"
+        >
+          Keep email on
+        </button>
+        <button
+          type="button"
+          class="btn-save"
+          @click="turnEmailOff"
+        >
+          Turn email off
+        </button>
+      </div>
+    </BottomSheet>
 
     <BottomSheet
       :open="confirmNewCode"

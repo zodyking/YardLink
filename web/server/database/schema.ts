@@ -265,12 +265,15 @@ export const users = pgTable('users', {
   disabledAt: utc('disabled_at'),
   /** Cheat-code unlocks for this user until they enter the same code again. */
   unlockedFeatures: jsonb('unlocked_features').$type<string[]>().notNull().default([]),
+  /** Topics this person also wants by email, e.g. `{ assignments: true }`. */
+  emailPrefs: jsonb('email_prefs').$type<Record<string, boolean>>().notNull().default({}),
   createdAt: utc('created_at').notNull().defaultNow(),
   updatedAt: utc('updated_at').notNull().defaultNow(),
 }, t => [uniqueIndex('users_email_key').on(sql`lower(${t.email})`)])
 
 /**
- * Single-use email verification links (spec 4).
+ * Single-use email confirmation links, sent when someone signs up and the
+ * employer has set up outgoing email.
  *
  * Only the SHA-256 digest of the token is stored, so a database leak cannot be
  * replayed to take over an unverified account. Rows are kept after use as an
@@ -1093,7 +1096,7 @@ export type CsxPickupRelease = typeof csxPickupReleases.$inferSelect
 export type CsxShipmentSnapshot = typeof csxShipmentSnapshots.$inferSelect
 
 /* ============================================================
-   Built-in messaging (replaces SMTP mail and SMS)
+   Built-in messaging (replaces SMS; email is an optional copy)
    ============================================================ */
 
 /**

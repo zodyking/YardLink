@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { parseUnlockedFeatures } from '#shared/utils/feature-codes'
 import { roleHomePath } from '#shared/utils/domain'
 import { companies, companyMemberships, drivers, users } from '../../database/schema'
+import { mailEnabled } from '../../services/mail'
 import { accountLockedError } from '../../utils/account-lock'
 
 const schema = z.object({
@@ -39,6 +40,21 @@ export default defineEventHandler(async (event) => {
 
   if (user.disabledAt) {
     throw accountLockedError()
+  }
+
+  // Reached only after the password succeeds, so it cannot be used to probe
+  // which addresses are registered.
+  if (!user.emailVerifiedAt) {
+    if (await mailEnabled(db)) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: 'Confirm your email address first. Open the welcome email we sent you and tap Confirm My Email.',
+        data: { emailUnverified: true },
+      })
+    }
+    // Email was turned off after this person signed up: nothing can confirm
+    // the address any more, so it is accepted.
+    await db.update(users).set({ emailVerifiedAt: new Date() }).where(eq(users.id, user.id))
   }
 
   const [membership] = await db

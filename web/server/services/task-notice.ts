@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { companyMemberships, users } from '../database/schema'
 import type { DispatchTaskView } from './tasks'
+import { sendAssignmentEmail } from './emails'
 import { postSystemNotice } from './messages'
 import { DISPATCH_TASK_KIND_LABELS } from '#shared/utils/domain'
 import { displayContainerNumber } from '#shared/utils/dispatch-cards'
@@ -25,9 +26,9 @@ function taskLines(tasks: DispatchTaskView[]): string[] {
 }
 
 /**
- * Tell a driver their day's work was assigned or changed. This used to be an
- * email; it is now a message in their dispatch conversation, where they can
- * answer it. Never throws — the tasks are already saved.
+ * Tell a driver their day's work was assigned or changed: always as a message
+ * in their dispatch conversation, where they can answer it, and also by email
+ * when they turned that on. Never throws — the tasks are already saved.
  */
 export async function notifyDriverTaskChange(input: {
   email: string
@@ -62,6 +63,13 @@ export async function notifyDriverTaskChange(input: {
       kind: 'TASKS',
       body,
       senderName: input.dispatcherName,
+    })
+    await sendAssignmentEmail(db, {
+      driverUserId: driver.userId,
+      workDate: input.workDate,
+      dispatcherName: input.dispatcherName,
+      kind: input.kind,
+      tasks: input.tasks,
     })
   }
   catch (error) {

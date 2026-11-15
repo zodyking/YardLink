@@ -8345,6 +8345,21 @@ body,
   padding-inline: var(--s5);
 }
 
+.settings-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  font-size: var(--text-sm);
+  color: var(--color-ink-700);
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
 .settings-counts {
   display: grid;
   gap: var(--s3);
@@ -8519,6 +8534,65 @@ body,
 
 .setup-steps li.done {
   border-color: var(--color-navy-900);
+}
+
+.setup-steps li b {
+  margin-right: 4px;
+}
+
+/* Six steps do not fit a phone: only the current one keeps its name. */
+@media (max-width: 560px) {
+  .setup-steps li:not(.on) span {
+    display: none;
+  }
+
+  .setup-steps li.on {
+    flex: 3;
+  }
+}
+
+.setup-title {
+  margin-bottom: var(--s2);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-ink-900);
+}
+
+.setup-break {
+  overflow-wrap: anywhere;
+}
+
+.setup-inline {
+  width: auto;
+  justify-self: start;
+  padding-inline: var(--s4);
+}
+
+.setup-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  min-height: 44px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-ink-900);
+  cursor: pointer;
+}
+
+.setup-check input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  accent-color: var(--color-blue-500);
+}
+
+.setup-test {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin: var(--s3) 0;
 }
 
 .setup-actions {

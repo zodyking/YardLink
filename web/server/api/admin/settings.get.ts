@@ -2,7 +2,10 @@ import { and, eq, sql } from 'drizzle-orm'
 import { companies, companyMemberships, containers, drivers, locations, trucks } from '../../database/schema'
 import { useGeocoder } from '../../services/geocoding'
 import { formatInviteCode } from '../../utils/company'
+import { databaseStatus } from '../../utils/database-config'
+import { currentDatabaseUrl } from '../../utils/db'
 import { loadCompanySettings } from '../../utils/settings'
+import { loadSmtpConfig, summarizeSmtp } from '../../utils/smtp-settings'
 import { SHIPCSX_TERMINALS } from '#shared/utils/csx-lookup'
 import { useOcrService } from '../../services/ocr'
 import { useObjectStorage } from '../../services/storage'
@@ -40,6 +43,8 @@ export default defineEventHandler(async (event) => {
     shipcsxHealth(db, auth.companyId),
   ])
 
+  const smtp = await loadSmtpConfig(db)
+
   const [adminCount] = await db
     .select({ value: sql<number>`count(*)::int` })
     .from(companyMemberships)
@@ -55,12 +60,23 @@ export default defineEventHandler(async (event) => {
       inviteCode: formatInviteCode(company.inviteCode),
     },
     settings: await loadCompanySettings(db, { fresh: true }),
+    email: summarizeSmtp(smtp),
+    database: databaseStatus(currentDatabaseUrl()),
     shipcsxTerminals: SHIPCSX_TERMINALS,
     counts: { ...counts, admins: adminCount?.value ?? 0 },
     services: [
       { key: 'ocr', name: 'OpenOCR (RepViT DB + RepSVTR Mobile)', healthy: ocr.healthy, detail: ocr.message, phase: 'Phase 1' },
       { key: 'storage', name: 'Photos and documents', healthy: storage.healthy, detail: storage.message, phase: 'Built in' },
-      { key: 'messages', name: 'Messages', healthy: true, detail: 'Drivers and dispatch talk inside Yard Link. No mail or SMS service is used.', phase: 'Built in' },
+      { key: 'messages', name: 'Messages', healthy: true, detail: 'Drivers and dispatch talk inside Yard Link. No SMS service is used.', phase: 'Built in' },
+      {
+        key: 'email',
+        name: 'Email',
+        healthy: Boolean(smtp),
+        detail: smtp
+          ? `Sending as ${smtp.fromEmail} through ${smtp.host}.`
+          : 'Not set up. New accounts are not asked to confirm an address and nobody is emailed.',
+        phase: 'Optional',
+      },
       { key: 'geocoder', name: 'OpenStreetMap / Photon', healthy: geocoder.healthy, detail: geocoder.message, phase: 'Phase 1' },
       { key: 'tiles', name: 'Planetiler / PMTiles vector tiles', healthy: false, detail: 'Regional tile archive not generated yet.', phase: 'Phase 2' },
       { key: 'realtime', name: 'WebSocket live updates', healthy: false, detail: 'Polling is used in Phase 1.', phase: 'Phase 2' },

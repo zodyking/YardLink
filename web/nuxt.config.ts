@@ -41,8 +41,9 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     /**
-     * Nothing here is set by the employer. The container generates the
-     * database address and session secret on first start; everything else is
+     * Nothing here is set by the employer. The container works out the
+     * database address (external string from the setup wizard, or the
+     * built-in database) and the session secret at start; everything else is
      * entered in the web app (setup wizard, then Settings) and kept in the
      * database.
      */

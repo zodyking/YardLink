@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Messages — drivers and dispatch talk here instead of by text or email.
+ * Messages — drivers and dispatch talk here instead of by text.
  * A list of conversations beside (or, on a phone, in front of) the open one.
  */
 import { documentFileSrc, isImageDocument } from '~/utils/documents'

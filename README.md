@@ -18,17 +18,20 @@ Container and yard management for drayage fleets. Drivers work their trips from 
 - **Dispatch tasks and messages:** assign work to drivers, track steps, and keep one conversation per driver.
 - **Locations and yard:** search any container or chassis, see what is on site, and keep location notes.
 - **Time cards and documents:** driver time cards and trip documents are stored on your server.
+- **Email, if you want it:** welcome and confirmation emails for new accounts, and optional copies of work assignments and messages. Each person chooses what they get.
 - **Camera number reading:** the server reads container numbers from photos. No outside recognition service is used.
 
 ## Deploy with Dokploy
 
-Yard Link runs as one Docker Compose stack: the web app, a PostgreSQL 17 database, and a one-time step that generates passwords. You do not write a `.env` file. Setup happens in the web app.
+Yard Link runs as one Docker Compose stack. You do not write a `.env` file. Setup happens in the web app, including the database and email.
 
 **Before you start**
 
 - A server running [Dokploy](https://dokploy.com) with Docker.
 - A domain name (for example `yard.example.com`) with a DNS `A` record pointing at your Dokploy server.
 - This repository connected to your Dokploy server through GitHub.
+- A PostgreSQL database (version 13 or newer) for your records, and its connection string. See **Your database** below.
+- Optional: SMTP settings from your email provider, if you want Yard Link to send email.
 
 **1. Create the service**
 
@@ -49,7 +52,16 @@ Yard Link runs as one Docker Compose stack: the web app, a PostgreSQL 17 databas
 
 1. Click **Deploy** and wait for the build to finish. The first build takes several minutes because it installs the OCR and browser components.
 2. Open `https://yard.example.com` in a browser. The setup wizard appears.
-3. Enter your company details, create the first dispatcher account, and confirm the server address. Everything can be changed later under **Settings**.
+3. Follow the six steps: database, company, your account, email, phone address, finish. Email and everything after it can be changed later under **Settings**.
+
+**Your database**
+
+The first wizard step asks for a PostgreSQL connection string, like `postgresql://user:password@host:5432/database`. Use an empty database made for Yard Link. Yard Link checks the connection and creates its tables.
+
+- Any PostgreSQL 13+ database the server can reach works: one you create in Dokploy, or a hosted one. If the provider requires SSL, end the string with `?sslmode=require`.
+- Your records then live outside the Yard Link installation and stay when you update or redeploy. If the wizard ever appears again after a redeploy, enter the same connection string: Yard Link reconnects and sends you to sign in.
+- To make the connection part of the deployment itself, set `DATABASE_URL` under the service's **Environment** tab in Dokploy instead. The wizard then skips the database step.
+- You can skip the step to try Yard Link. It then uses a built-in database inside the installation, and the wizard warns that this data can be deleted when Yard Link is updated or redeployed.
 
 **Updating**
 
@@ -57,13 +69,13 @@ Push to `main`, then click **Deploy** in Dokploy again. You can also set up Dokp
 
 **Backups**
 
-Back up these three Docker volumes:
+Back up your PostgreSQL database with your database provider, and these Docker volumes:
 
 | Volume | Holds |
 | :--- | :--- |
-| `yardlink-db` | The database |
-| `yardlink-data` | Photos and documents |
-| `yardlink-secrets` | Generated passwords. The database cannot be read without them. |
+| `yardlink-data` | Photos, documents, and the saved database connection |
+| `yardlink-secrets` | The generated session secret. Saved email passwords cannot be read without it. |
+| `yardlink-db` | The built-in database. Only used if you skipped the database step. |
 
 ## Connecting phones
 
@@ -78,7 +90,7 @@ cd web
 npm install --legacy-peer-deps
 ```
 
-Run a local database, then the app (from `web/`):
+Run a local database, then the app (from `web/`). With `DATABASE_URL` set, the wizard skips its database step:
 
 ```bash
 docker compose up -d db secrets

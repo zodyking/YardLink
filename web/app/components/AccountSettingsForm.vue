@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { timeCardTemplateDocxFileName } from '#shared/utils/time-card'
+import { EMAIL_TOPIC_COPY } from '#shared/utils/email-prefs'
+import type { EmailTopic } from '#shared/utils/email-prefs'
 import { formatPhoneDisplay, formatPhoneInput } from '#shared/utils/phone'
 import { downloadBlobFile } from '~/utils/download-text'
 import { fetchBinaryFile, isDocxBytes } from '~/utils/fetch-file'
@@ -73,6 +75,31 @@ const driverDirty = computed(() => {
     || cdlState.value.trim().toUpperCase() !== (driver?.cdlState ?? '')
     || truckVin.value.trim().toUpperCase() !== (driver?.truckVin ?? '')
 })
+
+/* Email copies. Everything always shows up inside Yard Link; each switch
+   adds an email for one topic and saves as soon as it is flipped. */
+const emailTopics = computed(() => profile.value?.notifications.emailTopics ?? [])
+const emailPrefsError = ref('')
+const savingTopic = ref<EmailTopic | null>(null)
+
+async function toggleEmailTopic(topic: EmailTopic, event: Event) {
+  const input = event.target as HTMLInputElement
+  const wanted = input.checked
+  savingTopic.value = topic
+  emailPrefsError.value = ''
+  try {
+    await $fetch('/api/account/email-prefs', { method: 'PATCH', body: { [topic]: wanted } })
+    await refreshProfile()
+  }
+  catch (error) {
+    // Put the switch back so it never shows a choice that was not saved.
+    input.checked = !wanted
+    emailPrefsError.value = apiErrorMessage(error, 'Could not save that. Try again.')
+  }
+  finally {
+    savingTopic.value = null
+  }
+}
 
 type Sheet = 'email' | 'password' | 'phone' | null
 const sheet = ref<Sheet>(null)
@@ -466,6 +493,50 @@ async function savePhone() {
           Change ›
         </div>
       </button>
+    </div>
+
+    <p class="section-label">
+      Notifications
+    </p>
+    <div class="card p-4 settings-form">
+      <p class="field-hint">
+        Work, messages and account news always show up in Yard Link. Turn on email to get a copy in your inbox as well.
+      </p>
+      <p
+        v-if="profile && !profile.notifications.emailAvailable"
+        class="banner info"
+      >
+        <span aria-hidden="true">i</span>
+        <span>Your company has not set up email in Yard Link yet, so nothing is emailed. Your choices are saved for when it is.</span>
+      </p>
+      <p
+        v-if="emailPrefsError"
+        class="banner err"
+        role="alert"
+      >
+        <span aria-hidden="true">✕</span>
+        <span>{{ emailPrefsError }}</span>
+      </p>
+      <label
+        v-for="topic in emailTopics"
+        :key="topic"
+        class="yl-switch-row"
+      >
+        <span>
+          <b>Email me: {{ EMAIL_TOPIC_COPY[topic].label }}</b>
+          <small>{{ EMAIL_TOPIC_COPY[topic].hint }}</small>
+        </span>
+        <input
+          class="yl-switch"
+          type="checkbox"
+          :checked="profile?.notifications.emailPrefs[topic]"
+          :disabled="savingTopic !== null"
+          @change="toggleEmailTopic(topic, $event)"
+        >
+      </label>
+      <p class="field-hint">
+        Emails go to <span class="settings-break">{{ profile?.email || user?.email }}</span>. Change the address under Contact.
+      </p>
     </div>
 
     <p class="section-label">

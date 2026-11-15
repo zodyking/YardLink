@@ -1,6 +1,7 @@
 import { and, eq, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { users } from '../../database/schema'
+import { sendEmailChangedEmail } from '../../services/emails'
 import { assertCurrentPassword, loadAccountUser, refreshSessionUser } from '../../utils/account'
 
 const schema = z.object({
@@ -11,8 +12,8 @@ const schema = z.object({
 /**
  * Changes the sign-in address after the current password is confirmed.
  *
- * The session stays valid so a typo can be corrected immediately. A notice
- * goes to both the old and new addresses when mail is configured.
+ * The session stays valid so a typo can be corrected immediately. When email
+ * is set up, a notice goes to both the old and the new address.
  */
 export default defineEventHandler(async (event) => {
   const auth = await requireAuth(event)
@@ -43,5 +44,6 @@ export default defineEventHandler(async (event) => {
     .where(eq(users.id, auth.userId))
 
   await refreshSessionUser(event, auth, { email })
+  await sendEmailChangedEmail(db, { firstName: user.firstName, oldEmail: user.email, newEmail: email })
   return { ok: true, email }
 })
