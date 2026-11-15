@@ -19,62 +19,74 @@ struct LocationsView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if let errorMessage {
-                    ErrorBanner(message: errorMessage)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                }
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    SearchField(prompt: "Location, container or chassis", text: $query)
 
-                if !hits.isEmpty {
-                    Section("Equipment") {
+                    if let errorMessage { ErrorBanner(message: errorMessage) }
+
+                    if !hits.isEmpty {
+                        SectionTitle(text: "Equipment")
                         ForEach(hits) { hit in
                             NavigationLink(value: EquipmentRoute(kind: hit.kind, id: hit.id)) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    EquipmentNumber(text: hit.number, font: .system(.body, design: .monospaced))
-                                    Text("\(hit.kind == "CHASSIS" ? "Chassis" : "Container") · \(hit.locationName ?? "No location")")
-                                        .font(.footnote)
-                                        .foregroundColor(Brand.muted)
+                                HStack(spacing: 12) {
+                                    Image(systemName: hit.kind == "CHASSIS" ? "box.truck.fill" : "shippingbox.fill")
+                                        .foregroundColor(Brand.linkBlue)
+                                        .frame(width: 32)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        EquipmentNumber(
+                                            text: hit.kind == "CHASSIS" ? hit.number : Marking.formatContainer(hit.number),
+                                            font: .system(.body, design: .monospaced)
+                                        )
+                                        Text("\(hit.kind == "CHASSIS" ? "Chassis" : "Container") · \(hit.locationName ?? "No location")")
+                                            .font(.footnote)
+                                            .foregroundColor(Brand.muted)
+                                    }
+                                    Spacer(minLength: 0)
+                                    Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundColor(Brand.muted.opacity(0.6))
                                 }
+                                .padding(14)
+                                .cardSurface()
                             }
+                            .buttonStyle(.plain)
                         }
                     }
-                }
 
-                ForEach(Self.groups, id: \.title) { group in
-                    let rows = items.filter { !($0.isUncategorized ?? false) && group.types.contains($0.type ?? "") }
-                    if !rows.isEmpty {
-                        Section(group.title) {
+                    ForEach(Self.groups, id: \.title) { group in
+                        let rows = items.filter { !($0.isUncategorized ?? false) && group.types.contains($0.type ?? "") }
+                        if !rows.isEmpty {
+                            SectionTitle(text: group.title)
                             ForEach(rows) { item in
                                 NavigationLink(value: item) { LocationRow(item: item) }
+                                    .buttonStyle(.plain)
                             }
                         }
                     }
-                }
 
-                let other = items.filter { $0.isUncategorized ?? false }
-                if !other.isEmpty {
-                    Section("Uncategorized") {
+                    let other = items.filter { $0.isUncategorized ?? false }
+                    if !other.isEmpty {
+                        SectionTitle(text: "Uncategorized")
                         ForEach(other) { item in
                             NavigationLink(value: item) { LocationRow(item: item) }
+                                .buttonStyle(.plain)
                         }
                     }
-                }
 
-                if !loading && items.isEmpty && hits.isEmpty && errorMessage == nil {
-                    EmptyNote(
-                        title: query.isEmpty ? "No locations yet" : "No match",
-                        detail: query.isEmpty ? "Locations are added in the web app." : "No location, container, or chassis matches that search."
-                    )
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+                    if !loading && items.isEmpty && hits.isEmpty && errorMessage == nil {
+                        EmptyNote(
+                            title: query.isEmpty ? "No locations yet" : "No match",
+                            detail: query.isEmpty ? "Your dispatcher adds locations." : "No location, container, or chassis matches that search."
+                        )
+                    }
                 }
+                .padding(16)
             }
-            .listStyle(.insetGrouped)
+            .scrollDismissesKeyboard(.interactively)
+            .screenBackground()
             .overlay { if loading && items.isEmpty { ProgressView() } }
-            .navigationTitle("Locations")
-            .searchable(text: $query, prompt: "Location, container or chassis")
-            .autocorrectionDisabled()
+            .navigationTitle("Containers")
+            .navigationBarTitleDisplayMode(.inline)
+            .navyBar()
             .navigationDestination(for: LocationListItem.self) { item in
                 LocationDetailView(locationId: item.id, title: item.name)
             }
@@ -159,7 +171,9 @@ private struct LocationRow: View {
                     .foregroundColor(Brand.muted)
             }
         }
-        .padding(.vertical, 2)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface()
         .accessibilityElement(children: .combine)
     }
 }
@@ -174,6 +188,7 @@ struct LocationDetailView: View {
     @State private var errorMessage: String?
     @State private var noteText = ""
     @State private var savingNote = false
+    @State private var addingEquipment = false
 
     var body: some View {
         ScrollView {
@@ -182,20 +197,44 @@ struct LocationDetailView: View {
 
                 if let detail {
                     about(detail.location)
+
+                    Button {
+                        addingEquipment = true
+                    } label: {
+                        Label("Add Equipment", systemImage: "plus")
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+
+                    if ["MARINE_TERMINAL", "RAIL_TERMINAL"].contains(detail.location.type ?? "") {
+                        NavigationLink {
+                            CsxListView(locationId: locationId)
+                        } label: {
+                            Label("CSX Pickup List", systemImage: "list.bullet.clipboard.fill")
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                                .font(.headline)
+                                .foregroundColor(Brand.navy)
+                                .cardSurface(radius: Brand.controlRadius)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     equipment(detail)
                     notes(detail)
-
-                    SectionTitle(text: "More for this location")
-                    WebStepLink(title: "Add equipment, audit, CSX list and yard on the web", path: "/locations/\(locationId)")
                 } else if loading {
                     ProgressView("Loading location…").frame(maxWidth: .infinity, minHeight: 200)
                 }
             }
             .padding(16)
         }
-        .background(Brand.mist.ignoresSafeArea())
+        .screenBackground()
         .navigationTitle(detail?.location.name ?? title)
         .navigationBarTitleDisplayMode(.inline)
+        .navyBar()
+        .sheet(isPresented: $addingEquipment) {
+            AddEquipmentView(locationId: locationId, locationName: detail?.location.name ?? title) {
+                Task { await load() }
+            }
+        }
         .refreshable { await load() }
         .task { await load() }
     }
@@ -234,7 +273,7 @@ struct LocationDetailView: View {
                     NavigationLink(value: EquipmentRoute(kind: "CONTAINER", id: box.id)) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                EquipmentNumber(text: box.number, font: .system(.body, design: .monospaced))
+                                EquipmentNumber(text: Marking.formatContainer(box.number), font: .system(.body, design: .monospaced))
                                 Text([
                                     Words.line(box.containerType),
                                     Words.size(box.equipmentType),

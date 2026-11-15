@@ -1,14 +1,19 @@
 import SwiftUI
+import UIKit
 
 @main
 struct YardLinkApp: App {
     @StateObject private var model = AppModel()
 
+    init() {
+        // Back arrows and bar buttons are white on the navy bar.
+        UINavigationBar.appearance().tintColor = .white
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(model)
-                .tint(Brand.linkBlue)
                 .onOpenURL { url in
                     // A tapped yardlink://connect link does the same as scanning the code.
                     model.handleConnectText(url.absoluteString)

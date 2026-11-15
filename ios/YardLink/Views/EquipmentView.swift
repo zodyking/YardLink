@@ -11,6 +11,16 @@ struct ContainerDetailView: View {
     @State private var selectedCycleId: String?
     @State private var loading = true
     @State private var errorMessage: String?
+    @State private var sheet: ContainerSheet?
+    @State private var confirmingDelete = false
+    @State private var working = false
+    @Environment(\.dismiss) private var dismiss
+
+    private enum ContainerSheet: String, Identifiable {
+        case edit, move, photos
+
+        var id: String { rawValue }
+    }
 
     private var cycles: [DutyCycle] { detail?.history?.cycles ?? [] }
     private var selectedCycle: DutyCycle? {
@@ -34,17 +44,58 @@ struct ContainerDetailView: View {
                             }
                         }
                     }
-                    SectionTitle(text: "More for this container")
-                    WebStepLink(title: "Photos, ShipCSX check, edit and move on the web", path: "/containers/\(containerId)")
+                    SectionTitle(text: "This container")
+                    HStack(spacing: 12) {
+                        Button {
+                            sheet = .photos
+                        } label: {
+                            Label("Photos", systemImage: "photo.fill")
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                        Button {
+                            sheet = .edit
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                    }
+                    Button {
+                        sheet = .move
+                    } label: {
+                        Label("Move to Another Location", systemImage: "arrow.right.circle.fill")
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    Button(working ? "Deleting…" : "Delete Container") { confirmingDelete = true }
+                        .buttonStyle(DangerTextButtonStyle())
+                        .disabled(working)
                 } else if loading {
                     ProgressView("Loading container…").frame(maxWidth: .infinity, minHeight: 200)
                 }
             }
             .padding(16)
         }
-        .background(Brand.mist.ignoresSafeArea())
-        .navigationTitle(detail?.container.number ?? "Container")
+        .screenBackground()
+        .navigationTitle(Marking.formatContainer(detail?.container.number))
         .navigationBarTitleDisplayMode(.inline)
+        .navyBar()
+        .sheet(item: $sheet) { sheet in
+            if let detail {
+                switch sheet {
+                case .edit:
+                    ContainerEditView(detail: detail) { Task { await load() } }
+                case .move:
+                    MoveContainerView(containerId: containerId, currentLocationId: detail.currentLocation?.id) { Task { await load() } }
+                case .photos:
+                    DocumentsSheet(scope: .container(containerId), equipmentNumber: detail.container.number)
+                }
+            }
+        }
+        .confirmationDialog("Delete this container?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button("Delete Container", role: .destructive) { Task { await deleteContainer() } }
+            Button("Keep", role: .cancel) {}
+        } message: {
+            Text("The container is removed from the lists. Its history is kept.")
+        }
         .refreshable { await load() }
         .task { await load() }
     }
@@ -145,6 +196,18 @@ struct ContainerDetailView: View {
         }
         loading = false
     }
+
+    private func deleteContainer() async {
+        guard let api = model.api else { return }
+        working = true
+        defer { working = false }
+        do {
+            let _: OkResult = try await api.delete("/api/containers/\(containerId)")
+            dismiss()
+        } catch {
+            errorMessage = model.handle(error)
+        }
+    }
 }
 
 /// A chassis: one continuous history, and every container it has carried.
@@ -155,6 +218,11 @@ struct ChassisDetailView: View {
     @State private var detail: ChassisDetail?
     @State private var loading = true
     @State private var errorMessage: String?
+    @State private var editing = false
+    @State private var confirmingRelease = false
+    @State private var confirmingDelete = false
+    @State private var working = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
@@ -203,17 +271,52 @@ struct ChassisDetailView: View {
                         }
                     }
 
-                    SectionTitle(text: "More for this chassis")
-                    WebStepLink(title: "Edit, release or delete on the web", path: "/chassis/\(chassisId)")
+                    SectionTitle(text: "This chassis")
+                    Button {
+                        editing = true
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    if detail.currentContainer?.id != nil {
+                        Button {
+                            confirmingRelease = true
+                        } label: {
+                            Label("Release from Its Container", systemImage: "minus.circle")
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .disabled(working)
+                    }
+                    Button(working ? "Working…" : "Delete Chassis") { confirmingDelete = true }
+                        .buttonStyle(DangerTextButtonStyle())
+                        .disabled(working)
                 } else if loading {
                     ProgressView("Loading chassis…").frame(maxWidth: .infinity, minHeight: 200)
                 }
             }
             .padding(16)
         }
-        .background(Brand.mist.ignoresSafeArea())
+        .screenBackground()
         .navigationTitle(detail?.chassis.number ?? "Chassis")
         .navigationBarTitleDisplayMode(.inline)
+        .navyBar()
+        .sheet(isPresented: $editing) {
+            if let detail {
+                ChassisEditView(chassis: detail.chassis) { Task { await load() } }
+            }
+        }
+        .confirmationDialog("Release this chassis?", isPresented: $confirmingRelease, titleVisibility: .visible) {
+            Button("Release", role: .destructive) { Task { await act(release: true) } }
+            Button("Keep", role: .cancel) {}
+        } message: {
+            Text("The container comes off this chassis and the chassis becomes available.")
+        }
+        .confirmationDialog("Delete this chassis?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button("Delete Chassis", role: .destructive) { Task { await act(release: false) } }
+            Button("Keep", role: .cancel) {}
+        } message: {
+            Text("The chassis is removed from the lists. Its history is kept.")
+        }
         .refreshable { await load() }
         .task { await load() }
     }
@@ -270,5 +373,23 @@ struct ChassisDetailView: View {
             errorMessage = model.handle(error)
         }
         loading = false
+    }
+
+    /// Release the chassis from its container, or delete it.
+    private func act(release: Bool) async {
+        guard let api = model.api else { return }
+        working = true
+        defer { working = false }
+        do {
+            if release {
+                let _: OkResult = try await api.post("/api/chassis/\(chassisId)/release")
+                await load()
+            } else {
+                let _: OkResult = try await api.delete("/api/chassis/\(chassisId)")
+                dismiss()
+            }
+        } catch {
+            errorMessage = model.handle(error)
+        }
     }
 }

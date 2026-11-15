@@ -85,6 +85,18 @@ struct AccountInfo: Decodable {
         let emailPrefs: [String: Bool]
     }
 
+    /// What a driver's time card is filled in from.
+    struct DriverDetails: Decodable {
+        let cdlNumber: String?
+        let cdlState: String?
+        let truckVin: String?
+    }
+
+    let firstName: String?
+    let lastName: String?
+    let email: String?
+    let mobileNumber: String?
+    let driver: DriverDetails?
     let notifications: Notifications
 }
 
@@ -100,9 +112,10 @@ struct HomePayload: Decodable {
         let company: String
     }
 
-    struct Named: Decodable {
-        let name: String?
-        let number: String?
+    /// Today's counts shown at the top of Home.
+    struct Stats: Decodable {
+        let bridgeCrosses: Int?
+        let swaps: Int?
     }
 
     struct Trip: Decodable {
@@ -112,26 +125,51 @@ struct HomePayload: Decodable {
         let isLoaded: Bool?
         let sealNumber: String?
         let kind: String?
+        let swapPairTripId: String?
+        let customer: String?
+
+        var isLive: Bool { ["PICKUP_IN_PROGRESS", "IN_TRANSIT", "DROPOFF_IN_PROGRESS"].contains(status) }
+        var isBareChassis: Bool { kind == "BARE_CHASSIS" }
+    }
+
+    struct Box: Decodable {
+        let id: String?
+        let number: String?
+        let containerType: String?
+        let equipmentType: String?
+    }
+
+    /// The one thing to do next, as the server decides it. `to` is the web
+    /// app's address for that step; the phone opens its own screen for it.
+    struct NextStep: Decodable {
+        let label: String?
+        let to: String?
     }
 
     struct Active: Decodable {
         let trip: Trip
-        let container: Named?
-        let chassis: Named?
-        let origin: Named?
-        let destination: Named?
+        let container: Box?
+        let chassis: NumberedEquipment?
+        let origin: NamedPlace?
+        let destination: NamedPlace?
+        let primaryAction: NextStep?
     }
 
     struct TodayTask: Decodable, Identifiable {
         let id: String
         let title: String?
         let status: String?
+        let kind: String?
+        let card: TaskCard?
     }
 
     let driver: Driver
+    let stats: Stats?
     let todayIso: String?
     let active: Active?
     let swapPartner: Active?
+    /// A trip finished in the last few hours, kept on Home until cleared.
+    let recentCompleted: Active?
     let todayTasks: [TodayTask]?
 }
 

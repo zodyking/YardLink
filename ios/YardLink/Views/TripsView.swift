@@ -18,35 +18,50 @@ struct TripsView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if let errorMessage {
-                    ErrorBanner(message: errorMessage)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                }
-                if !loading && trips.isEmpty && errorMessage == nil {
-                    EmptyNote(title: "No trips yet", detail: "Trips appear here once you confirm a pickup.")
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                }
-                ForEach(days, id: \.day) { group in
-                    Section(Format.day(group.day)) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    if let errorMessage { ErrorBanner(message: errorMessage) }
+
+                    NavigationLink {
+                        TimeCardsView()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "clock.badge.checkmark.fill")
+                                .font(.title3)
+                                .foregroundColor(Brand.linkBlue)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Time Cards").font(.body.weight(.semibold)).foregroundColor(Brand.navy)
+                                Text("Your stops for each day, ready to send").font(.footnote).foregroundColor(Brand.muted)
+                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundColor(Brand.muted.opacity(0.6))
+                        }
+                        .padding(14)
+                        .cardSurface()
+                    }
+                    .buttonStyle(.plain)
+
+                    if !loading && trips.isEmpty && errorMessage == nil {
+                        EmptyNote(title: "No trips yet", detail: "Trips appear here once you confirm a pickup.")
+                    }
+
+                    ForEach(days, id: \.day) { group in
+                        SectionTitle(text: Format.day(group.day))
                         ForEach(group.trips) { trip in
                             NavigationLink(value: trip) {
                                 TripRow(trip: trip)
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
-                Section {
-                    WebStepLink(title: "Calendar and time cards on the web", path: "/pickups", systemImage: "calendar")
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                }
+                .padding(16)
             }
-            .listStyle(.insetGrouped)
+            .screenBackground()
             .overlay { if loading && trips.isEmpty { ProgressView() } }
-            .navigationTitle("My Trips")
+            .navigationTitle("Trips")
+            .navigationBarTitleDisplayMode(.inline)
+            .navyBar()
             .navigationDestination(for: TripListItem.self) { trip in
                 TripDetailView(tripId: trip.id, onChanged: { Task { await load() } })
             }
@@ -71,32 +86,40 @@ struct TripsView: View {
 private struct TripRow: View {
     let trip: TripListItem
 
+    private var title: String {
+        if let number = trip.containerNumber, !number.isEmpty { return Marking.formatContainer(number) }
+        return trip.title
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                EquipmentNumber(text: trip.title, font: .system(.body, design: .monospaced))
+                EquipmentNumber(text: title, font: .system(.headline, design: .monospaced))
                 Spacer()
                 StatusPill(text: Words.tripStatus(trip.status), color: tripStatusColor(trip.status))
             }
-            HStack(spacing: 6) {
-                Text(trip.originName ?? "—")
-                Image(systemName: "arrow.right")
-                Text(trip.destinationName ?? "No drop-off set")
+            HStack(spacing: 8) {
+                Text(trip.originName ?? "—").lineLimit(1)
+                Image(systemName: "arrow.right").font(.caption.weight(.bold)).foregroundColor(Brand.linkBlue)
+                Text(trip.destinationName ?? "No drop-off set").lineLimit(1)
             }
-            .font(.footnote)
-            .foregroundColor(Brand.muted)
-            .lineLimit(1)
+            .font(.subheadline)
+            .foregroundColor(Brand.ink)
             HStack(spacing: 8) {
                 if !trip.isBareChassis {
                     Text((trip.isLoaded ?? false) ? "Loaded" : "Empty")
                 }
                 if let line = Words.line(trip.containerType) { Text(line) }
+                if let chassis = trip.chassisNumber, !chassis.isEmpty, !trip.isBareChassis { Text("On \(chassis)") }
                 if trip.swapPairTripId != nil { Text("Swap") }
             }
-            .font(.caption)
+            .font(.caption.weight(.semibold))
             .foregroundColor(Brand.muted)
         }
-        .padding(.vertical, 2)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface()
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -110,10 +133,17 @@ struct TripDetailView: View {
     @State private var detail: TripDetail?
     @State private var loading = true
     @State private var errorMessage: String?
-    @State private var showingArrive = false
+    @State private var sheet: TripSheet?
+    @State private var resuming = false
     @State private var confirmingCancel = false
     @State private var confirmingDelete = false
     @State private var working = false
+
+    private enum TripSheet: String, Identifiable {
+        case arrive, destination, seal, update, documents
+
+        var id: String { rawValue }
+    }
 
     var body: some View {
         ScrollView {
@@ -131,19 +161,34 @@ struct TripDetailView: View {
             }
             .padding(16)
         }
-        .background(Brand.mist.ignoresSafeArea())
+        .screenBackground()
         .navigationTitle(detail?.trip.reference ?? "Trip")
         .navigationBarTitleDisplayMode(.inline)
+        .navyBar()
         .refreshable { await load() }
         .task { await load() }
-        .sheet(isPresented: $showingArrive) {
+        .sheet(item: $sheet, onDismiss: { changed() }) { sheet in
             if let detail {
-                ArriveView(detail: detail) {
-                    showingArrive = false
-                    onChanged()
-                    Task { await load() }
+                switch sheet {
+                case .arrive:
+                    ArriveView(detail: detail) { self.sheet = nil }
+                case .destination:
+                    DestinationPickerView(
+                        tripId: detail.trip.id,
+                        currentId: detail.destination?.id,
+                        originId: detail.origin?.id
+                    ) {}
+                case .seal:
+                    SealSheet(tripId: detail.trip.id, current: detail.trip.sealNumber) {}
+                case .update:
+                    SendUpdateSheet(trip: TripUpdateFields(detail))
+                case .documents:
+                    DocumentsSheet(scope: .trip(detail.trip.id), equipmentNumber: detail.container?.number ?? detail.chassis?.number)
                 }
             }
+        }
+        .fullScreenCover(isPresented: $resuming) {
+            PickupWizardView(mode: .resume(tripId: tripId), model: model) { changed() }
         }
         .confirmationDialog("Cancel this trip?", isPresented: $confirmingCancel, titleVisibility: .visible) {
             Button("Cancel Trip", role: .destructive) { Task { await cancelTrip() } }
@@ -161,49 +206,78 @@ struct TripDetailView: View {
 
     @ViewBuilder
     private func summary(_ detail: TripDetail) -> some View {
-        Card {
-            HStack {
-                EquipmentNumber(text: detail.container?.number ?? detail.chassis?.number ?? "Trip")
-                Spacer()
-                StatusPill(text: Words.tripStatus(detail.trip.status), color: tripStatusColor(detail.trip.status))
+        let trip = detail.trip
+        let sealEditable = !trip.isBareChassis && trip.isLive && (trip.isLoaded ?? false)
+        TripCard(
+            content: TripCard.Content(
+                status: trip.status,
+                isBareChassis: trip.isBareChassis || (detail.container?.number == nil && detail.chassis?.number != nil),
+                containerNumber: detail.container?.number,
+                chassisNumber: detail.chassis?.number,
+                equipmentType: detail.container?.equipmentType,
+                containerType: detail.container?.containerType,
+                isLoaded: trip.isLoaded ?? false,
+                sealNumber: trip.sealNumber,
+                originName: detail.origin?.name,
+                destinationName: detail.destination?.name
+            ),
+            onChangeDropoff: trip.isLive && trip.status != "PICKUP_IN_PROGRESS" ? { sheet = .destination } : nil,
+            onEditSeal: sealEditable ? { sheet = .seal } : nil
+        )
+
+        let notes = trip.driverNotes ?? trip.notes
+        if trip.pickedUpAt != nil || trip.droppedOffAt != nil || notes?.isEmpty == false {
+            Card {
+                InfoRow(label: "Picked up", value: trip.pickedUpAt.map { Format.dateTime($0) })
+                InfoRow(label: "Dropped off", value: trip.droppedOffAt.map { Format.dateTime($0) })
+                InfoRow(label: "Notes", value: notes)
             }
-            if detail.container != nil {
-                InfoRow(label: "Chassis", value: detail.chassis?.number)
-                InfoRow(label: "Cargo", value: (detail.trip.isLoaded ?? false) ? "Loaded" : "Empty")
-                InfoRow(label: "Line", value: Words.line(detail.container?.containerType))
-                InfoRow(label: "Size", value: Words.size(detail.container?.equipmentType))
-            } else {
-                InfoRow(label: "Kind", value: "Bare chassis")
-            }
-            InfoRow(label: "Seal", value: detail.trip.sealNumber)
-            InfoRow(label: "From", value: detail.origin?.name)
-            InfoRow(label: "To", value: detail.destination?.name ?? (detail.trip.isLive ? "No drop-off set" : nil))
-            InfoRow(label: "Picked up", value: detail.trip.pickedUpAt.map { Format.dateTime($0) })
-            InfoRow(label: "Dropped off", value: detail.trip.droppedOffAt.map { Format.dateTime($0) })
-            InfoRow(label: "Notes", value: detail.trip.notes)
         }
     }
 
+    /// The same next step Home offers for this trip, then everything else
+    /// that can be done with it.
     @ViewBuilder
     private func actions(_ detail: TripDetail) -> some View {
         let trip = detail.trip
         if trip.isLive {
             if trip.status == "PICKUP_IN_PROGRESS" {
-                WebStepLink(title: "Continue pickup on the web", path: "/pickups/new")
+                Button("Continue Pickup") { resuming = true }
+                    .buttonStyle(PrimaryButtonStyle())
             } else if detail.destination?.id != nil {
-                Button("Arrive") { showingArrive = true }
+                Button("Arrive") { sheet = .arrive }
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(working)
-                WebStepLink(title: "Change drop-off on the web", path: "/trips/\(trip.id)/destination")
             } else {
-                WebStepLink(title: "Set drop-off on the web", path: "/trips/\(trip.id)/destination")
+                Button("Set Drop-off") { sheet = .destination }
+                    .buttonStyle(PrimaryButtonStyle())
             }
-            Button("Cancel Trip", role: .destructive) { confirmingCancel = true }
-                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+
+        HStack(spacing: 12) {
+            Button {
+                sheet = .documents
+            } label: {
+                Label("Documents", systemImage: "doc.text.fill")
+            }
+            .buttonStyle(SecondaryButtonStyle())
+
+            Button {
+                sheet = .update
+            } label: {
+                Label("Send Update", systemImage: "paperplane.fill")
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .disabled(TripUpdate.action(for: trip.status) == nil)
+        }
+
+        if trip.isLive {
+            Button("Cancel Trip") { confirmingCancel = true }
+                .buttonStyle(DangerTextButtonStyle())
                 .disabled(working)
         } else {
-            Button("Delete Trip", role: .destructive) { confirmingDelete = true }
-                .frame(maxWidth: .infinity, minHeight: 44)
+            Button("Delete Trip") { confirmingDelete = true }
+                .buttonStyle(DangerTextButtonStyle())
                 .disabled(working)
         }
     }
@@ -244,6 +318,11 @@ struct TripDetailView: View {
                 }
             }
         }
+    }
+
+    private func changed() {
+        onChanged()
+        Task { await load() }
     }
 
     private func load() async {
@@ -379,12 +458,13 @@ struct ArriveView: View {
                 }
                 .padding(16)
             }
-            .background(Brand.mist.ignoresSafeArea())
+            .screenBackground()
             .navigationTitle("Arrive")
             .navigationBarTitleDisplayMode(.inline)
+            .navyBar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button("Close") { dismiss() }.tint(.white)
                 }
             }
         }
@@ -419,6 +499,7 @@ struct ArriveView: View {
         let destinationLocationId: String
         let retainChassis: Bool
         let notes: String?
+        let gps: GpsFix?
     }
 
     private func arrive() async {
@@ -434,12 +515,48 @@ struct ArriveView: View {
                     eventId: eventId,
                     destinationLocationId: destinationId,
                     retainChassis: retainChassis == true,
-                    notes: trimmed.isEmpty ? nil : trimmed
+                    notes: trimmed.isEmpty ? nil : trimmed,
+                    gps: await LocationFix.shared.current()
                 )
             )
             onDone()
         } catch {
             errorMessage = model.handle(error)
+        }
+    }
+}
+
+/// Arrive for a trip Home knows only by its id: fetch it, then ask.
+struct ArriveSheet: View {
+    @EnvironmentObject private var model: AppModel
+    let tripId: String
+    let onDone: () -> Void
+
+    @State private var detail: TripDetail?
+    @State private var errorMessage: String?
+
+    var body: some View {
+        Group {
+            if let detail {
+                ArriveView(detail: detail, onDone: onDone)
+            } else if let errorMessage {
+                VStack(spacing: 16) {
+                    ErrorBanner(message: errorMessage)
+                    Button("Close", action: onDone).buttonStyle(SecondaryButtonStyle())
+                }
+                .padding(16)
+            } else {
+                ProgressView("Loading trip…")
+            }
+        }
+        .task {
+            guard let api = model.api else { return }
+            do {
+                let loaded: TripDetail = try await api.get("/api/trips/\(tripId)")
+                detail = loaded
+            } catch {
+                errorMessage = model.handle(error)
+            }
         }
     }
 }

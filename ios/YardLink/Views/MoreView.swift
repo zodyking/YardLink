@@ -24,6 +24,11 @@ struct MoreView: View {
                     LabeledContent("Name", value: user.fullName)
                     LabeledContent("Role", value: user.roleLabel)
                     LabeledContent("Email", value: user.email)
+                    NavigationLink {
+                        AccountSettingsView(user: user)
+                    } label: {
+                        Label("Account Settings", systemImage: "person.crop.circle")
+                    }
                 }
                 if !emailTopics.isEmpty {
                     Section {
@@ -71,7 +76,11 @@ struct MoreView: View {
                     Text("Yard Link \(version)")
                 }
             }
+            .scrollContentBackground(.hidden)
+            .screenBackground()
             .navigationTitle("More")
+            .navigationBarTitleDisplayMode(.inline)
+            .navyBar()
             .task { await loadEmailPrefs() }
             .confirmationDialog(
                 "Disconnect from \(user.companyName)?",

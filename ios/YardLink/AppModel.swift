@@ -117,6 +117,15 @@ final class AppModel: ObservableObject {
         stage = .ready(user)
     }
 
+    /// Read the session again after the person changed their name or email,
+    /// so every screen shows the new one.
+    func reloadSession() async {
+        guard let api, case .ready = stage,
+              let session: SessionEnvelope = try? await api.get("/api/_auth/session"),
+              let user = session.user else { return }
+        stage = .ready(user)
+    }
+
     /// Ask the server to send the welcome email again. Always answers with
     /// a sentence to show under the button.
     func resendConfirmation(email: String) async -> String {
@@ -146,6 +155,13 @@ final class AppModel: ObservableObject {
             return apiError.message
         }
         return "Something went wrong. Try again."
+    }
+
+    /// Tell the server where the phone is, for today's time card. Quiet on
+    /// purpose: a missed ping must never show up as an error.
+    func sendTimeCardPing() async {
+        guard let api, case .ready = stage, let fix = await LocationFix.shared.current(timeoutSeconds: 12) else { return }
+        let _: OkResult? = try? await api.post("/api/time-cards/ping", body: fix)
     }
 
     func refreshUnread() async {

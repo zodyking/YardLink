@@ -39,12 +39,15 @@ struct TasksView: View {
                 }
                 .padding(16)
             }
-            .background(Brand.mist.ignoresSafeArea())
+            .screenBackground()
             .overlay { if loading && tasks.isEmpty { ProgressView() } }
             .navigationTitle("Tasks")
+            .navigationBarTitleDisplayMode(.inline)
+            .navyBar()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(showDone ? "Hide Done" : "Show Done") { showDone.toggle() }
+                        .tint(.white)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -52,6 +55,7 @@ struct TasksView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
+                    .tint(.white)
                     .accessibilityLabel("Add a note")
                 }
             }
@@ -233,11 +237,12 @@ private struct AddNoteView: View {
                 Spacer()
             }
             .padding(16)
-            .background(Brand.mist.ignoresSafeArea())
+            .screenBackground()
             .navigationTitle("Add a Note")
             .navigationBarTitleDisplayMode(.inline)
+            .navyBar()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.tint(.white) }
             }
             .onAppear { focused = true }
         }
