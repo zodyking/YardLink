@@ -103,6 +103,8 @@ Yard Link:
 
 The iPhone app keeps no rules of its own. Each screen calls the same server route the web app calls, and nothing opens a browser.
 
+It also borrows the web app's shell: a slim navy brand strip across the top of each main screen, the page's own title and controls beneath it, and a white bottom bar with the same five destinations and Tasks raised on a blue disc. Screens pushed on top of those (a trip, a container, a form) use a white bar with a blue Back link instead.
+
 | Screen | On the phone |
 | :-- | :-- |
 | Connect to Your Employer (QR or typed address), sign in, sign out, disconnect | Yes |
@@ -111,22 +113,23 @@ The iPhone app keeps no rules of its own. Each screen calls the same server rout
 | Swap pickup and adding a container to a bare chassis | Yes |
 | Driver-hold and chassis-release questions during a pickup | Yes |
 | Set or change drop-off, correct the seal | Yes |
-| Arrive: drop both / drop the box and keep the chassis; keep or park a bare chassis; notes; position stamp | Yes. Yard placement pin: no |
+| Arrive: drop both / drop the box and keep the chassis; keep or park a bare chassis; notes; position stamp | Yes |
 | Documents on a trip or a container: take, view, remove. Stored on the server | Yes |
 | Send update to dispatch with the trip's files, or share it another way | Yes |
-| Trips by day, trip page, cancel, delete, trip gaps (missing trip / bobtail) | Yes. Calendar view: no |
+| Trips by day, month calendar, trip page, cancel, delete, trip gaps (missing trip / bobtail) | Yes |
 | Time cards: list, edit header and stops, add a stop, PDF, position pings while the app is open | Yes |
-| Tasks: dispatch cards and notes by day, tick steps, mark done, remove own note, add a note, start a pickup | Yes. Split / merge steps: no |
-| Containers tab: grouped locations, search by location or equipment number | Yes. Add / edit a location: no |
-| Location page: details, phones, equipment on site, notes, Add Equipment (with camera), Audit (checklist, move, remove), CSX pickup list (add, remove) | Yes. Yard map view and reading a CSX list from a photo: no |
-| Container page: status, duty-cycle selector, timeline, photos, edit, move, delete | Yes. ShipCSX check: no |
+| Tasks: dispatch cards and notes by day, tick steps, edit steps (add, remove, split lines, join above), mark done, remove own note, add a note, start a pickup | Yes |
+| Containers tab: grouped locations, search by location or equipment number, add a location | Yes |
+| Location page: details, phones, equipment on site, notes, edit, Add Equipment (with camera), Audit (checklist, move, remove), CSX pickup list (type a row, or read a list from a photo), yard map | Yes |
+| Yard map: containers drawn to size at their angle, place or move one | Yes. Drawing the yard outline: no |
+| Container page: status, duty-cycle selector, timeline, photos, ShipCSX check, edit, move, delete | Yes |
 | Chassis page: status, pairings, trail, edit, release, delete | Yes |
 | Messages | Yes |
-| More: account settings (name, email, mobile, password, license and truck), email preferences, export locations | Yes. System codes: no |
+| More: account settings (name, email, mobile, password, license and truck), email preferences, export locations, clear records | Yes |
 
 ## 7. Open work
 
-1. **iPhone app, not on the phone yet**: yard map and placement pin, trips calendar, add / edit a location, ShipCSX check, reading a CSX list from a photo, split / merge task steps, system codes. All remain in the web app.
+1. **Drawing a location's outline and compass heading** stays in the web app. The phone places containers inside a yard but does not draw the yard itself.
 2. **Dispatcher console redesign** and dispatch assignment improvements. Dispatchers use the web console; the phone gives them Messages, the equipment lists and More.
 3. **Push notifications** for messages and assignments (the apps poll today).
-4. **The new iPhone screens compile but have not been run against a server.** Every push builds the app for the simulator (`.github/workflows/ios-build.yml`).
+4. **The iPhone screens compile but have not been run against a server.** Every push builds the app for the simulator (`.github/workflows/ios-build.yml`).
