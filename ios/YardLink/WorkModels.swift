@@ -368,7 +368,53 @@ struct LocationRecord: Decodable, Hashable {
     let contactPhone: String?
     let gateInstructions: String?
     let driverNotes: String?
+    let shipcsxTerminal: String?
     let isUncategorized: Bool?
+}
+
+/// A location as the add and edit forms send it. Only the fields the phone
+/// asks for; the map outline and heading are left to the web app.
+struct LocationInput: Encodable {
+    var name = ""
+    var type = "CUSTOMER"
+    var addressLine1 = ""
+    var city = ""
+    var state = ""
+    var postalCode = ""
+    var hours = ""
+    var mainPhone = ""
+    var contactName = ""
+    var contactPhone = ""
+    var gateInstructions = ""
+    var driverNotes = ""
+    var shipcsxTerminal = ""
+    var appointmentRequired = false
+
+    init() {}
+
+    init(_ record: LocationRecord) {
+        name = record.name
+        type = record.type ?? "CUSTOMER"
+        addressLine1 = record.addressLine1 ?? ""
+        city = record.city ?? ""
+        state = record.state ?? ""
+        postalCode = record.postalCode ?? ""
+        hours = record.hours ?? ""
+        mainPhone = record.mainPhone ?? ""
+        contactName = record.contactName ?? ""
+        contactPhone = record.contactPhone ?? ""
+        gateInstructions = record.gateInstructions ?? ""
+        driverNotes = record.driverNotes ?? ""
+        shipcsxTerminal = record.shipcsxTerminal ?? ""
+    }
+}
+
+struct LocationEnvelope: Decodable {
+    struct Ref: Decodable {
+        let id: String
+    }
+
+    let location: Ref
 }
 
 struct SiteContainer: Decodable, Identifiable, Hashable {
@@ -473,6 +519,10 @@ struct ContainerDetail: Decodable {
     let currentChassis: NumberedEquipment?
     let currentDriver: PersonRef?
     let history: ContainerHistory?
+    let shipcsx: ShipcsxSnapshot?
+    let shipcsxCheck: ShipcsxCheck?
+    /// The CSX facility the last check used, offered first next time.
+    let suggestedTerminal: String?
 }
 
 struct ChassisPairing: Decodable, Identifiable, Hashable {
@@ -711,3 +761,115 @@ struct TimeCard: Decodable {
 struct TimeCardEnvelope: Decodable {
     let card: TimeCard
 }
+
+// MARK: - ShipCSX
+
+/// What ShipCSX said about a container the last time it was checked.
+struct ShipcsxSnapshot: Decodable, Hashable {
+    let terminalName: String?
+    let loadEmpty: String?
+    let waybillDate: String?
+    let gateWindow: String?
+    let inGateReadiness: String?
+    let resultTab: String?
+    let error: String?
+    let checkedAt: Date?
+
+    /// The same wording the web app shows.
+    var statusLabel: String {
+        if let readiness = inGateReadiness?.trimmingCharacters(in: .whitespaces), !readiness.isEmpty { return readiness }
+        if error != nil { return "Couldn't check" }
+        switch resultTab?.replacingOccurrences(of: "-", with: "_") {
+        case "NOTIFIED": return "Notified"
+        case "ENROUTE": return "En route"
+        case "IN_GATE": return "In gate"
+        case "OTHERS": return "Other"
+        case "NOT_FOUND": return "Not found"
+        default: return "Checked"
+        }
+    }
+
+    var detailLine: String {
+        [terminalName, loadEmpty, waybillDate.map { "Waybill \($0)" }, gateWindow]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+}
+
+/// A lookup in progress. The server drives a browser, so it reports a step.
+struct ShipcsxCheck: Decodable, Hashable {
+    let status: String
+    let stepLabel: String?
+    let stepIndex: Int?
+    let stepCount: Int?
+    let error: String?
+
+    var running: Bool { status == "running" }
+    var progressLine: String {
+        guard let index = stepIndex, let count = stepCount, let label = stepLabel else { return "Checking…" }
+        return "Step \(index) of \(count) · \(label)"
+    }
+}
+
+struct ShipcsxCheckEnvelope: Decodable {
+    let check: ShipcsxCheck?
+}
+
+/// CSX facilities Yard Link can look up. Fixed list, as on the server.
+let shipcsxTerminals = ["North Bergen", "Little Ferry", "South Kearny", "Elizabeth", "Newark"]
+
+// MARK: - A CSX list read from a photo
+
+struct CsxListPair: Decodable, Identifiable, Hashable {
+    let containerNumber: String
+    let pickupNumber: String
+    /// `high` when one container and one pickup number shared a line.
+    let confidence: String
+
+    var id: String { "\(containerNumber):\(pickupNumber)" }
+}
+
+struct CsxListParse: Decodable {
+    let pairs: [CsxListPair]
+    let leftoverContainers: [String]
+    let leftoverPickups: [String]
+}
+
+// MARK: - Clearing records
+
+struct ResetCounts: Decodable {
+    let locations: Int
+    let containers: Int
+    let trips: Int
+    let chassis: Int
+    let documents: Int
+    let tasks: Int
+    let trucks: Int
+    let users: Int
+
+    func count(_ id: String) -> Int {
+        switch id {
+        case "locations": return locations
+        case "containers": return containers
+        case "trips": return trips
+        case "chassis": return chassis
+        case "documents": return documents
+        case "tasks": return tasks
+        case "trucks": return trucks
+        default: return users
+        }
+    }
+}
+
+/// What can be cleared, in the server's order and wording.
+let resetTargets: [(id: String, label: String, hint: String)] = [
+    ("locations", "Customers and locations", "Yards, terminals and customer sites"),
+    ("containers", "Containers", "Boxes and yard placements"),
+    ("trips", "Trips", "Pickups, drop-offs and movement history"),
+    ("chassis", "Chassis", "Company chassis records"),
+    ("documents", "Documents", "EIRs, PODs and uploads"),
+    ("tasks", "Tasks", "Assigned dispatch cards and driver notes"),
+    ("trucks", "Trucks", "Company trucks"),
+    ("users", "Users", "Other accounts. Yours stays."),
+]

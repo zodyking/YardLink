@@ -84,6 +84,11 @@ struct MoreView: View {
                     if let exportError {
                         Text(exportError).font(.footnote).foregroundColor(Brand.danger)
                     }
+                    NavigationLink {
+                        ClearRecordsView()
+                    } label: {
+                        Label("Clear Records", systemImage: "trash")
+                    }
                 } footer: {
                     Text("Name, address, phones and contacts as a spreadsheet you can share.")
                 }

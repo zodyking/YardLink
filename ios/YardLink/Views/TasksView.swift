@@ -109,6 +109,7 @@ private struct TaskCardView: View {
     let onStartPickup: () -> Void
 
     @State private var saving = false
+    @State private var editingSteps = false
 
     /// Dispatch work that begins with collecting equipment and has no trip yet.
     private var canStartPickup: Bool {
@@ -164,6 +165,13 @@ private struct TaskCardView: View {
                 .accessibilityLabel("\(step.text), \(step.done ? "done" : "not done")")
             }
 
+            if task.isOpen && !steps.isEmpty {
+                Button("Edit Steps") { editingSteps = true }
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(Brand.linkBlue)
+                    .frame(minHeight: 32)
+            }
+
             if canStartPickup {
                 Button("Start Pickup", action: onStartPickup)
                     .buttonStyle(PrimaryButtonStyle())
@@ -183,6 +191,11 @@ private struct TaskCardView: View {
                 .disabled(saving)
             }
         }
+        .sheet(isPresented: $editingSteps) { stepsSheet() }
+    }
+
+    private func stepsSheet() -> some View {
+        TaskStepsView(task: task, onSaved: onSaved)
     }
 
     private var statusLabel: String {

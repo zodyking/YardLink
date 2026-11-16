@@ -499,6 +499,11 @@ struct CsxListView: View {
     @State private var container = ""
     @State private var pickupNumber = ""
     @State private var saving = false
+    @State private var showingCamera = false
+    @State private var reading = false
+    /// Rows read from a photo, for the dispatcher to check before saving.
+    @State private var proposed: [CsxListPair] = []
+    @State private var skipped: [String] = []
 
     private var canAdd: Bool {
         Marking.checkContainer(container).structureValid && !pickupNumber.trimmingCharacters(in: .whitespaces).isEmpty && !saving
@@ -508,6 +513,54 @@ struct CsxListView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 if let errorMessage { ErrorBanner(message: errorMessage) }
+
+                Button {
+                    showingCamera = true
+                } label: {
+                    Label(reading ? "Reading the photo…" : "Read a List From a Photo", systemImage: "camera.fill")
+                }
+                .buttonStyle(DarkButtonStyle())
+                .disabled(reading || saving)
+
+                if !proposed.isEmpty {
+                    SectionTitle(text: "Read from the photo (\(proposed.count))")
+                    Card {
+                        ForEach(proposed) { pair in
+                            HStack(spacing: 10) {
+                                Image(systemName: pair.confidence == "high" ? "checkmark.circle.fill" : "questionmark.circle.fill")
+                                    .foregroundColor(pair.confidence == "high" ? Brand.ok : Brand.warn)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(Marking.formatContainer(pair.containerNumber))
+                                        .font(.system(.subheadline, design: .monospaced).weight(.bold))
+                                        .foregroundColor(Brand.navy)
+                                    Text("Pickup \(pair.pickupNumber)")
+                                        .font(.footnote)
+                                        .foregroundColor(Brand.muted)
+                                }
+                                Spacer(minLength: 0)
+                                Button(role: .destructive) {
+                                    proposed.removeAll { $0.id == pair.id }
+                                } label: {
+                                    Image(systemName: "xmark")
+                                }
+                                .frame(minWidth: 44, minHeight: 36)
+                                .accessibilityLabel("Drop \(pair.containerNumber)")
+                            }
+                            .frame(minHeight: 44)
+                        }
+                        if !skipped.isEmpty {
+                            Text("Could not pair: \(skipped.joined(separator: ", "))")
+                                .font(.footnote)
+                                .foregroundColor(Brand.warn)
+                        }
+                        Button(saving ? "Adding…" : "Add These \(proposed.count)") { Task { await addProposed() } }
+                            .buttonStyle(PrimaryButtonStyle())
+                            .disabled(saving)
+                        Button("Discard") { proposed = []; skipped = [] }
+                            .buttonStyle(SecondaryButtonStyle())
+                            .disabled(saving)
+                    }
+                }
 
                 SectionTitle(text: "Add to the list")
                 Card {
@@ -566,8 +619,58 @@ struct CsxListView: View {
         .navigationTitle("CSX Pickup List")
         .navigationBarTitleDisplayMode(.inline)
         .lightBar()
+        .fullScreenCover(isPresented: $showingCamera) {
+            CameraCapture { image in
+                Task { await read(image) }
+            }
+            .ignoresSafeArea()
+        }
         .refreshable { await load() }
         .task { await load() }
+    }
+
+    private struct PhotoPayload: Encodable {
+        let image: String
+    }
+
+    /// Send a photo of the terminal's list and show what the server read.
+    private func read(_ image: UIImage) async {
+        guard let api = model.api, let dataUrl = image.jpegDataUrl(maxDimension: 2200) else { return }
+        reading = true
+        errorMessage = nil
+        defer { reading = false }
+        do {
+            let result: CsxListParse = try await api.post(
+                "/api/locations/\(locationId)/csx-releases/parse",
+                body: PhotoPayload(image: dataUrl),
+                patient: true
+            )
+            proposed = result.pairs
+            skipped = result.leftoverContainers + result.leftoverPickups
+            if result.pairs.isEmpty {
+                errorMessage = "No container and pickup number pairs could be read. Try a straighter, closer photo, or type them in."
+            }
+        } catch {
+            errorMessage = model.handle(error)
+        }
+    }
+
+    private func addProposed() async {
+        guard let api = model.api, !proposed.isEmpty else { return }
+        saving = true
+        errorMessage = nil
+        defer { saving = false }
+        do {
+            let _: OkResult = try await api.post("/api/locations/\(locationId)/csx-releases", body: NewRows(
+                source: "OCR",
+                rows: proposed.map { NewRows.Row(containerNumber: $0.containerNumber, pickupNumber: $0.pickupNumber) }
+            ))
+            proposed = []
+            skipped = []
+            await load()
+        } catch {
+            errorMessage = model.handle(error)
+        }
     }
 
     private func load() async {

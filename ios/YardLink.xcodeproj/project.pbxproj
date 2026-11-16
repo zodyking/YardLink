@@ -39,6 +39,9 @@
 		A1B2C3D4000000000000005F /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000005E /* AccountSettingsView.swift */; };
 		A1B2C3D40000000000000061 /* LocationAuditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000060 /* LocationAuditView.swift */; };
 		A1B2C3D40000000000000063 /* DriverTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000062 /* DriverTabBar.swift */; };
+		A1B2C3D40000000000000065 /* LocationFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000064 /* LocationFormView.swift */; };
+		A1B2C3D40000000000000067 /* ShipcsxCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000066 /* ShipcsxCheckView.swift */; };
+		A1B2C3D40000000000000069 /* TaskStepsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000068 /* TaskStepsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -77,6 +80,9 @@
 		A1B2C3D4000000000000005E /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000060 /* LocationAuditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationAuditView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000062 /* DriverTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverTabBar.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000064 /* LocationFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationFormView.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000066 /* ShipcsxCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShipcsxCheckView.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000068 /* TaskStepsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStepsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -133,6 +139,9 @@
 				A1B2C3D40000000000000046 /* TasksView.swift */,
 				A1B2C3D40000000000000048 /* LocationsView.swift */,
 				A1B2C3D4000000000000004A /* EquipmentView.swift */,
+				A1B2C3D40000000000000064 /* LocationFormView.swift */,
+				A1B2C3D40000000000000066 /* ShipcsxCheckView.swift */,
+				A1B2C3D40000000000000068 /* TaskStepsView.swift */,
 				A1B2C3D40000000000000062 /* DriverTabBar.swift */,
 				A1B2C3D40000000000000060 /* LocationAuditView.swift */,
 				A1B2C3D40000000000000054 /* TripCard.swift */,
@@ -240,6 +249,9 @@
 				A1B2C3D40000000000000047 /* TasksView.swift in Sources */,
 				A1B2C3D40000000000000049 /* LocationsView.swift in Sources */,
 				A1B2C3D4000000000000004B /* EquipmentView.swift in Sources */,
+				A1B2C3D40000000000000065 /* LocationFormView.swift in Sources */,
+				A1B2C3D40000000000000067 /* ShipcsxCheckView.swift in Sources */,
+				A1B2C3D40000000000000069 /* TaskStepsView.swift in Sources */,
 				A1B2C3D40000000000000063 /* DriverTabBar.swift in Sources */,
 				A1B2C3D40000000000000061 /* LocationAuditView.swift in Sources */,
 				A1B2C3D4000000000000004D /* Equipment.swift in Sources */,

@@ -17,7 +17,7 @@ struct ContainerDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     private enum ContainerSheet: String, Identifiable {
-        case edit, move, photos
+        case edit, move, photos, shipcsx
 
         var id: String { rawValue }
     }
@@ -44,6 +44,35 @@ struct ContainerDetailView: View {
                             }
                         }
                     }
+                    SectionTitle(text: "ShipCSX")
+                    Card {
+                        HStack {
+                            Text(detail.shipcsx?.statusLabel ?? "Not checked")
+                                .font(.body.weight(.semibold))
+                                .foregroundColor(Brand.navy)
+                            Spacer()
+                            if let checkedAt = detail.shipcsx?.checkedAt {
+                                Text(Format.dateTime(checkedAt))
+                                    .font(.caption)
+                                    .foregroundColor(Brand.muted)
+                            }
+                        }
+                        if let line = detail.shipcsx?.detailLine, !line.isEmpty {
+                            Text(line).font(.footnote).foregroundColor(Brand.muted)
+                        }
+                        if detail.shipcsxCheck?.running == true {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text(detail.shipcsxCheck?.progressLine ?? "Checking…")
+                                    .font(.footnote)
+                                    .foregroundColor(Brand.muted)
+                            }
+                        }
+                        Button(detail.shipcsx == nil ? "Check CSX" : "Check Again") { sheet = .shipcsx }
+                            .buttonStyle(SecondaryButtonStyle())
+                            .disabled(detail.shipcsxCheck?.running == true)
+                    }
+
                     SectionTitle(text: "This container")
                     HStack(spacing: 12) {
                         Button {
@@ -87,6 +116,12 @@ struct ContainerDetailView: View {
                     MoveContainerView(containerId: containerId, currentLocationId: detail.currentLocation?.id) { Task { await load() } }
                 case .photos:
                     DocumentsSheet(scope: .container(containerId), equipmentNumber: detail.container.number)
+                case .shipcsx:
+                    ShipcsxCheckView(
+                        containerId: containerId,
+                        containerNumber: detail.container.number,
+                        suggestedTerminal: detail.suggestedTerminal
+                    ) { Task { await load() } }
                 }
             }
         }

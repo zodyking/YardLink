@@ -7,6 +7,7 @@ struct LocationsView: View {
 
     @State private var items: [LocationListItem] = []
     @State private var hits: [EquipmentHit] = []
+    @State private var addingLocation = false
     @State private var query = ""
     @State private var loading = true
     @State private var errorMessage: String?
@@ -21,7 +22,15 @@ struct LocationsView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    PageHeader("Containers")
+                    PageHeader("Containers") {
+                        Button {
+                            addingLocation = true
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .buttonStyle(IconButtonStyle())
+                        .accessibilityLabel("Add a location")
+                    }
 
                     SearchField(prompt: "Location, container or chassis", text: $query)
 
@@ -87,6 +96,9 @@ struct LocationsView: View {
             .screenBackground()
             .overlay { if loading && items.isEmpty { ProgressView() } }
             .brandScreen()
+            .sheet(isPresented: $addingLocation) {
+                LocationFormView { Task { await load() } }
+            }
             .navigationDestination(for: LocationListItem.self) { item in
                 LocationDetailView(locationId: item.id, title: item.name)
             }
@@ -189,6 +201,7 @@ struct LocationDetailView: View {
     @State private var noteText = ""
     @State private var savingNote = false
     @State private var addingEquipment = false
+    @State private var editingLocation = false
 
     var body: some View {
         ScrollView {
@@ -204,6 +217,13 @@ struct LocationDetailView: View {
                         Label("Add Equipment", systemImage: "plus")
                     }
                     .buttonStyle(PrimaryButtonStyle())
+
+                    Button {
+                        editingLocation = true
+                    } label: {
+                        Label("Edit This Location", systemImage: "pencil")
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
 
                     NavigationLink {
                         LocationAuditView(locationId: locationId, locationName: detail.location.name)
@@ -241,6 +261,11 @@ struct LocationDetailView: View {
         .navigationTitle(detail?.location.name ?? title)
         .navigationBarTitleDisplayMode(.inline)
         .lightBar()
+        .sheet(isPresented: $editingLocation) {
+            if let detail {
+                LocationFormView(record: detail.location) { Task { await load() } }
+            }
+        }
         .sheet(isPresented: $addingEquipment) {
             AddEquipmentView(locationId: locationId, locationName: detail?.location.name ?? title) {
                 Task { await load() }

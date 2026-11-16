@@ -8,6 +8,8 @@ struct TripsView: View {
     @State private var gapAnswers: [String: String] = [:]
     @State private var loading = true
     @State private var errorMessage: String?
+    @State private var showingCalendar = false
+    @State private var pickedDay: Date?
 
     /// Gaps by the later trip, which is the row they are shown above.
     private var gapsByNextTrip: [String: TripGap] {
@@ -22,11 +24,31 @@ struct TripsView: View {
         }
     }
 
+    /// In calendar view, one chosen day; otherwise every day.
+    private var shownDays: [(day: Date, trips: [TripListItem])] {
+        guard showingCalendar, let pickedDay else { return showingCalendar ? [] : days }
+        let calendar = Calendar.current
+        return days.filter { calendar.isDate($0.day, inSameDayAs: pickedDay) }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    PageHeader("Trips")
+                    PageHeader("Trips") {
+                        Button {
+                            showingCalendar.toggle()
+                            if !showingCalendar { pickedDay = nil }
+                        } label: {
+                            Image(systemName: showingCalendar ? "list.bullet" : "calendar")
+                        }
+                        .buttonStyle(IconButtonStyle())
+                        .accessibilityLabel(showingCalendar ? "Show the list" : "Show a calendar")
+                    }
+
+                    if showingCalendar {
+                        TripCalendar(days: Set(days.map(\.day)), selected: $pickedDay)
+                    }
 
                     if let errorMessage { ErrorBanner(message: errorMessage) }
 
@@ -53,8 +75,16 @@ struct TripsView: View {
                         EmptyNote(title: "No trips yet", detail: "Trips appear here once you confirm a pickup.")
                     }
 
+                    if showingCalendar && pickedDay == nil {
+                        Text("Pick a day with a dot to see its trips.")
+                            .font(.footnote)
+                            .foregroundColor(Brand.muted)
+                    } else if showingCalendar && shownDays.isEmpty {
+                        EmptyNote(title: "No trips this day", detail: "Nothing was picked up or dropped off on this date.")
+                    }
+
                     let gaps = gapsByNextTrip
-                    ForEach(days, id: \.day) { group in
+                    ForEach(shownDays, id: \.day) { group in
                         SectionTitle(text: Format.day(group.day))
                         ForEach(group.trips) { trip in
                             if let gap = gaps[trip.id] {
@@ -645,5 +675,117 @@ struct ArriveSheet: View {
                 errorMessage = model.handle(error)
             }
         }
+    }
+}
+
+/// A month at a time, with a dot on every day that has a trip. Tapping a day
+/// filters the list below, as the web app's calendar does.
+private struct TripCalendar: View {
+    let days: Set<Date>
+    @Binding var selected: Date?
+
+    @State private var month: Date = Calendar.current.startOfDay(for: Date())
+
+    private var calendar: Calendar { Calendar.current }
+
+    private var title: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "LLLL yyyy"
+        return formatter.string(from: month)
+    }
+
+    /// Leading blanks so the first of the month lands under its weekday.
+    private var cells: [Date?] {
+        guard let first = calendar.date(from: calendar.dateComponents([.year, .month], from: month)),
+              let range = calendar.range(of: .day, in: .month, for: first) else { return [] }
+        let blanks = calendar.component(.weekday, from: first) - calendar.firstWeekday
+        let leading = Array(repeating: Date?.none, count: (blanks + 7) % 7)
+        return leading + range.compactMap { day in calendar.date(byAdding: .day, value: day - 1, to: first) }
+    }
+
+    private var weekdayNames: [String] {
+        let symbols = calendar.veryShortStandaloneWeekdaySymbols
+        let start = calendar.firstWeekday - 1
+        return Array(symbols[start...] + symbols[..<start])
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Button {
+                    step(-1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .frame(minWidth: 44, minHeight: 36)
+                .accessibilityLabel("Previous month")
+                Spacer()
+                Text(title)
+                    .font(.headline)
+                    .foregroundColor(Brand.navy)
+                Spacer()
+                Button {
+                    step(1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .frame(minWidth: 44, minHeight: 36)
+                .accessibilityLabel("Next month")
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(Brand.linkBlue)
+
+            HStack(spacing: 0) {
+                ForEach(Array(weekdayNames.enumerated()), id: \.offset) { _, name in
+                    Text(name)
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(Brand.muted)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 4) {
+                ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
+                    if let day {
+                        dayCell(day)
+                    } else {
+                        Color.clear.frame(height: 42)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .cardSurface()
+    }
+
+    private func dayCell(_ day: Date) -> some View {
+        let hasTrips = days.contains { calendar.isDate($0, inSameDayAs: day) }
+        let isSelected = selected.map { calendar.isDate($0, inSameDayAs: day) } ?? false
+        let isToday = calendar.isDateInToday(day)
+        return Button {
+            selected = isSelected ? nil : day
+        } label: {
+            VStack(spacing: 3) {
+                Text("\(calendar.component(.day, from: day))")
+                    .font(.subheadline.weight(isToday ? .bold : .semibold))
+                    .foregroundColor(isSelected ? .white : (hasTrips ? Brand.navy : Brand.muted.opacity(0.7)))
+                Circle()
+                    .fill(hasTrips ? (isSelected ? Color.white : Brand.linkBlue) : .clear)
+                    .frame(width: 5, height: 5)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 42)
+            .background(isSelected ? Brand.navy : (isToday ? Brand.skyWash : .clear))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(!hasTrips)
+        .accessibilityLabel(Format.day(day))
+        .accessibilityHint(hasTrips ? "Has trips" : "No trips")
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private func step(_ months: Int) {
+        if let next = calendar.date(byAdding: .month, value: months, to: month) { month = next }
     }
 }
