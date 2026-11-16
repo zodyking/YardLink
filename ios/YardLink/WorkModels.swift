@@ -358,6 +358,8 @@ struct LocationRecord: Decodable, Hashable {
     let id: String
     let name: String
     let type: String?
+    let latitude: Double?
+    let longitude: Double?
     let addressLine1: String?
     let city: String?
     let state: String?
@@ -425,6 +427,11 @@ struct SiteContainer: Decodable, Identifiable, Hashable {
     let isLoaded: Bool?
     let sealNumber: String?
     let chassisNumber: String?
+    /// Where it sits on the yard map, once someone has placed it.
+    let latitude: Double?
+    let longitude: Double?
+    let rotation: Double?
+    let doNotMove: Bool?
 }
 
 struct SiteChassis: Decodable, Identifiable, Hashable {

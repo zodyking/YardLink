@@ -218,6 +218,24 @@ struct LocationDetailView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle())
 
+                    if let latitude = detail.location.latitude, let longitude = detail.location.longitude {
+                        NavigationLink {
+                            YardMapView(
+                                locationId: locationId,
+                                locationName: detail.location.name,
+                                latitude: latitude,
+                                longitude: longitude
+                            )
+                        } label: {
+                            Label("Yard Map", systemImage: "map.fill")
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                                .font(.headline)
+                                .foregroundColor(Brand.navy)
+                                .cardSurface(radius: Brand.controlRadius)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     Button {
                         editingLocation = true
                     } label: {
