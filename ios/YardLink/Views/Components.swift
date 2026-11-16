@@ -154,24 +154,6 @@ struct PhoneRow: View {
     }
 }
 
-/// A step that is not on the phone yet: opens the same server in Safari.
-struct WebStepLink: View {
-    @EnvironmentObject private var model: AppModel
-    let title: String
-    let path: String
-    var systemImage: String = "safari"
-
-    var body: some View {
-        if let api = model.api {
-            Link(destination: api.url(path)) {
-                Label(title, systemImage: systemImage)
-                    .frame(maxWidth: .infinity, minHeight: 48)
-            }
-            .buttonStyle(SecondaryButtonStyle())
-        }
-    }
-}
-
 /// Centered message for an empty list.
 struct EmptyNote: View {
     let title: String

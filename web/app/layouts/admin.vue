@@ -4,6 +4,7 @@
  * Dispatch is the home: a map-first board, then the management records.
  */
 import { roleLabel } from '#shared/utils/domain'
+import type { AppIconName } from '~/components/AppIcon.vue'
 
 const route = useRoute()
 const { user, clear } = useUserSession()
@@ -13,24 +14,24 @@ const { unread } = useUnreadMessages()
 
 const nav: Array<{
   section: string
-  items: Array<{ to: string, label: string, icon: string, exact?: boolean, badge?: boolean }>
+  items: Array<{ to: string, label: string, icon: AppIconName, exact?: boolean, badge?: boolean }>
 }> = [
   {
     section: 'Operations',
     items: [
-      { to: '/admin', label: 'Board', icon: '◎', exact: true },
-      { to: '/admin/dispatch', label: 'Dispatch', icon: '☑' },
-      { to: '/messages', label: 'Messages', icon: '✉', badge: true },
-      { to: '/admin/inventory', label: 'Inventory', icon: '▦' },
-      { to: '/admin/drivers', label: 'Drivers', icon: '☰' },
+      { to: '/admin', label: 'Board', icon: 'board', exact: true },
+      { to: '/admin/dispatch', label: 'Dispatch', icon: 'dispatch' },
+      { to: '/messages', label: 'Messages', icon: 'messages', badge: true },
+      { to: '/admin/inventory', label: 'Inventory', icon: 'inventory' },
+      { to: '/admin/drivers', label: 'Drivers', icon: 'drivers' },
     ],
   },
   {
     section: 'Account',
     items: [
-      { to: '/admin/account', label: 'Account', icon: '⚙' },
-      { to: '/admin/settings', label: 'Company', icon: '▤' },
-      { to: '/more', label: 'More', icon: '⋯' },
+      { to: '/admin/account', label: 'Account', icon: 'account' },
+      { to: '/admin/settings', label: 'Company', icon: 'company' },
+      { to: '/more', label: 'More', icon: 'more' },
     ],
   },
 ]
@@ -89,10 +90,10 @@ async function signOut() {
           :class="{ on: navActive(item.to, item.exact) }"
           :aria-current="navActive(item.to, item.exact) ? 'page' : undefined"
         >
-          <span
+          <AppIcon
             class="n-ico"
-            aria-hidden="true"
-          >{{ item.icon }}</span>
+            :name="item.icon"
+          />
           {{ item.label }}
           <span
             v-if="item.badge && unread"
@@ -109,15 +110,22 @@ async function signOut() {
           aria-label="Open navigation"
           @click="drawerOpen = true"
         >
-          ≡
+          <AppIcon
+            name="menu"
+            :size="22"
+          />
         </button>
         <strong class="font-[family-name:var(--font-display)] text-sm tracking-wide">{{ heading }}</strong>
         <div class="ml-auto flex items-center gap-3">
           <span class="hidden text-xs text-white/70 sm:inline">{{ user?.fullName }} · {{ roleLabel(user?.role) }}</span>
           <button
-            class="min-h-11 rounded-[var(--radius-sm)] bg-white/10 px-3 text-xs font-semibold"
+            class="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-sm)] bg-white/10 px-3 text-xs font-semibold"
             @click="signOut"
           >
+            <AppIcon
+              name="signout"
+              :size="16"
+            />
             Sign out
           </button>
         </div>
@@ -160,10 +168,10 @@ async function signOut() {
             :to="item.to"
             :class="{ on: navActive(item.to, item.exact) }"
           >
-            <span
+            <AppIcon
               class="n-ico"
-              aria-hidden="true"
-            >{{ item.icon }}</span>
+              :name="item.icon"
+            />
             {{ item.label }}
             <span
               v-if="item.badge && unread"

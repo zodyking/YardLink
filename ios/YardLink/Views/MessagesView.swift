@@ -37,6 +37,8 @@ struct MessagesView: View {
                 if loading && threads.isEmpty { ProgressView() }
             }
             .navigationTitle("Messages")
+            .navigationBarTitleDisplayMode(.inline)
+            .navyBar()
             .navigationDestination(for: ThreadSummary.self) { thread in
                 ThreadView(thread: thread, user: user)
             }
@@ -47,6 +49,7 @@ struct MessagesView: View {
                     } label: {
                         Image(systemName: "square.and.pencil")
                     }
+                    .tint(.white)
                     .accessibilityLabel("New message")
                 }
             }
@@ -203,9 +206,10 @@ struct ThreadView: View {
             .padding(12)
             .background(Brand.paper)
         }
-        .background(Brand.mist.ignoresSafeArea())
+        .screenBackground()
         .navigationTitle(thread.title)
         .navigationBarTitleDisplayMode(.inline)
+        .navyBar()
         .task {
             await load()
             // Pick up replies while the conversation is open.
@@ -384,9 +388,10 @@ private struct ContactPicker: View {
             .searchable(text: $search, prompt: "Search people")
             .navigationTitle("New Message")
             .navigationBarTitleDisplayMode(.inline)
+            .navyBar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { dismiss() }.tint(.white)
                 }
             }
             .task {

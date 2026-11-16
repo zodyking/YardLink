@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { LocationType } from '#shared/utils/domain'
 import { LOCATION_TYPE_LABELS, LOCATION_TYPES } from '#shared/utils/domain'
+import { downloadLocationDirectoryCsv } from '~/utils/download-text'
 
 /* Location status vocabulary is page-local: domain.ts does not export it yet. */
 type LocationStatus = 'ACTIVE' | 'PENDING_APPROVAL' | 'ARCHIVED'
@@ -43,6 +44,25 @@ const { data, status, error, refresh } = await useFetch('/api/locations', {
 
 const rows = computed(() => data.value?.items ?? [])
 
+const importing = ref(false)
+const exporting = ref(false)
+const exportError = ref('')
+
+async function exportLocations() {
+  if (exporting.value) return
+  exporting.value = true
+  exportError.value = ''
+  try {
+    await downloadLocationDirectoryCsv()
+  }
+  catch (err) {
+    exportError.value = apiErrorMessage(err, 'Could not export the locations.')
+  }
+  finally {
+    exporting.value = false
+  }
+}
+
 function occupancyPercent(occupancy: number, capacity: number | null): number {
   if (!capacity || capacity <= 0) return 0
   return Math.min(100, Math.round((occupancy / capacity) * 100))
@@ -61,7 +81,39 @@ function occupancyPercent(occupancy: number, capacity: number | null): number {
           placeholder="Name, address, city, location code…"
         >
       </label>
+      <button
+        type="button"
+        class="btn-ghost a-tool"
+        @click="importing = true"
+      >
+        <AppIcon name="import" />
+        Import locations
+      </button>
+      <button
+        type="button"
+        class="btn-ghost a-tool"
+        :disabled="exporting"
+        @click="exportLocations"
+      >
+        <AppIcon name="export" />
+        {{ exporting ? 'Exporting…' : 'Export' }}
+      </button>
     </div>
+
+    <p
+      v-if="exportError"
+      class="banner err"
+      role="alert"
+    >
+      <span aria-hidden="true">✕</span>
+      <span>{{ exportError }}</span>
+    </p>
+
+    <LocationImportSheet
+      :open="importing"
+      @close="importing = false"
+      @imported="refresh()"
+    />
 
     <div
       class="a-toolbar"

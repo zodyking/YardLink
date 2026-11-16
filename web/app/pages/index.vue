@@ -295,10 +295,11 @@ async function confirmCancelTrip() {
           :disabled="!documentsTripId"
           @click="sheet = 'documents'"
         >
-          <span
+          <AppIcon
             class="act-ico"
-            aria-hidden="true"
-          >▤</span>
+            name="documents"
+            :size="22"
+          />
           Documents
         </button>
         <button
@@ -306,10 +307,11 @@ async function confirmCancelTrip() {
           :disabled="!canSendSms"
           @click="sheet = 'sms'"
         >
-          <span
+          <AppIcon
             class="act-ico"
-            aria-hidden="true"
-          >✉</span>
+            name="send"
+            :size="22"
+          />
           Send update
         </button>
         <button
@@ -317,20 +319,22 @@ async function confirmCancelTrip() {
           :disabled="!displayTrip"
           @click="sheet = 'contacts'"
         >
-          <span
+          <AppIcon
             class="act-ico"
-            aria-hidden="true"
-          >☎</span>
+            name="phone"
+            :size="22"
+          />
           Contacts
         </button>
         <NuxtLink
           v-if="swapTo"
           :to="swapTo"
         >
-          <span
+          <AppIcon
             class="act-ico"
-            aria-hidden="true"
-          >🔁</span>
+            name="swap"
+            :size="22"
+          />
           Swap
         </NuxtLink>
         <button
@@ -338,10 +342,11 @@ async function confirmCancelTrip() {
           type="button"
           disabled
         >
-          <span
+          <AppIcon
             class="act-ico"
-            aria-hidden="true"
-          >🔁</span>
+            name="swap"
+            :size="22"
+          />
           Swap
         </button>
       </div>

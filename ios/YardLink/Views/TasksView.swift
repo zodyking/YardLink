@@ -9,6 +9,7 @@ struct TasksView: View {
     @State private var errorMessage: String?
     @State private var addingNote = false
     @State private var showDone = false
+    @State private var startingPickup = false
 
     private var visible: [DriverTask] { showDone ? tasks : tasks.filter(\.isOpen) }
 
@@ -33,18 +34,26 @@ struct TasksView: View {
                     ForEach(days, id: \.day) { group in
                         SectionTitle(text: Format.day(iso: group.day))
                         ForEach(group.tasks) { task in
-                            TaskCardView(task: task, onSaved: replace, onError: { errorMessage = $0 })
+                            TaskCardView(
+                                task: task,
+                                onSaved: replace,
+                                onError: { errorMessage = $0 },
+                                onStartPickup: { startingPickup = true }
+                            )
                         }
                     }
                 }
                 .padding(16)
             }
-            .background(Brand.mist.ignoresSafeArea())
+            .screenBackground()
             .overlay { if loading && tasks.isEmpty { ProgressView() } }
             .navigationTitle("Tasks")
+            .navigationBarTitleDisplayMode(.inline)
+            .navyBar()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(showDone ? "Hide Done" : "Show Done") { showDone.toggle() }
+                        .tint(.white)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -52,6 +61,7 @@ struct TasksView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
+                    .tint(.white)
                     .accessibilityLabel("Add a note")
                 }
             }
@@ -59,6 +69,11 @@ struct TasksView: View {
                 AddNoteView { task in
                     addingNote = false
                     tasks.insert(task, at: 0)
+                }
+            }
+            .fullScreenCover(isPresented: $startingPickup) {
+                PickupWizardView(mode: .new, model: model) {
+                    Task { await load() }
                 }
             }
             .refreshable { await load() }
@@ -90,8 +105,14 @@ private struct TaskCardView: View {
     let task: DriverTask
     let onSaved: (DriverTask) -> Void
     let onError: (String) -> Void
+    let onStartPickup: () -> Void
 
     @State private var saving = false
+
+    /// Dispatch work that begins with collecting equipment and has no trip yet.
+    private var canStartPickup: Bool {
+        task.isOpen && task.tripId == nil && ["PICKUP", "LOAD", "EMPTY"].contains(task.kind ?? "")
+    }
 
     private var steps: [TaskStep] { task.steps ?? [] }
 
@@ -140,6 +161,12 @@ private struct TaskCardView: View {
                 .buttonStyle(.plain)
                 .disabled(saving || !task.isOpen)
                 .accessibilityLabel("\(step.text), \(step.done ? "done" : "not done")")
+            }
+
+            if canStartPickup {
+                Button("Start Pickup", action: onStartPickup)
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(saving)
             }
 
             if task.isOpen {
@@ -233,11 +260,12 @@ private struct AddNoteView: View {
                 Spacer()
             }
             .padding(16)
-            .background(Brand.mist.ignoresSafeArea())
+            .screenBackground()
             .navigationTitle("Add a Note")
             .navigationBarTitleDisplayMode(.inline)
+            .navyBar()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.tint(.white) }
             }
             .onAppear { focused = true }
         }

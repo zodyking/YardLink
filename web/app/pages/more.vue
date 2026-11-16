@@ -103,11 +103,8 @@ const buildLabel = computed(() => {
         :to="isDriver ? '/settings' : '/admin/account'"
         class="row"
       >
-        <div
-          class="row-ico"
-          aria-hidden="true"
-        >
-          ⚙
+        <div class="row-ico">
+          <AppIcon name="settings" />
         </div>
         <div class="row-main">
           <b>Settings</b>
@@ -126,11 +123,8 @@ const buildLabel = computed(() => {
         :disabled="exportingLocations"
         @click="exportLocations"
       >
-        <div
-          class="row-ico"
-          aria-hidden="true"
-        >
-          ⇩
+        <div class="row-ico">
+          <AppIcon name="download" />
         </div>
         <div class="row-main">
           <b>Export locations</b>
@@ -142,11 +136,8 @@ const buildLabel = computed(() => {
         to="/reset"
         class="row"
       >
-        <div
-          class="row-ico"
-          aria-hidden="true"
-        >
-          ⌫
+        <div class="row-ico">
+          <AppIcon name="trash" />
         </div>
         <div class="row-main">
           <b>Clear records</b>

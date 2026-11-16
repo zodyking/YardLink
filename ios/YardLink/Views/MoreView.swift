@@ -1,3 +1,4 @@
+import QuickLook
 import SwiftUI
 
 struct MoreView: View {
@@ -9,6 +10,9 @@ struct MoreView: View {
     @State private var emailAvailable = true
     @State private var savingTopic: String?
     @State private var emailError: String?
+    @State private var exporting = false
+    @State private var exportedFile: URL?
+    @State private var exportError: String?
 
     private var version: String {
         let info = Bundle.main.infoDictionary
@@ -24,6 +28,11 @@ struct MoreView: View {
                     LabeledContent("Name", value: user.fullName)
                     LabeledContent("Role", value: user.roleLabel)
                     LabeledContent("Email", value: user.email)
+                    NavigationLink {
+                        AccountSettingsView(user: user)
+                    } label: {
+                        Label("Account Settings", systemImage: "person.crop.circle")
+                    }
                 }
                 if !emailTopics.isEmpty {
                     Section {
@@ -61,6 +70,19 @@ struct MoreView: View {
                     }
                 }
                 Section {
+                    Button {
+                        Task { await exportLocations() }
+                    } label: {
+                        Label(exporting ? "Preparing…" : "Export Locations", systemImage: "square.and.arrow.down")
+                    }
+                    .disabled(exporting)
+                    if let exportError {
+                        Text(exportError).font(.footnote).foregroundColor(Brand.danger)
+                    }
+                } footer: {
+                    Text("Name, address, phones and contacts as a spreadsheet you can share.")
+                }
+                Section {
                     Button("Sign Out") {
                         Task { await model.signOut() }
                     }
@@ -71,7 +93,12 @@ struct MoreView: View {
                     Text("Yard Link \(version)")
                 }
             }
+            .scrollContentBackground(.hidden)
+            .screenBackground()
             .navigationTitle("More")
+            .navigationBarTitleDisplayMode(.inline)
+            .navyBar()
+            .quickLookPreview($exportedFile)
             .task { await loadEmailPrefs() }
             .confirmationDialog(
                 "Disconnect from \(user.companyName)?",
@@ -83,6 +110,22 @@ struct MoreView: View {
             } message: {
                 Text("You will be signed out and will need to scan an employer code again.")
             }
+        }
+    }
+
+    /// Fetch the location directory and open it, ready to share.
+    private func exportLocations() async {
+        guard let api = model.api else { return }
+        exporting = true
+        exportError = nil
+        defer { exporting = false }
+        do {
+            let data = try await api.data("/api/locations/export")
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("yard-link-locations.csv")
+            try data.write(to: url, options: .atomic)
+            exportedFile = url
+        } catch {
+            exportError = model.handle(error)
         }
     }
 

@@ -40,6 +40,8 @@ struct TripListItem: Decodable, Identifiable, Hashable {
     let chassisNumber: String?
     let kind: String?
     let swapPairTripId: String?
+    let originLocationId: String?
+    let destinationLocationId: String?
     let originName: String?
     let destinationName: String?
 
@@ -53,8 +55,60 @@ struct TripListItem: Decodable, Identifiable, Hashable {
     var day: Date { pickedUpAt ?? createdAt ?? droppedOffAt ?? Date() }
 }
 
+/// What the driver said about a break between two trips.
+struct TripGapAnswer: Decodable, Hashable {
+    let priorTripId: String
+    let nextTripId: String
+    /// MISSING or BOBTAIL.
+    let resolution: String
+}
+
 struct TripList: Decodable {
     let items: [TripListItem]
+    let gapResolutions: [TripGapAnswer]?
+}
+
+/// A break in the chain of trips: the earlier one ended somewhere other than
+/// where the later one started. Either a trip was not recorded, or the
+/// driver moved the tractor alone (a bobtail).
+struct TripGap: Identifiable, Hashable {
+    let priorTripId: String
+    let nextTripId: String
+    let fromName: String
+    let toName: String
+
+    var id: String { "\(priorTripId):\(nextTripId)" }
+
+    /// Same reading of the trip list as the web app: oldest to newest, a gap
+    /// wherever a drop-off is not the next pickup.
+    static func find(in trips: [TripListItem]) -> [TripGap] {
+        func stamp(_ trip: TripListItem) -> Date { trip.pickedUpAt ?? trip.createdAt ?? .distantPast }
+        func place(_ name: String?) -> String {
+            (name ?? "").lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        let ordered = trips.sorted { stamp($0) == stamp($1) ? $0.id < $1.id : stamp($0) < stamp($1) }
+        var gaps: [TripGap] = []
+        for (prior, next) in zip(ordered, ordered.dropFirst()) {
+            let fromName = (prior.destinationName ?? "").trimmingCharacters(in: .whitespaces)
+            let toName = (next.originName ?? "").trimmingCharacters(in: .whitespaces)
+            if prior.destinationLocationId == nil && fromName.isEmpty { continue }
+            if next.originLocationId == nil && toName.isEmpty { continue }
+            let same: Bool
+            if let from = prior.destinationLocationId, let to = next.originLocationId {
+                same = from == to
+            } else {
+                same = !place(fromName).isEmpty && place(fromName) == place(toName)
+            }
+            if same { continue }
+            gaps.append(TripGap(
+                priorTripId: prior.id,
+                nextTripId: next.id,
+                fromName: fromName.isEmpty ? "Unknown stop" : fromName,
+                toName: toName.isEmpty ? "Unknown stop" : toName
+            ))
+        }
+        return gaps
+    }
 }
 
 struct TripRecord: Decodable, Hashable {
@@ -66,7 +120,10 @@ struct TripRecord: Decodable, Hashable {
     let sealNumber: String?
     let customer: String?
     let notes: String?
+    let driverNotes: String?
     let chassisId: String?
+    let originLocationId: String?
+    let destinationLocationId: String?
     let swapPairTripId: String?
     let createdAt: Date?
     let pickedUpAt: Date?
@@ -79,6 +136,7 @@ struct TripRecord: Decodable, Hashable {
 struct TripContainer: Decodable, Hashable {
     let id: String?
     let number: String?
+    let numberNormalized: String?
     let containerType: String?
     let equipmentType: String?
 }
@@ -106,6 +164,116 @@ struct TripDetail: Decodable {
     let origin: NamedPlace?
     let destination: NamedPlace?
     let timeline: [TripEvent]?
+}
+
+// MARK: - Starting a pickup
+
+/// A container at a location, or one on that location's CSX pickup list.
+struct YardBox: Decodable, Identifiable, Hashable {
+    let id: String
+    let number: String
+    let numberNormalized: String?
+    let containerType: String?
+    let equipmentType: String?
+    let isLoaded: Bool?
+    let sealNumber: String?
+    let currentChassisId: String?
+    let chassisNumber: String?
+    let pickupNumber: String?
+    let csxRelease: Bool?
+
+    var isCsxRelease: Bool { (csxRelease ?? false) || id.hasPrefix("csx:") }
+}
+
+/// A chassis parked at a location with nothing on it.
+struct YardChassis: Decodable, Identifiable, Hashable {
+    let id: String
+    let number: String
+    let provider: String?
+    let sizeCompatibility: String?
+}
+
+struct SiteInventory: Decodable {
+    let containers: [YardBox]
+    let chassis: [YardChassis]
+    let csxReleases: [YardBox]?
+}
+
+/// What is at the drop-off of an empty inbound, for a customer swap.
+struct SwapSite: Decodable {
+    let destination: NamedPlace
+    let containers: [YardBox]?
+    let chassis: [YardChassis]?
+}
+
+/// What the server would do with a typed container number.
+struct PoolResolution: Decodable {
+    struct Found: Decodable {
+        let id: String
+        let number: String?
+        let containerType: String?
+        let equipmentType: String?
+    }
+
+    struct Holder: Decodable {
+        let driverName: String?
+    }
+
+    /// CREATE, REUSE_ACTIVE, REACTIVATE or CONFLICT.
+    let outcome: String
+    let container: Found?
+    let holder: Holder?
+    let message: String?
+}
+
+struct ChassisLookup: Decodable {
+    struct Item: Decodable {
+        let id: String
+        let number: String
+        let currentContainerId: String?
+        let currentContainerNumber: String?
+    }
+
+    let item: Item
+}
+
+struct TripEnvelope: Decodable {
+    struct Ref: Decodable {
+        let id: String
+    }
+
+    let trip: Ref
+}
+
+/// Numbers the server read from a photo.
+struct ScanResult: Decodable {
+    let container: String?
+    let chassis: String?
+    let message: String?
+}
+
+// MARK: - Documents
+
+struct DocumentItem: Decodable, Identifiable, Hashable {
+    let id: String
+    let category: String?
+    let fileName: String
+    let mimeType: String?
+    let createdAt: Date?
+
+    var isImage: Bool { (mimeType ?? "").hasPrefix("image/") }
+}
+
+struct DocumentList: Decodable {
+    let items: [DocumentItem]
+}
+
+struct DocumentEnvelope: Decodable {
+    struct Ref: Decodable {
+        let id: String
+    }
+
+    let document: Ref
 }
 
 // MARK: - Tasks
@@ -333,6 +501,21 @@ struct ChassisRecord: Decodable, Hashable {
     let number: String
     let provider: String?
     let status: String?
+    let sizeCompatibility: String?
+    let licensePlate: String?
+    let notes: String?
+    let outOfService: Bool?
+}
+
+/// A container on a terminal's CSX pickup list, with its pickup number.
+struct CsxRelease: Decodable, Identifiable, Hashable {
+    let id: String
+    let containerNumber: String
+    let pickupNumber: String?
+}
+
+struct CsxReleaseList: Decodable {
+    let releases: [CsxRelease]
 }
 
 struct ChassisDetail: Decodable {
@@ -469,4 +652,62 @@ enum Words {
     private static func plain(_ raw: String) -> String {
         raw.replacingOccurrences(of: "_", with: " ").capitalized
     }
+}
+
+// MARK: - Time cards
+
+struct TimeCardListItem: Decodable, Identifiable, Hashable {
+    let workDate: String
+    let status: String
+    let stopCount: Int?
+    let totalOnDutyHours: String?
+
+    var id: String { workDate }
+}
+
+struct TimeCardList: Decodable {
+    let items: [TimeCardListItem]
+}
+
+/// One line of the day: in, out, where, and what was done there.
+struct TimeCardStop: Codable, Identifiable, Hashable {
+    var key: String
+    var timeIn: String
+    var timeOut: String
+    var location: String
+    var activity: String
+    /// TRIP, GPS or MANUAL: where the line came from.
+    var source: String?
+    var tripId: String?
+    var locationId: String?
+    var corrected: Bool?
+
+    var id: String { key }
+}
+
+/// The top of the card. The server fills the totals from the stops.
+struct TimeCardHeader: Codable, Hashable {
+    var driverName: String?
+    var truckUnit: String?
+    var trailerNumber: String?
+    var cdl: String?
+    var employeeId: String?
+    var dispatcher: String?
+    var routeCustomer: String?
+    var startOdometer: String?
+    var endOdometer: String?
+    var reportForDuty: String?
+    var releasedFromDuty: String?
+    var totalOnDutyHours: String?
+}
+
+struct TimeCard: Decodable {
+    let workDate: String
+    let status: String
+    let header: TimeCardHeader
+    let stops: [TimeCardStop]
+}
+
+struct TimeCardEnvelope: Decodable {
+    let card: TimeCard
 }

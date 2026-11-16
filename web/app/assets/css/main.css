@@ -5647,9 +5647,69 @@
   }
 
   .a-nav .n-ico {
+    flex: none;
     width: 20px;
-    text-align: center;
-    color: rgb(255 255 255 / 0.5);
+    height: 20px;
+    color: rgb(255 255 255 / 0.55);
+  }
+
+  .a-nav a:hover .n-ico {
+    color: rgb(255 255 255 / 0.85);
+  }
+
+  .app-icon {
+    flex: none;
+    display: block;
+  }
+
+  .a-tool {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    width: auto;
+    min-height: 44px;
+    padding-inline: var(--s4);
+  }
+
+  .import-sheet {
+    display: grid;
+    gap: var(--s3);
+  }
+
+  .import-file {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s3);
+    cursor: pointer;
+  }
+
+  .import-file:focus-within .btn-dark {
+    outline: 3px solid var(--color-blue-400);
+    outline-offset: 2px;
+  }
+
+  .import-file-name {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-ink-700);
+    overflow-wrap: anywhere;
+  }
+
+  .import-problems {
+    max-height: 240px;
+    overflow: auto;
+    border: 1px solid var(--color-line-200);
+    border-radius: var(--radius-md);
+  }
+
+  .import-template {
+    justify-self: start;
+    min-height: 44px;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-blue-500);
+    text-decoration: underline;
   }
 
   .a-nav-section {

@@ -37,41 +37,65 @@ private struct LaunchView: View {
     }
 }
 
-/// The signed-in app. Drivers get the five working tabs, with Messages one
-/// tap away on Home. Dispatchers get Messages and More here and run the desk
-/// from the web console.
+/// The signed-in app. Drivers get the same five tabs as the web app, with
+/// Messages one tap away on Home. Dispatchers get Messages, the equipment
+/// lists and More here, and run the desk from the web console.
 struct MainTabs: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.scenePhase) private var scenePhase
     let user: SessionUser
 
+    private enum Screen: Hashable {
+        case home, trips, tasks, containers, messages, more
+    }
+
+    @State private var selection: Screen
+
+    init(user: SessionUser) {
+        self.user = user
+        _selection = State(initialValue: user.isDriver ? .home : .messages)
+    }
+
     var body: some View {
-        TabView {
+        TabView(selection: $selection) {
             if user.isDriver {
-                HomeView(user: user)
+                HomeView(user: user, openTasks: { selection = .tasks })
                     .tabItem { Label("Home", systemImage: "house.fill") }
                     .badge(model.unreadMessages)
+                    .tag(Screen.home)
                 TripsView()
-                    .tabItem { Label("Trips", systemImage: "arrow.triangle.swap") }
+                    .tabItem { Label("Trips", systemImage: "point.topleft.down.curvedto.point.bottomright.up") }
+                    .tag(Screen.trips)
                 TasksView()
                     .tabItem { Label("Tasks", systemImage: "checklist") }
-                LocationsView()
-                    .tabItem { Label("Locations", systemImage: "mappin.and.ellipse") }
+                    .tag(Screen.tasks)
             } else {
                 MessagesView(user: user)
                     .tabItem { Label("Messages", systemImage: "bubble.left.and.bubble.right.fill") }
                     .badge(model.unreadMessages)
-                LocationsView()
-                    .tabItem { Label("Locations", systemImage: "mappin.and.ellipse") }
+                    .tag(Screen.messages)
             }
+            LocationsView()
+                .tabItem { Label("Containers", systemImage: "shippingbox.fill") }
+                .tag(Screen.containers)
             MoreView(user: user)
                 .tabItem { Label("More", systemImage: "ellipsis.circle.fill") }
+                .tag(Screen.more)
         }
-        .tint(Brand.linkBlue)
         .task {
             // Keep the Messages badge current while the app is open.
             while !Task.isCancelled {
                 await model.refreshUnread()
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
+            }
+        }
+        .task(id: scenePhase) {
+            // While a driver has the app open, the phone's position fills in
+            // today's time card. A declined permission just means no pings.
+            guard user.isDriver, scenePhase == .active else { return }
+            while !Task.isCancelled {
+                await model.sendTimeCardPing()
+                try? await Task.sleep(nanoseconds: 120_000_000_000)
             }
         }
     }

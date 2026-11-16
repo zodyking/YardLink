@@ -27,6 +27,17 @@
 		A1B2C3D40000000000000047 /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000046 /* TasksView.swift */; };
 		A1B2C3D40000000000000049 /* LocationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000048 /* LocationsView.swift */; };
 		A1B2C3D4000000000000004B /* EquipmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000004A /* EquipmentView.swift */; };
+		A1B2C3D4000000000000004D /* Equipment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000004C /* Equipment.swift */; };
+		A1B2C3D4000000000000004F /* LocationFix.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000004E /* LocationFix.swift */; };
+		A1B2C3D40000000000000051 /* PickupFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000050 /* PickupFlow.swift */; };
+		A1B2C3D40000000000000053 /* TripFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000052 /* TripFiles.swift */; };
+		A1B2C3D40000000000000055 /* TripCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000054 /* TripCard.swift */; };
+		A1B2C3D40000000000000057 /* PickupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000056 /* PickupWizardView.swift */; };
+		A1B2C3D40000000000000059 /* TripSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000058 /* TripSheets.swift */; };
+		A1B2C3D4000000000000005B /* TimeCardsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000005A /* TimeCardsView.swift */; };
+		A1B2C3D4000000000000005D /* EquipmentForms.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000005C /* EquipmentForms.swift */; };
+		A1B2C3D4000000000000005F /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000005E /* AccountSettingsView.swift */; };
+		A1B2C3D40000000000000061 /* LocationAuditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000060 /* LocationAuditView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,6 +64,17 @@
 		A1B2C3D40000000000000046 /* TasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000048 /* LocationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationsView.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000004A /* EquipmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentView.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000004C /* Equipment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Equipment.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000004E /* LocationFix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationFix.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000050 /* PickupFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickupFlow.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000052 /* TripFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripFiles.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000054 /* TripCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripCard.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000056 /* PickupWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickupWizardView.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000058 /* TripSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripSheets.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000005A /* TimeCardsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeCardsView.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000005C /* EquipmentForms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentForms.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000005E /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000060 /* LocationAuditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationAuditView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -83,6 +105,10 @@
 				A1B2C3D4000000000000001A /* Models.swift */,
 				A1B2C3D40000000000000040 /* WorkModels.swift */,
 				A1B2C3D4000000000000001C /* Theme.swift */,
+				A1B2C3D4000000000000004C /* Equipment.swift */,
+				A1B2C3D4000000000000004E /* LocationFix.swift */,
+				A1B2C3D40000000000000050 /* PickupFlow.swift */,
+				A1B2C3D40000000000000052 /* TripFiles.swift */,
 				A1B2C3D40000000000000005 /* Views */,
 				A1B2C3D40000000000000011 /* Assets.xcassets */,
 				A1B2C3D40000000000000013 /* Info.plist */,
@@ -105,6 +131,13 @@
 				A1B2C3D40000000000000046 /* TasksView.swift */,
 				A1B2C3D40000000000000048 /* LocationsView.swift */,
 				A1B2C3D4000000000000004A /* EquipmentView.swift */,
+				A1B2C3D40000000000000060 /* LocationAuditView.swift */,
+				A1B2C3D40000000000000054 /* TripCard.swift */,
+				A1B2C3D40000000000000056 /* PickupWizardView.swift */,
+				A1B2C3D40000000000000058 /* TripSheets.swift */,
+				A1B2C3D4000000000000005A /* TimeCardsView.swift */,
+				A1B2C3D4000000000000005C /* EquipmentForms.swift */,
+				A1B2C3D4000000000000005E /* AccountSettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -204,6 +237,17 @@
 				A1B2C3D40000000000000047 /* TasksView.swift in Sources */,
 				A1B2C3D40000000000000049 /* LocationsView.swift in Sources */,
 				A1B2C3D4000000000000004B /* EquipmentView.swift in Sources */,
+				A1B2C3D40000000000000061 /* LocationAuditView.swift in Sources */,
+				A1B2C3D4000000000000004D /* Equipment.swift in Sources */,
+				A1B2C3D4000000000000004F /* LocationFix.swift in Sources */,
+				A1B2C3D40000000000000051 /* PickupFlow.swift in Sources */,
+				A1B2C3D40000000000000053 /* TripFiles.swift in Sources */,
+				A1B2C3D40000000000000055 /* TripCard.swift in Sources */,
+				A1B2C3D40000000000000057 /* PickupWizardView.swift in Sources */,
+				A1B2C3D40000000000000059 /* TripSheets.swift in Sources */,
+				A1B2C3D4000000000000005B /* TimeCardsView.swift in Sources */,
+				A1B2C3D4000000000000005D /* EquipmentForms.swift in Sources */,
+				A1B2C3D4000000000000005F /* AccountSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -315,6 +359,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link Driver";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Yard Link uses the camera to scan your employer's connection code and to photograph containers and paperwork.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Yard Link uses your location to record where a pickup or drop-off happened and to fill in your daily time card.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -345,6 +390,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link Driver";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Yard Link uses the camera to scan your employer's connection code and to photograph containers and paperwork.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Yard Link uses your location to record where a pickup or drop-off happened and to fill in your daily time card.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;

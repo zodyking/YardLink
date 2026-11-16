@@ -6,6 +6,8 @@ struct APIError: LocalizedError {
     let message: String
     /// Extra flags the server attaches, e.g. `approvalPending`.
     let flags: [String: Bool]
+    /// Extra references the server attaches, e.g. the `tripId` already in progress.
+    var details: [String: String] = [:]
 
     var errorDescription: String? { message }
     var isSignedOut: Bool { status == 401 }
@@ -16,14 +18,21 @@ private struct ServerErrorBody: Decodable {
     let message: String?
     let data: [String: FlagValue]?
 
-    /// Only booleans matter to the app; anything else is ignored.
+    /// Booleans and short references matter to the app; anything else is ignored.
     enum FlagValue: Decodable {
         case bool(Bool)
+        case text(String)
         case other
 
         init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
-            if let value = try? container.decode(Bool.self) { self = .bool(value) } else { self = .other }
+            if let value = try? container.decode(Bool.self) {
+                self = .bool(value)
+            } else if let value = try? container.decode(String.self) {
+                self = .text(value)
+            } else {
+                self = .other
+            }
         }
     }
 }
@@ -35,6 +44,8 @@ private struct ServerErrorBody: Decodable {
 final class APIClient {
     let baseURL: URL
     private let session: URLSession
+    /// Same cookies, three minutes of patience.
+    private let patientSession: URLSession
     private let decoder: JSONDecoder
     private let encoder = JSONEncoder()
 
@@ -47,6 +58,12 @@ final class APIClient {
         configuration.timeoutIntervalForRequest = 30
         configuration.waitsForConnectivity = false
         session = URLSession(configuration: configuration)
+
+        let patient = URLSessionConfiguration.default
+        patient.httpCookieStorage = .shared
+        patient.httpShouldSetCookies = true
+        patient.timeoutIntervalForRequest = 180
+        patientSession = URLSession(configuration: patient)
 
         let withFraction = ISO8601DateFormatter()
         withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -64,8 +81,10 @@ final class APIClient {
         try await send(method: "GET", path: path, query: query, body: Optional<Data>.none)
     }
 
-    func post<T: Decodable, Body: Encodable>(_ path: String, body: Body) async throws -> T {
-        try await send(method: "POST", path: path, query: [:], body: try encoder.encode(body))
+    /// `patient` is for the few calls that take the server a while, such as
+    /// reading a photo or saving a large file.
+    func post<T: Decodable, Body: Encodable>(_ path: String, body: Body, patient: Bool = false) async throws -> T {
+        try await send(method: "POST", path: path, query: [:], body: try encoder.encode(body), patient: patient)
     }
 
     func post<T: Decodable>(_ path: String) async throws -> T {
@@ -104,7 +123,7 @@ final class APIClient {
         cookies.forEach { HTTPCookieStorage.shared.deleteCookie($0) }
     }
 
-    private func send<T: Decodable>(method: String, path: String, query: [String: String], body: Data?) async throws -> T {
+    private func send<T: Decodable>(method: String, path: String, query: [String: String], body: Data?, patient: Bool = false) async throws -> T {
         var request = URLRequest(url: url(path, query: query))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -112,7 +131,7 @@ final class APIClient {
             request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
-        let (data, response) = try await perform(request)
+        let (data, response) = try await perform(request, patient: patient)
         try check(response, data)
         do {
             return try decoder.decode(T.self, from: data.isEmpty ? Data("{}".utf8) : data)
@@ -121,9 +140,9 @@ final class APIClient {
         }
     }
 
-    private func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
+    private func perform(_ request: URLRequest, patient: Bool = false) async throws -> (Data, URLResponse) {
         do {
-            return try await session.data(for: request)
+            return try await (patient ? patientSession : session).data(for: request)
         } catch let error as URLError {
             switch error.code {
             case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed:
@@ -145,13 +164,18 @@ final class APIClient {
         guard !(200..<300).contains(http.statusCode) else { return }
         let body = try? JSONDecoder().decode(ServerErrorBody.self, from: data)
         var flags: [String: Bool] = [:]
+        var details: [String: String] = [:]
         for (key, value) in body?.data ?? [:] {
-            if case let .bool(flag) = value { flags[key] = flag }
+            switch value {
+            case let .bool(flag): flags[key] = flag
+            case let .text(text): details[key] = text
+            case .other: break
+            }
         }
         let fallback = http.statusCode >= 500
             ? "The server ran into a problem. Try again in a moment."
             : "That did not work. Try again."
         let message = [body?.statusMessage, body?.message].compactMap { $0 }.first(where: { !$0.isEmpty }) ?? fallback
-        throw APIError(status: http.statusCode, message: message, flags: flags)
+        throw APIError(status: http.statusCode, message: message, flags: flags, details: details)
     }
 }
