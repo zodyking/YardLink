@@ -43,6 +43,7 @@
 		A1B2C3D40000000000000067 /* ShipcsxCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000066 /* ShipcsxCheckView.swift */; };
 		A1B2C3D40000000000000069 /* TaskStepsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000068 /* TaskStepsView.swift */; };
 		A1B2C3D4000000000000006B /* YardMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000006A /* YardMapView.swift */; };
+		A1B2C3D4000000000000006D /* MessageComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000006C /* MessageComposer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -85,6 +86,7 @@
 		A1B2C3D40000000000000066 /* ShipcsxCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShipcsxCheckView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000068 /* TaskStepsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStepsView.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000006A /* YardMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YardMapView.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000006C /* MessageComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageComposer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -141,6 +143,7 @@
 				A1B2C3D40000000000000046 /* TasksView.swift */,
 				A1B2C3D40000000000000048 /* LocationsView.swift */,
 				A1B2C3D4000000000000004A /* EquipmentView.swift */,
+				A1B2C3D4000000000000006C /* MessageComposer.swift */,
 				A1B2C3D4000000000000006A /* YardMapView.swift */,
 				A1B2C3D40000000000000064 /* LocationFormView.swift */,
 				A1B2C3D40000000000000066 /* ShipcsxCheckView.swift */,
@@ -252,6 +255,7 @@
 				A1B2C3D40000000000000047 /* TasksView.swift in Sources */,
 				A1B2C3D40000000000000049 /* LocationsView.swift in Sources */,
 				A1B2C3D4000000000000004B /* EquipmentView.swift in Sources */,
+				A1B2C3D4000000000000006D /* MessageComposer.swift in Sources */,
 				A1B2C3D4000000000000006B /* YardMapView.swift in Sources */,
 				A1B2C3D40000000000000065 /* LocationFormView.swift in Sources */,
 				A1B2C3D40000000000000067 /* ShipcsxCheckView.swift in Sources */,

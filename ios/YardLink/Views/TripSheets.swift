@@ -357,6 +357,9 @@ struct SendUpdateSheet: View {
     @State private var sent = false
     @State private var errorMessage: String?
     @State private var messageId = UUID().uuidString.lowercased()
+    @State private var preparingText = false
+    @State private var texting = false
+    @State private var textAttachments: [(data: Data, fileName: String)] = []
 
     private var isSwap: Bool { swapDropped != nil }
     private var action: TripUpdate.Action? { isSwap ? .pickup : TripUpdate.action(for: trip.status) }
@@ -414,6 +417,20 @@ struct SendUpdateSheet: View {
                             .foregroundColor(Brand.muted)
                     }
 
+                    if MessageComposer.isAvailable {
+                        Button {
+                            Task { await openText() }
+                        } label: {
+                            Label(preparingText ? "Getting the photos…" : "Send as a Text", systemImage: "message.fill")
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .disabled(preparingText)
+                        Text("Opens the phone's Messages app with this written out. It goes from your own number.")
+                            .font(.footnote)
+                            .foregroundColor(Brand.muted)
+                    }
+
                     ShareLink(item: message) {
                         Label("Share Another Way", systemImage: "square.and.arrow.up")
                             .frame(maxWidth: .infinity, minHeight: 48)
@@ -438,8 +455,28 @@ struct SendUpdateSheet: View {
                         .disabled(sending || sent || message.isEmpty)
                 }
             }
+            .sheet(isPresented: $texting) {
+                MessageComposer(body: message, attachments: textAttachments)
+                    .ignoresSafeArea()
+            }
             .task { await loadFiles() }
         }
+    }
+
+    /// Fetch the ticked photos so the text carries them, then hand the whole
+    /// thing to the phone's Messages app.
+    private func openText() async {
+        guard let api = model.api else { return }
+        preparingText = true
+        defer { preparingText = false }
+        var ready: [(data: Data, fileName: String)] = []
+        for file in files where selected.contains(file.id) && file.isImage {
+            if let data = try? await api.data("/api/documents/\(file.id)/file") {
+                ready.append((data, file.fileName))
+            }
+        }
+        textAttachments = ready
+        texting = true
     }
 
     private func loadFiles() async {

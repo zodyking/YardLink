@@ -133,22 +133,51 @@ extension HistoryEvent {
 }
 
 /// Tap to dial a site phone line.
+/// A phone line with the two things a driver does with it: ring it, or text
+/// it from their own number through the phone's Messages app.
 struct PhoneRow: View {
     let label: String
     let number: String?
+    /// Written into the text for the driver, e.g. the trip update.
+    var messageBody: String = ""
+
+    @State private var texting = false
+
+    private var digits: String { (number ?? "").filter { $0.isNumber || $0 == "+" } }
 
     var body: some View {
-        if let number, !number.isEmpty,
-           let url = URL(string: "tel://\(number.filter { $0.isNumber || $0 == "+" })") {
-            Link(destination: url) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(label).font(.footnote).foregroundColor(Brand.muted)
-                        Text(number).font(.subheadline.weight(.semibold)).foregroundColor(Brand.navy)
-                    }
-                    Spacer()
-                    Image(systemName: "phone.fill").foregroundColor(Brand.linkBlue)
+        if let number, !number.isEmpty {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label).font(.footnote).foregroundColor(Brand.muted)
+                    Text(number).font(.subheadline.weight(.semibold)).foregroundColor(Brand.navy)
                 }
+                Spacer(minLength: 0)
+
+                if MessageComposer.isAvailable {
+                    Button {
+                        texting = true
+                    } label: {
+                        Image(systemName: "message.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(Brand.linkBlue)
+                    .frame(width: 44, height: 44)
+                    .accessibilityLabel("Text \(label)")
+                }
+
+                if let url = URL(string: "tel://\(digits)") {
+                    Link(destination: url) {
+                        Image(systemName: "phone.fill")
+                            .foregroundColor(Brand.linkBlue)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Call \(label)")
+                }
+            }
+            .sheet(isPresented: $texting) {
+                MessageComposer(recipients: [digits], body: messageBody)
+                    .ignoresSafeArea()
             }
         }
     }
