@@ -115,7 +115,7 @@ It also borrows the web app's shell: a slim navy brand strip across the top of e
 | Set or change drop-off, correct the seal | Yes |
 | Arrive: drop both / drop the box and keep the chassis; keep or park a bare chassis; notes; position stamp | Yes |
 | Documents on a trip or a container: take, view, remove. Stored on the server | Yes |
-| Send update to dispatch with the trip's files, or share it another way | Yes |
+| Send update to dispatch with the trip's files, share it another way, or hand it to the phone's Messages app with the photos attached | Yes |
 | Trips by day, month calendar, trip page, cancel, delete, trip gaps (missing trip / bobtail) | Yes |
 | Time cards: list, edit header and stops, add a stop, PDF, position pings while the app is open | Yes |
 | Tasks: dispatch cards and notes by day, tick steps, edit steps (add, remove, split lines, join above), mark done, remove own note, add a note, start a pickup | Yes |
@@ -131,5 +131,5 @@ It also borrows the web app's shell: a slim navy brand strip across the top of e
 
 1. **Drawing a location's outline and compass heading** stays in the web app. The phone places containers inside a yard but does not draw the yard itself.
 2. **Dispatcher console redesign** and dispatch assignment improvements. Dispatchers use the web console; the phone gives them Messages, the equipment lists and More.
-3. **Push notifications** for messages and assignments (the apps poll today).
+3. **Push notifications** for messages and assignments (the apps poll today). Until they exist, Yard Link messages cannot appear as communication notifications (sender's face on the lock screen, allowed through a Focus), and Yard Link cannot offer to send a message through Siri.
 4. **The iPhone screens compile but have not been run against a server.** Every push builds the app for the simulator (`.github/workflows/ios-build.yml`).
