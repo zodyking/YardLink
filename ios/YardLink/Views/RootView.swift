@@ -37,15 +37,15 @@ private struct LaunchView: View {
     }
 }
 
-/// The signed-in app. Drivers get the same five tabs as the web app, with
-/// Messages one tap away on Home. Dispatchers get Messages, the equipment
-/// lists and More here, and run the desk from the web console.
+/// The signed-in app: the web app's five destinations with its own bottom
+/// bar, Tasks raised in the middle. A dispatcher signing in on a phone gets
+/// Messages in place of Home and runs the desk from the web console.
 struct MainTabs: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
     let user: SessionUser
 
-    private enum Screen: Hashable {
+    enum Screen: Hashable {
         case home, trips, tasks, containers, messages, more
     }
 
@@ -56,32 +56,54 @@ struct MainTabs: View {
         _selection = State(initialValue: user.isDriver ? .home : .messages)
     }
 
-    var body: some View {
-        TabView(selection: $selection) {
-            if user.isDriver {
-                HomeView(user: user, openTasks: { selection = .tasks })
-                    .tabItem { Label("Home", systemImage: "house.fill") }
-                    .badge(model.unreadMessages)
-                    .tag(Screen.home)
-                TripsView()
-                    .tabItem { Label("Trips", systemImage: "point.topleft.down.curvedto.point.bottomright.up") }
-                    .tag(Screen.trips)
-                TasksView()
-                    .tabItem { Label("Tasks", systemImage: "checklist") }
-                    .tag(Screen.tasks)
-            } else {
-                MessagesView(user: user)
-                    .tabItem { Label("Messages", systemImage: "bubble.left.and.bubble.right.fill") }
-                    .badge(model.unreadMessages)
-                    .tag(Screen.messages)
-            }
-            LocationsView()
-                .tabItem { Label("Containers", systemImage: "shippingbox.fill") }
-                .tag(Screen.containers)
-            MoreView(user: user)
-                .tabItem { Label("More", systemImage: "ellipsis.circle.fill") }
-                .tag(Screen.more)
+    private var items: [DriverTabBar<Screen>.Item] {
+        if user.isDriver {
+            return [
+                .init(screen: .home, label: "Home", glyph: .home),
+                .init(screen: .trips, label: "Trips", glyph: .trips),
+                .init(screen: .tasks, label: "Tasks", glyph: .tasks, raised: true),
+                .init(screen: .containers, label: "Containers", glyph: .containers),
+                .init(screen: .more, label: "More", glyph: .more),
+            ]
         }
+        return [
+            .init(screen: .messages, label: "Messages", glyph: .tasks, badge: model.unreadMessages),
+            .init(screen: .containers, label: "Containers", glyph: .containers),
+            .init(screen: .more, label: "More", glyph: .more),
+        ]
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // The system tab bar is hidden and replaced below, so each tab
+            // keeps its own navigation while the bar stays still.
+            TabView(selection: $selection) {
+                if user.isDriver {
+                    HomeView(user: user, openTasks: { selection = .tasks })
+                        .toolbar(.hidden, for: .tabBar)
+                        .tag(Screen.home)
+                    TripsView()
+                        .toolbar(.hidden, for: .tabBar)
+                        .tag(Screen.trips)
+                    TasksView()
+                        .toolbar(.hidden, for: .tabBar)
+                        .tag(Screen.tasks)
+                } else {
+                    MessagesView(user: user)
+                        .toolbar(.hidden, for: .tabBar)
+                        .tag(Screen.messages)
+                }
+                LocationsView()
+                    .toolbar(.hidden, for: .tabBar)
+                    .tag(Screen.containers)
+                MoreView(user: user)
+                    .toolbar(.hidden, for: .tabBar)
+                    .tag(Screen.more)
+            }
+
+            DriverTabBar(items: items, selection: $selection)
+        }
+        .background(Brand.mist)
         .task {
             // Keep the Messages badge current while the app is open.
             while !Task.isCancelled {

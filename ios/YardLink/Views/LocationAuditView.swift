@@ -107,7 +107,7 @@ struct LocationAuditView: View {
         .screenBackground()
         .navigationTitle("Audit")
         .navigationBarTitleDisplayMode(.inline)
-        .navyBar()
+        .lightBar()
         .safeAreaInset(edge: .bottom) {
             BottomBar {
                 Button(working ? "Saving…" : actionLabel) { act() }

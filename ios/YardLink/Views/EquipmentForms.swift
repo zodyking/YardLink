@@ -76,10 +76,10 @@ private struct FormSheet<Content: View>: View {
             .screenBackground()
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .lightBar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }.tint(.white)
+                    Button("Close") { dismiss() }
                 }
             }
             .safeAreaInset(edge: .bottom) {
@@ -565,7 +565,7 @@ struct CsxListView: View {
         .screenBackground()
         .navigationTitle("CSX Pickup List")
         .navigationBarTitleDisplayMode(.inline)
-        .navyBar()
+        .lightBar()
         .refreshable { await load() }
         .task { await load() }
     }

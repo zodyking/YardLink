@@ -55,7 +55,7 @@ struct TimeCardsView: View {
         .screenBackground()
         .navigationTitle("Time Cards")
         .navigationBarTitleDisplayMode(.inline)
-        .navyBar()
+        .lightBar()
         .refreshable { await load() }
         .task { await load() }
     }
@@ -167,7 +167,7 @@ struct TimeCardView: View {
         .screenBackground()
         .navigationTitle(Format.day(iso: workDate))
         .navigationBarTitleDisplayMode(.inline)
-        .navyBar()
+        .lightBar()
         .safeAreaInset(edge: .bottom) {
             if loaded {
                 BottomBar {

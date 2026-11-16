@@ -75,12 +75,7 @@ struct HomeView: View {
                 .padding(16)
             }
             .screenBackground()
-            .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
-            .toolbar {
-                ToolbarItem(placement: .principal) { BrandMark() }
-                ToolbarItem(placement: .navigationBarTrailing) { messagesButton }
-            }
+            .brandScreen { messagesButton }
             .fullScreenCover(item: $pickup) { launch in
                 PickupWizardView(mode: launch.mode, model: model) {
                     Task { await load() }
@@ -104,10 +99,7 @@ struct HomeView: View {
 
     private func masthead(_ home: HomePayload) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Hello \(home.driver.firstName)")
-                .font(.title2.weight(.bold))
-                .foregroundColor(Brand.navy)
-                .accessibilityAddTraits(.isHeader)
+            PageTitle(text: "Hello \(home.driver.firstName)")
             HStack(spacing: 12) {
                 tally(label: "Bridge Crosses", value: home.stats?.bridgeCrosses ?? 0)
                 tally(label: "Swaps", value: home.stats?.swaps ?? 0)
@@ -291,6 +283,9 @@ struct HomeView: View {
             sheet = .messages
         } label: {
             Image(systemName: model.unreadMessages > 0 ? "bubble.left.and.bubble.right.fill" : "bubble.left.and.bubble.right")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 44, height: 44)
                 .overlay(alignment: .topTrailing) {
                     if model.unreadMessages > 0 {
                         Text(model.unreadMessages > 9 ? "9+" : "\(model.unreadMessages)")
@@ -299,11 +294,10 @@ struct HomeView: View {
                             .padding(4)
                             .background(Brand.danger)
                             .clipShape(Capsule())
-                            .offset(x: 12, y: -9)
+                            .offset(x: -4, y: 4)
                     }
                 }
         }
-        .tint(.white)
         .accessibilityLabel(model.unreadMessages > 0 ? "Messages, \(model.unreadMessages) unread" : "Messages")
     }
 

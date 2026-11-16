@@ -160,10 +160,10 @@ struct LocationPickerSheet: View {
             .screenBackground()
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .lightBar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }.tint(.white)
+                    Button("Close") { dismiss() }
                 }
             }
             .task { await load() }
@@ -259,10 +259,10 @@ struct SealSheet: View {
             .screenBackground()
             .navigationTitle("Correct Seal")
             .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .lightBar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }.tint(.white)
+                    Button("Close") { dismiss() }
                 }
             }
         }
@@ -319,10 +319,10 @@ struct ContactsSheet: View {
             .screenBackground()
             .navigationTitle("Contacts")
             .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .lightBar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }.tint(.white)
+                    Button("Close") { dismiss() }
                 }
             }
         }
@@ -425,10 +425,10 @@ struct SendUpdateSheet: View {
             .screenBackground()
             .navigationTitle("Send Update")
             .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .lightBar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }.tint(.white)
+                    Button("Close") { dismiss() }
                 }
             }
             .safeAreaInset(edge: .bottom) {
@@ -533,10 +533,10 @@ struct DocumentsSheet: View {
             .screenBackground()
             .navigationTitle("Documents")
             .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .lightBar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }.tint(.white)
+                    Button("Close") { dismiss() }
                 }
             }
             .fullScreenCover(isPresented: $showingCamera) {

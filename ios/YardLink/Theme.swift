@@ -46,26 +46,112 @@ extension View {
         )
     }
 
-    /// Navy navigation bar with white type, the web app's top bar.
-    func navyBar() -> some View {
+    /// Inner screens: a white bar with a blue Back link and a navy title, as
+    /// the web app's wizard header. Root screens hide the bar and use
+    /// BrandStrip instead.
+    func lightBar() -> some View {
         self
-            .toolbarBackground(Brand.navy, for: .navigationBar)
+            .toolbarBackground(Brand.paper, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
     }
 }
 
-/// "YARD LINK" as it appears in the web app's top bar.
+/// "YARD LINK" as it appears in the web app's brand bar.
 struct BrandMark: View {
     var body: some View {
         HStack(spacing: 5) {
             Text("YARD").foregroundColor(.white)
             Text("LINK").foregroundColor(Brand.sky)
         }
-        .font(.system(size: 17, weight: .heavy))
-        .tracking(1.2)
+        .font(.system(size: 16, weight: .heavy))
+        .tracking(1.4)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Yard Link")
+    }
+}
+
+/// The slim navy strip across the top of every root screen: the brand in the
+/// middle, room for one control on the right (Messages on Home).
+struct BrandStrip<Trailing: View>: View {
+    @ViewBuilder var trailing: Trailing
+
+    init(@ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        ZStack {
+            BrandMark()
+            HStack {
+                Spacer()
+                trailing
+            }
+            .padding(.trailing, 6)
+        }
+        .frame(height: 52)
+        .frame(maxWidth: .infinity)
+        .background(Brand.navy.ignoresSafeArea(edges: .top))
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+        }
+    }
+}
+
+extension View {
+    /// A root screen: the brand strip pinned to the top in place of the
+    /// system bar, with the content scrolling beneath it.
+    func brandScreen<Trailing: View>(@ViewBuilder trailing: () -> Trailing = { EmptyView() }) -> some View {
+        self
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) { BrandStrip(trailing: trailing) }
+    }
+}
+
+/// The large heading at the top of a root screen's content, as on the web.
+struct PageTitle: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 28, weight: .bold))
+            .tracking(-0.4)
+            .foregroundColor(Brand.navy)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// A page heading with its own controls on the right, as the web app's title
+/// row. The system bar is hidden on root screens, so a screen's actions live
+/// here beside the title.
+struct PageHeader<Actions: View>: View {
+    let title: String
+    @ViewBuilder var actions: Actions
+
+    init(_ title: String, @ViewBuilder actions: () -> Actions = { EmptyView() }) {
+        self.title = title
+        self.actions = actions()
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            PageTitle(text: title)
+            actions
+        }
+    }
+}
+
+/// The square, quiet control used beside a page heading.
+struct IconButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundColor(Brand.navy)
+            .frame(width: 44, height: 44)
+            .background(configuration.isPressed ? Brand.line.opacity(0.6) : Brand.paper)
+            .clipShape(RoundedRectangle(cornerRadius: Brand.controlRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Brand.controlRadius, style: .continuous).stroke(Brand.line))
     }
 }
 

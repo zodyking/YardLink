@@ -41,7 +41,7 @@ struct PickupWizardView: View {
             .screenBackground()
             .navigationTitle(flow.title)
             .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .lightBar()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     if flow.canGoBack {
@@ -50,9 +50,8 @@ struct PickupWizardView: View {
                         } label: {
                             Label("Back", systemImage: "chevron.left")
                         }
-                        .tint(.white)
                     } else {
-                        Button("Close") { close() }.tint(.white)
+                        Button("Close") { close() }
                     }
                 }
             }

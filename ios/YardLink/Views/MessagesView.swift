@@ -15,6 +15,19 @@ struct MessagesView: View {
     var body: some View {
         NavigationStack(path: $path) {
             List {
+                PageHeader("Messages") {
+                    Button {
+                        pickingContact = true
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                    }
+                    .buttonStyle(IconButtonStyle())
+                    .accessibilityLabel("New message")
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+
                 if let errorMessage {
                     ErrorBanner(message: errorMessage)
                         .listRowBackground(Color.clear)
@@ -36,22 +49,9 @@ struct MessagesView: View {
             .overlay {
                 if loading && threads.isEmpty { ProgressView() }
             }
-            .navigationTitle("Messages")
-            .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .brandScreen()
             .navigationDestination(for: ThreadSummary.self) { thread in
                 ThreadView(thread: thread, user: user)
-            }
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        pickingContact = true
-                    } label: {
-                        Image(systemName: "square.and.pencil")
-                    }
-                    .tint(.white)
-                    .accessibilityLabel("New message")
-                }
             }
             .refreshable { await load() }
             .task { await load() }
@@ -209,7 +209,7 @@ struct ThreadView: View {
         .screenBackground()
         .navigationTitle(thread.title)
         .navigationBarTitleDisplayMode(.inline)
-        .navyBar()
+        .lightBar()
         .task {
             await load()
             // Pick up replies while the conversation is open.
@@ -388,10 +388,10 @@ private struct ContactPicker: View {
             .searchable(text: $search, prompt: "Search people")
             .navigationTitle("New Message")
             .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .lightBar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }.tint(.white)
+                    Button("Cancel") { dismiss() }
                 }
             }
             .task {

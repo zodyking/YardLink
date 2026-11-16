@@ -24,6 +24,11 @@ struct MoreView: View {
     var body: some View {
         NavigationStack {
             List {
+                PageHeader("More")
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+
                 Section("Account") {
                     LabeledContent("Name", value: user.fullName)
                     LabeledContent("Role", value: user.roleLabel)
@@ -95,9 +100,7 @@ struct MoreView: View {
             }
             .scrollContentBackground(.hidden)
             .screenBackground()
-            .navigationTitle("More")
-            .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .brandScreen()
             .quickLookPreview($exportedFile)
             .task { await loadEmailPrefs() }
             .confirmationDialog(

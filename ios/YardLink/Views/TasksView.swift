@@ -22,6 +22,24 @@ struct TasksView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
+                    PageHeader("Tasks") {
+                        Button {
+                            showDone.toggle()
+                        } label: {
+                            Image(systemName: showDone ? "eye.slash" : "eye")
+                        }
+                        .buttonStyle(IconButtonStyle())
+                        .accessibilityLabel(showDone ? "Hide finished tasks" : "Show finished tasks")
+
+                        Button {
+                            addingNote = true
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .buttonStyle(IconButtonStyle())
+                        .accessibilityLabel("Add a note")
+                    }
+
                     if let errorMessage { ErrorBanner(message: errorMessage) }
 
                     if !loading && visible.isEmpty && errorMessage == nil {
@@ -47,24 +65,7 @@ struct TasksView: View {
             }
             .screenBackground()
             .overlay { if loading && tasks.isEmpty { ProgressView() } }
-            .navigationTitle("Tasks")
-            .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(showDone ? "Hide Done" : "Show Done") { showDone.toggle() }
-                        .tint(.white)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        addingNote = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .tint(.white)
-                    .accessibilityLabel("Add a note")
-                }
-            }
+            .brandScreen()
             .sheet(isPresented: $addingNote) {
                 AddNoteView { task in
                     addingNote = false
@@ -263,9 +264,9 @@ private struct AddNoteView: View {
             .screenBackground()
             .navigationTitle("Add a Note")
             .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .lightBar()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.tint(.white) }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
             .onAppear { focused = true }
         }

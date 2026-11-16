@@ -26,6 +26,8 @@ struct TripsView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
+                    PageHeader("Trips")
+
                     if let errorMessage { ErrorBanner(message: errorMessage) }
 
                     NavigationLink {
@@ -71,9 +73,7 @@ struct TripsView: View {
             }
             .screenBackground()
             .overlay { if loading && trips.isEmpty { ProgressView() } }
-            .navigationTitle("Trips")
-            .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .brandScreen()
             .navigationDestination(for: TripListItem.self) { trip in
                 TripDetailView(tripId: trip.id, onChanged: { Task { await load() } })
             }
@@ -251,7 +251,7 @@ struct TripDetailView: View {
         .screenBackground()
         .navigationTitle(detail?.trip.reference ?? "Trip")
         .navigationBarTitleDisplayMode(.inline)
-        .navyBar()
+        .lightBar()
         .refreshable { await load() }
         .task { await load() }
         .sheet(item: $sheet, onDismiss: { changed() }) { sheet in
@@ -548,10 +548,10 @@ struct ArriveView: View {
             .screenBackground()
             .navigationTitle("Arrive")
             .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .lightBar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }.tint(.white)
+                    Button("Close") { dismiss() }
                 }
             }
         }

@@ -119,7 +119,7 @@ struct AccountSettingsView: View {
         .screenBackground()
         .navigationTitle("Account Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .navyBar()
+        .lightBar()
         .task { await load() }
     }
 

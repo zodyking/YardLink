@@ -21,6 +21,8 @@ struct LocationsView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
+                    PageHeader("Containers")
+
                     SearchField(prompt: "Location, container or chassis", text: $query)
 
                     if let errorMessage { ErrorBanner(message: errorMessage) }
@@ -84,9 +86,7 @@ struct LocationsView: View {
             .scrollDismissesKeyboard(.interactively)
             .screenBackground()
             .overlay { if loading && items.isEmpty { ProgressView() } }
-            .navigationTitle("Containers")
-            .navigationBarTitleDisplayMode(.inline)
-            .navyBar()
+            .brandScreen()
             .navigationDestination(for: LocationListItem.self) { item in
                 LocationDetailView(locationId: item.id, title: item.name)
             }
@@ -240,7 +240,7 @@ struct LocationDetailView: View {
         .screenBackground()
         .navigationTitle(detail?.location.name ?? title)
         .navigationBarTitleDisplayMode(.inline)
-        .navyBar()
+        .lightBar()
         .sheet(isPresented: $addingEquipment) {
             AddEquipmentView(locationId: locationId, locationName: detail?.location.name ?? title) {
                 Task { await load() }

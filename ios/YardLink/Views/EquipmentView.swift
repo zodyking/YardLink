@@ -77,7 +77,7 @@ struct ContainerDetailView: View {
         .screenBackground()
         .navigationTitle(Marking.formatContainer(detail?.container.number))
         .navigationBarTitleDisplayMode(.inline)
-        .navyBar()
+        .lightBar()
         .sheet(item: $sheet) { sheet in
             if let detail {
                 switch sheet {
@@ -299,7 +299,7 @@ struct ChassisDetailView: View {
         .screenBackground()
         .navigationTitle(detail?.chassis.number ?? "Chassis")
         .navigationBarTitleDisplayMode(.inline)
-        .navyBar()
+        .lightBar()
         .sheet(isPresented: $editing) {
             if let detail {
                 ChassisEditView(chassis: detail.chassis) { Task { await load() } }
