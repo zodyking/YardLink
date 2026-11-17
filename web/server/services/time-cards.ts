@@ -14,12 +14,11 @@ import type { Database, DbExecutor } from '../utils/db'
 import type { AuthContext } from '../utils/session'
 import { companyTimezone } from './tasks'
 import { LIVE_TRIP_STATUSES } from './movements'
-import { calendarDateInZone } from '#shared/utils/sms-task'
+import { addIsoDays, calendarDateInZone } from '#shared/utils/sms-task'
 import { parseCoord } from '#shared/utils/geo'
 import {
   annotatePingsWithSites,
   applyHeaderOverrides,
-  blankTimeCardFooter,
   blankTimeCardHeader,
   cdlLabel,
   headerOverrideFields,
@@ -29,8 +28,10 @@ import {
   mergeTimeCardStops,
   routeCustomerFromTrips,
   sanitizeTimeCardStop,
+  shiftTotals,
   stopsFromPings,
   stopsFromTrips,
+  sumOnDutyHours,
   TIME_CARD_HEADER_FIELDS,
   TIME_CARD_STOP_MAX,
   trailerFromTrips,
@@ -306,6 +307,33 @@ async function loadDriverHeaderBits(
   }
 }
 
+/** The seven cards before this one, for the short-haul "preceding 7 days" box. */
+async function precedingOnDutyHours(
+  db: DbExecutor,
+  auth: AuthContext & { driverId: string },
+  workDate: string,
+): Promise<string> {
+  const dates: string[] = []
+  for (let back = 1; back <= 7; back += 1) {
+    const day = addIsoDays(workDate, -back)
+    if (day) dates.push(day)
+  }
+  if (!dates.length) return ''
+  const rows = await db
+    .select({ header: driverTimeCards.header, stops: driverTimeCards.stops, workDate: driverTimeCards.workDate })
+    .from(driverTimeCards)
+    .where(and(
+      eq(driverTimeCards.companyId, auth.companyId),
+      eq(driverTimeCards.driverId, auth.driverId),
+      inArray(driverTimeCards.workDate, dates),
+    ))
+  const totals = rows.map((row) => {
+    const saved = asHeader(row.header, row.workDate).totalOnDutyHours
+    return saved || shiftTotals(asStops(row.stops)).totalOnDutyHours
+  })
+  return sumOnDutyHours(totals)
+}
+
 async function ensureRow(
   db: DbExecutor,
   auth: AuthContext & { driverId: string },
@@ -436,7 +464,10 @@ export async function syncDriverTimeCard(
   const header = {
     ...applyHeaderOverrides(autoHeader, savedHeader, asOverrides(row.headerOverrides)),
     date: blankTimeCardHeader(workDate).date,
-    ...blankTimeCardFooter(),
+    ...shiftTotals(stops),
+    preceding7DayHours: await precedingOnDutyHours(db, driverAuth, workDate),
+    signedName: savedHeader.signedName,
+    signedDate: savedHeader.signedDate,
   }
   const status: TimeCardStatus = 'OPEN'
   const now = new Date()
@@ -561,7 +592,10 @@ export async function patchDriverTimeCard(
   const header = {
     ...applyHeaderOverrides(autoHeader, { ...savedHeader, ...mergedSubmitted }, overrides),
     date: blankTimeCardHeader(workDate).date,
-    ...blankTimeCardFooter(),
+    ...shiftTotals(stops),
+    preceding7DayHours: await precedingOnDutyHours(db, driverAuth, workDate),
+    signedName: savedHeader.signedName,
+    signedDate: savedHeader.signedDate,
   }
   const status: TimeCardStatus = 'OPEN'
 

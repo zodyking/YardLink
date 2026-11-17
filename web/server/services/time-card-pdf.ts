@@ -9,8 +9,20 @@ import {
 
 export const coerceTimeCardPdfBytes = coerceTimeCardFormBytes
 
+/** Helvetica is WinAnsi, so fold the punctuation a yard name may carry. */
+const PUNCTUATION: Record<string, string> = {
+  '\u2010': '-', '\u2011': '-', '\u2012': '-', '\u2013': '-', '\u2014': '-', '\u2015': '-',
+  '\u2018': '\'', '\u2019': '\'', '\u201A': ',', '\u201B': '\'',
+  '\u201C': '"', '\u201D': '"', '\u201E': '"', '\u2032': '\'', '\u2033': '"',
+  '\u2026': '...', '\u00A0': ' ', '\u2022': '-', '\u2212': '-',
+}
+
 function winAnsi(text: string): string {
-  return text.replace(/[^\x20-\x7E\u00A0-\u00FF]/g, ' ').replace(/\s+/g, ' ').trim()
+  return text
+    .replace(/[\u00A0\u2010-\u2015\u2018-\u201E\u2022\u2026\u2032\u2033\u2212]/g, ch => PUNCTUATION[ch] ?? ' ')
+    .replace(/[^\x20-\x7E\u00A1-\u00FF]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 /** Overlay filled values on the exact two-page printed short-haul card. */

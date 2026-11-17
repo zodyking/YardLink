@@ -344,6 +344,18 @@ export function shiftTotals(stops: readonly TimeCardStop[]): {
   }
 }
 
+/** Add up `H:MM` on-duty totals, for the preceding-7-days box. */
+export function sumOnDutyHours(labels: readonly string[]): string {
+  let minutes = 0
+  for (const label of labels) {
+    const match = /^(\d{1,3}):([0-5]\d)$/.exec(label.trim())
+    if (!match) continue
+    minutes += Number(match[1]) * 60 + Number(match[2])
+  }
+  if (!minutes) return ''
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`
+}
+
 export function applyHeaderOverrides<T extends Record<string, string>>(
   auto: T,
   saved: Partial<T> | null | undefined,
@@ -421,20 +433,6 @@ export function blankTimeCardHeader(workDate: string): TimeCardHeader {
   }
 }
 
-/** Shift totals and signature stay empty until that section is built. */
-export function blankTimeCardFooter(): Pick<
-  TimeCardHeader,
-  'reportForDuty' | 'releasedFromDuty' | 'totalOnDutyHours' | 'preceding7DayHours' | 'signedName' | 'signedDate'
-> {
-  return {
-    reportForDuty: '',
-    releasedFromDuty: '',
-    totalOnDutyHours: '',
-    preceding7DayHours: '',
-    signedName: '',
-    signedDate: '',
-  }
-}
 
 export function timeCardPdfFileName(workDate: string): string {
   return `time-card-${workDate}.pdf`

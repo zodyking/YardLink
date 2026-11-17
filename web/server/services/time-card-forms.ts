@@ -1,6 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+// The PDF template must be saved with generation-0 objects (qpdf
+// --object-streams=disable rewrites one that is not). pdf-lib writes the
+// cross-reference table as if every object were generation 0, so a template
+// carrying a generation-1 catalog comes back out with an unreachable /Root
+// and strict readers — Preview, QuickLook, pdf.js — refuse the file.
 export const TIME_CARD_FORM_PDF = 'short-haul-time-card.pdf'
 export const TIME_CARD_FORM_DOCX = 'short-haul-time-card.docx'
 

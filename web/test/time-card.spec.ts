@@ -14,6 +14,7 @@ import {
   shiftTotals,
   stopsFromPings,
   stopsFromTrips,
+  sumOnDutyHours,
   trailerFromTrips,
   zonedDayRange,
 } from '../shared/utils/time-card'
@@ -242,8 +243,9 @@ describe('timeCardDrawPlan', () => {
     ])
     expect(plan.some(op => op.text === 'Pat Driver' && op.topY === 103)).toBe(true)
     expect(plan.some(op => op.text === 'Queens Yard' && op.topY === timeCardRowTopY(0))).toBe(true)
-    expect(plan.some(op => op.text === '07:00' && op.topY > 640)).toBe(false)
-    expect(plan.some(op => op.text === 'Pat Driver' && op.topY > 700)).toBe(false)
+    expect(plan.some(op => op.text === '07:00' && op.topY > 640)).toBe(true)
+    expect(plan.some(op => op.text === '10:05' && op.topY > 640)).toBe(true)
+    expect(plan.some(op => op.text === 'Pat Driver' && op.topY > 700)).toBe(true)
     expect(timeCardPdfY(103)).toBe(792 - 103 + 2)
   })
 })
@@ -266,6 +268,55 @@ describe('blank Word template', () => {
     expect(bytes[0]).toBe(0x50)
     expect(bytes[1]).toBe(0x4B)
     expect(bytes.byteLength).toBeGreaterThan(50_000)
+  })
+})
+
+/**
+ * Walk a saved PDF the way a strict reader does: last `startxref`, the
+ * cross-reference table it points at, then the trailer's /Root entry. pdf-lib
+ * writes every object as generation 0, so a template that carried a
+ * generation-1 catalog used to come back out with an unreachable /Root.
+ */
+function catalogOffset(bytes: Uint8Array): number | null {
+  const text = Buffer.from(bytes).toString('latin1')
+  const start = /startxref\s+(\d+)\s+%%EOF\s*$/.exec(text.slice(-2048))
+  if (!start) return null
+  const table = text.slice(Number(start[1]))
+  if (!table.startsWith('xref')) return null
+  const entries = new Map<number, { offset: number, generation: number }>()
+  const lines = table.split(/\r\n|\r|\n/)
+  let index = 1
+  while (index < lines.length) {
+    const section = /^(\d+)\s+(\d+)\s*$/.exec(lines[index] ?? '')
+    if (!section) break
+    const first = Number(section[1])
+    const count = Number(section[2])
+    index += 1
+    for (let item = 0; item < count; item += 1) {
+      const entry = /^(\d{10})\s+(\d{5})\s+([nf])/.exec(lines[index + item] ?? '')
+      if (entry?.[3] === 'n') {
+        entries.set(first + item, { offset: Number(entry[1]), generation: Number(entry[2]) })
+      }
+    }
+    index += count
+  }
+  const root = /\/Root\s+(\d+)\s+(\d+)\s+R/.exec(table)
+  if (!root) return null
+  const entry = entries.get(Number(root[1]))
+  if (!entry || entry.generation !== Number(root[2])) return null
+  return text.startsWith(`${root[1]} ${root[2]} obj`, entry.offset) ? entry.offset : null
+}
+
+describe('sumOnDutyHours', () => {
+  it('adds H:MM totals and ignores blanks', () => {
+    expect(sumOnDutyHours(['10:05', '9:30', '', 'nope'])).toBe('19:35')
+    expect(sumOnDutyHours([])).toBe('')
+  })
+})
+
+describe('the printed template', () => {
+  it('keeps every object at generation 0, so pdf-lib can rewrite it', () => {
+    expect(catalogOffset(readFileSync('server/assets/forms/short-haul-time-card.pdf'))).toBeGreaterThan(0)
   })
 })
 
@@ -296,5 +347,7 @@ describe('fillTimeCardPdf', () => {
     const size = pdf.getPage(0).getSize()
     expect(Math.round(size.width)).toBe(612)
     expect(Math.round(size.height)).toBe(792)
+    // Preview, QuickLook and pdf.js all refuse a file whose /Root is unreachable.
+    expect(catalogOffset(bytes)).toBeGreaterThan(0)
   })
 })

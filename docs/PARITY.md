@@ -43,7 +43,7 @@ State key: **Carried** unchanged · **Changed** deliberately different · **New*
 | Trip contacts (site phone lines, copy, dial) | Contacts sheet | Carried |
 | Trips list and calendar, day summaries | `/pickups` | Carried |
 | Trip gaps: confirm a bobtail move or mark a missing trip | Trips | Carried |
-| Daily time card: stops from trips and GPS pings, manual edits, PDF, blank Word template | `/pickups/time-card/:date` | Carried |
+| Daily time card: stops from trips and GPS pings, manual edits, shift totals, PDF, blank Word template | `/pickups/time-card/:date` | Carried |
 | Tasks: dispatch cards, checklist steps, split / merge, mark done, start pickup from a task, add a note | `/tasks` | Carried |
 | Tasks arriving by forwarded SMS (Quo webhook) | Quo | Removed with Quo. Dispatch assigns cards directly; a driver can turn any dispatch message into a task with **Add to Tasks** | Changed |
 | Locations list and search across locations, containers and chassis | `/containers` | Carried |
@@ -125,6 +125,7 @@ It also borrows the web app's shell: a slim navy brand strip across the top of e
 | Container page: status, duty-cycle selector, timeline, photos, ShipCSX check, edit, move, delete | Yes |
 | Chassis page: status, pairings, trail, edit, release, delete | Yes |
 | Messages | Yes |
+| Tap any number — container, chassis, seal, phone, pickup — to copy it; long-press for the whole number, the owner block or the serial | Yes |
 | More: account settings (name, email, mobile, password, license and truck), email preferences, export locations, clear records | Yes |
 
 ## 7. Open work

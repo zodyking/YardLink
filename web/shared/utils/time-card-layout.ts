@@ -30,7 +30,8 @@ const TOTALS: Record<string, { x: number, topY: number, max?: number }> = {
   reportForDuty: { x: 41, topY: 665.8, max: 12 },
   releasedFromDuty: { x: 175, topY: 665.8, max: 12 },
   totalOnDutyHours: { x: 309, topY: 665.8, max: 12 },
-  preceding7DayHours: { x: 441, topY: 665.8, max: 16 },
+  // Clear of the "(first-time / intermittent use)" note printed in that cell.
+  preceding7DayHours: { x: 524, topY: 665.8, max: 6 },
 }
 
 const SIGN = {
@@ -38,8 +39,8 @@ const SIGN = {
   signedDate: { x: 325, topY: 731.2, max: 10 },
 }
 
-/** Shift totals and signature stay empty on the printed card until that section is built. */
-export const TIME_CARD_FILL_FOOTER = false
+/** The driver signs the printed card by hand, so only the shift totals are filled. */
+export const TIME_CARD_FILL_FOOTER = true
 
 const ROW0_TOP = 220
 const ROW_H = 15.85
