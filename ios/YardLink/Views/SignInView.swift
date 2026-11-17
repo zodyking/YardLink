@@ -12,6 +12,10 @@ struct SignInView: View {
     @State private var resending = false
     @State private var resendNote: String?
     @FocusState private var focus: Field?
+    /// Details are saved behind Face ID for this employer.
+    @State private var faceIDSaved = false
+    /// A password sign-in just worked; offer to keep it behind Face ID.
+    @State private var offerFaceID: FaceIDLogin.Saved?
 
     private enum Field { case email, password }
 
@@ -80,6 +84,15 @@ struct SignInView: View {
                         Button(working ? "Signing In…" : "Sign In", action: submit)
                             .buttonStyle(PrimaryButtonStyle())
                             .disabled(working || email.isEmpty || password.isEmpty)
+                        if faceIDSaved, let name = FaceIDLogin.biometryName {
+                            Button {
+                                signInWithFaceID()
+                            } label: {
+                                Label("Sign In with \(name)", systemImage: FaceIDLogin.symbol)
+                            }
+                            .buttonStyle(SecondaryButtonStyle())
+                            .disabled(working)
+                        }
                     }
 
                     VStack(spacing: 4) {
@@ -104,6 +117,20 @@ struct SignInView: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
+        .task {
+            faceIDSaved = FaceIDLogin.isSaved(for: model.serverURL)
+            if faceIDSaved { signInWithFaceID() }
+        }
+        .alert(
+            "Use \(FaceIDLogin.biometryName ?? "Face ID") next time?",
+            isPresented: Binding(get: { offerFaceID != nil }, set: { if !$0 { offerFaceID = nil } }),
+            presenting: offerFaceID
+        ) { saved in
+            Button("Use \(FaceIDLogin.biometryName ?? "Face ID")") { finish(keeping: saved) }
+            Button("Not Now", role: .cancel) { finish(keeping: nil) }
+        } message: { _ in
+            Text("Sign in with a glance instead of typing your password.")
+        }
         .confirmationDialog(
             "Disconnect from \(model.employerName.isEmpty ? "this employer" : model.employerName)?",
             isPresented: $confirmingChange,
@@ -124,15 +151,57 @@ struct SignInView: View {
         resendNote = nil
         focus = nil
         Task {
+            let address = email.trimmingCharacters(in: .whitespaces)
             do {
-                try await model.signIn(email: email.trimmingCharacters(in: .whitespaces), password: password)
+                try await model.verifyCredentials(email: address, password: password)
+                let saved = FaceIDLogin.Saved(email: address, password: password)
                 password = ""
+                if !faceIDSaved, FaceIDLogin.biometryName != nil {
+                    offerFaceID = saved
+                } else {
+                    if faceIDSaved { _ = FaceIDLogin.save(saved, for: model.serverURL) }
+                    model.enterApp()
+                }
             } catch {
                 let apiError = error as? APIError
                 errorMessage = apiError?.message ?? "Could not sign in. Try again."
                 needsConfirmation = apiError?.flags["emailUnverified"] == true
             }
             working = false
+        }
+    }
+
+    private func finish(keeping saved: FaceIDLogin.Saved?) {
+        if let saved { _ = FaceIDLogin.save(saved, for: model.serverURL) }
+        offerFaceID = nil
+        model.enterApp()
+    }
+
+    private func signInWithFaceID() {
+        guard !working else { return }
+        working = true
+        errorMessage = nil
+        Task {
+            defer { working = false }
+            guard let saved = await FaceIDLogin.read(for: model.serverURL) else {
+                // Cancelled, or the enrolled faces changed and the details went with them.
+                faceIDSaved = FaceIDLogin.isSaved(for: model.serverURL)
+                return
+            }
+            email = saved.email
+            do {
+                try await model.verifyCredentials(email: saved.email, password: saved.password)
+                model.enterApp()
+            } catch {
+                let apiError = error as? APIError
+                if apiError?.status == 401 {
+                    FaceIDLogin.forget(for: model.serverURL)
+                    faceIDSaved = false
+                    errorMessage = "Your password has changed. Sign in with it once to turn \(FaceIDLogin.biometryName ?? "Face ID") back on."
+                } else {
+                    errorMessage = apiError?.message ?? "Could not sign in. Try again."
+                }
+            }
         }
     }
 

@@ -107,6 +107,7 @@ final class AppModel: ObservableObject {
     /// Forget this employer entirely and go back to the first screen.
     func disconnect() {
         Task { await PushCenter.shared.forget() }
+        FaceIDLogin.forget(for: serverURL)
         api?.clearCookies()
         defaults.removeObject(forKey: serverKey)
         defaults.removeObject(forKey: nameKey)
@@ -119,7 +120,13 @@ final class AppModel: ObservableObject {
 
     // MARK: Session
 
-    func signIn(email: String, password: String) async throws {
+    /// The signed-in person, held until the sign-in screen is done asking
+    /// whether to keep the details behind Face ID.
+    private var pendingUser: SessionUser?
+
+    /// Sign in with the server. The app opens on `enterApp()`, so the sign-in
+    /// screen can ask one more question first.
+    func verifyCredentials(email: String, password: String) async throws {
         guard let api else { return }
         struct Credentials: Encodable { let email: String; let password: String }
         let _: LoginResult = try await api.post("/api/auth/login", body: Credentials(email: email, password: password))
@@ -127,6 +134,12 @@ final class AppModel: ObservableObject {
         guard let user = session.user else {
             throw APIError(status: 0, message: "Signed in, but the session did not start. Try again.", flags: [:])
         }
+        pendingUser = user
+    }
+
+    func enterApp() {
+        guard let user = pendingUser else { return }
+        pendingUser = nil
         stage = .ready(user)
     }
 

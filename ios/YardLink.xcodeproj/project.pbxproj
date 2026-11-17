@@ -13,6 +13,7 @@
 		A1B2C3D40000000000000071 /* Push.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000070 /* Push.swift */; };
 		A1B2C3D40000000000000076 /* ArrivalWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000075 /* ArrivalWatch.swift */; };
 		A1B2C3D40000000000000074 /* Siri.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000073 /* Siri.swift */; };
+		A1B2C3D40000000000000078 /* FaceIDLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000077 /* FaceIDLogin.swift */; };
 		A1B2C3D40000000000000019 /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000018 /* API.swift */; };
 		A1B2C3D4000000000000001B /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000001A /* Models.swift */; };
 		A1B2C3D4000000000000001D /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000001C /* Theme.swift */; };
@@ -56,6 +57,7 @@
 		A1B2C3D40000000000000016 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000070 /* Push.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Push.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000075 /* ArrivalWatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArrivalWatch.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000077 /* FaceIDLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceIDLogin.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000073 /* Siri.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Siri.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000072 /* YardLink.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = YardLink.entitlements; sourceTree = "<group>"; };
 		A1B2C3D40000000000000018 /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
@@ -120,6 +122,7 @@
 				A1B2C3D40000000000000070 /* Push.swift */,
 				A1B2C3D40000000000000075 /* ArrivalWatch.swift */,
 				A1B2C3D40000000000000073 /* Siri.swift */,
+				A1B2C3D40000000000000077 /* FaceIDLogin.swift */,
 				A1B2C3D40000000000000018 /* API.swift */,
 				A1B2C3D4000000000000001A /* Models.swift */,
 				A1B2C3D40000000000000040 /* WorkModels.swift */,
@@ -208,6 +211,11 @@
 				TargetAttributes = {
 					A1B2C3D40000000000000002 = {
 						CreatedOnToolsVersion = 15.0;
+						SystemCapabilities = {
+							com.apple.Push = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -250,6 +258,7 @@
 				A1B2C3D40000000000000071 /* Push.swift in Sources */,
 				A1B2C3D40000000000000076 /* ArrivalWatch.swift in Sources */,
 				A1B2C3D40000000000000074 /* Siri.swift in Sources */,
+				A1B2C3D40000000000000078 /* FaceIDLogin.swift in Sources */,
 				A1B2C3D40000000000000019 /* API.swift in Sources */,
 				A1B2C3D4000000000000001B /* Models.swift in Sources */,
 				A1B2C3D4000000000000001D /* Theme.swift in Sources */,
@@ -394,6 +403,7 @@
 				INFOPLIST_FILE = YardLink/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link Driver";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Yard Link uses Face ID so you can sign in without typing your password.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Yard Link uses the camera to scan your employer's connection code and to photograph containers and paperwork.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Yard Link watches the stop you are headed to so it can ask whether you have arrived, even when the app is closed.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Yard Link uses your location to record where a pickup or drop-off happened and to fill in your daily time card.";
@@ -427,6 +437,7 @@
 				INFOPLIST_FILE = YardLink/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link Driver";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Yard Link uses Face ID so you can sign in without typing your password.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Yard Link uses the camera to scan your employer's connection code and to photograph containers and paperwork.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Yard Link watches the stop you are headed to so it can ask whether you have arrived, even when the app is closed.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Yard Link uses your location to record where a pickup or drop-off happened and to fill in your daily time card.";
