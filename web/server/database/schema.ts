@@ -668,6 +668,34 @@ export const containerDutyCycles = pgTable('container_duty_cycles', {
   index('container_duty_cycles_company_idx').on(t.companyId, t.status),
 ])
 
+/**
+ * A phone crossing into a site's circle while a trip is live. The driver is
+ * asked whether they have arrived; if nobody answers, the arrival is recorded
+ * anyway at the moment of the crossing, never at the moment of the sweep.
+ */
+export const tripArrivals = pgTable('trip_arrivals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  tripId: uuid('trip_id').notNull().references(() => trips.id, { onDelete: 'cascade' }),
+  driverId: uuid('driver_id').notNull().references(() => drivers.id, { onDelete: 'cascade' }),
+  locationId: uuid('location_id').notNull().references(() => locations.id, { onDelete: 'cascade' }),
+  /** When the phone crossed in. The arrival is always stamped with this. */
+  enteredAt: utc('entered_at').notNull(),
+  /** When the driver stops being asked and the arrival is recorded anyway. */
+  autoAt: utc('auto_at').notNull(),
+  latitude: numeric('latitude', { precision: 10, scale: 7 }),
+  longitude: numeric('longitude', { precision: 10, scale: 7 }),
+  accuracyMeters: real('accuracy_meters'),
+  settledAt: utc('settled_at'),
+  /** CONFIRMED by the driver, AUTO after the wait, or DISMISSED by the driver. */
+  outcome: text('outcome'),
+  eventId: uuid('event_id'),
+  createdAt: utc('created_at').notNull().defaultNow(),
+}, t => [
+  index('trip_arrivals_open_idx').on(t.settledAt, t.autoAt),
+  uniqueIndex('trip_arrivals_trip_location_key').on(t.tripId, t.locationId),
+])
+
 /* ============================================================
    Documents, OCR, damage
    ============================================================ */
@@ -927,6 +955,7 @@ export type OcrResult = typeof ocrResults.$inferSelect
 export type SmsInboundEndpoint = typeof smsInboundEndpoints.$inferSelect
 export type DispatchTask = typeof dispatchTasks.$inferSelect
 export type DriverTimeCard = typeof driverTimeCards.$inferSelect
+export type TripArrival = typeof tripArrivals.$inferSelect
 
 export type NewContainer = typeof containers.$inferInsert
 export type NewContainerEvent = typeof containerEvents.$inferInsert

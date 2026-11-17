@@ -12,6 +12,23 @@ struct NamedPlace: Decodable, Hashable {
     let mainPhone: String?
     let contactPhone: String?
     let contactName: String?
+    /// The circle the phone watches to ask about arriving. Only the
+    /// destination of a live trip carries one.
+    let latitude: Double?
+    let longitude: Double?
+    let arrivalRadiusM: Int?
+
+    /// Everything the watch needs, or nil when the site has no pin.
+    var arrivalCircle: ArrivalWatch.WatchedSite? {
+        guard let id, let latitude, let longitude else { return nil }
+        return ArrivalWatch.WatchedSite(
+            locationId: id,
+            name: name ?? "this stop",
+            latitude: latitude,
+            longitude: longitude,
+            radiusMeters: Double(arrivalRadiusM ?? 180)
+        )
+    }
 }
 
 struct NumberedEquipment: Decodable, Hashable {

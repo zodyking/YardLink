@@ -17,6 +17,7 @@ struct HomeView: View {
     @State private var confirmingCancel = false
     @State private var cancelling = false
     @ObservedObject private var push = PushCenter.shared
+    @ObservedObject private var arrivals = ArrivalWatch.shared
     @AppStorage("home-cleared-trip") private var clearedTripId = ""
 
     /// A pickup to open: new, resumed, a swap, or a container for a bare chassis.
@@ -61,6 +62,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if let errorMessage { ErrorBanner(message: errorMessage) }
+                    if let question = arrivals.question { arrivalCard(question) }
 
                     if let home {
                         masthead(home)
@@ -436,10 +438,42 @@ struct HomeView: View {
             let payload: HomePayload = try await api.get("/api/home")
             home = payload
             errorMessage = nil
+            watchArrivalCircle(payload)
+            await arrivals.refresh()
         } catch {
             errorMessage = model.handle(error)
         }
         loading = false
+    }
+
+    /// The circle to watch is the live trip's drop-off, and only while the
+    /// trip is live — a finished day leaves nothing running in the background.
+    private func watchArrivalCircle(_ payload: HomePayload) {
+        let live = payload.active?.trip.isLive == true ? payload.active : nil
+        ArrivalWatch.shared.watch(live?.destination?.arrivalCircle)
+    }
+
+    private func arrivalCard(_ question: ArrivalQuestion) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Arrived at \(question.locationName)?")
+                .font(.headline)
+                .foregroundColor(Brand.navy)
+            Text("Yard Link records the arrival on its own shortly, stamped when you pulled in.")
+                .font(.footnote)
+                .foregroundColor(Brand.muted)
+            HStack(spacing: 12) {
+                Button("Yes, I'm here") {
+                    Task { await arrivals.answer(question, arrived: true) }
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                Button("Not yet") {
+                    Task { await arrivals.answer(question, arrived: false) }
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            }
+        }
+        .padding(16)
+        .cardSurface()
     }
 
     private func reloadAfterSheet() async {

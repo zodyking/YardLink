@@ -35,6 +35,7 @@ final class PushCenter: NSObject, ObservableObject {
 
     func start() {
         UNUserNotificationCenter.current().delegate = self
+        ArrivalNotification.registerCategory()
     }
 
     /// Ask for permission, then register. Called once the person is signed in,
@@ -110,11 +111,29 @@ extension PushCenter: UNUserNotificationCenterDelegate {
         let info = response.notification.request.content.userInfo
         let screen = info["screen"] as? String
         let threadId = info["threadId"] as? String
+        let arrivalId = info["arrivalId"] as? String
+        let locationName = info["locationName"] as? String ?? "this stop"
+        let action = response.actionIdentifier
         Task { @MainActor in
             let center = PushCenter.shared
+            center.clearBadge()
+
+            // "Yes, I'm here" and "Not yet" are answered without opening the app.
+            if let arrivalId, action == ArrivalNotification.arrived || action == ArrivalNotification.notYet {
+                let question = ArrivalQuestion(
+                    id: arrivalId,
+                    locationName: locationName,
+                    enteredAt: "",
+                    autoAt: ""
+                )
+                await ArrivalWatch.shared.answer(question, arrived: action == ArrivalNotification.arrived)
+                completionHandler()
+                return
+            }
+
             center.openThreadId = threadId
             center.openScreen = screen ?? "home"
-            center.clearBadge()
+            if screen == "arrival" { await ArrivalWatch.shared.refresh() }
             completionHandler()
         }
     }

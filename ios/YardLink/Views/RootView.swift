@@ -110,6 +110,7 @@ struct MainTabs: View {
             await PushCenter.shared.askAndRegister()
             PushCenter.shared.refresh()
             PushCenter.shared.clearBadge()
+            if user.isDriver { await ArrivalWatch.shared.refresh() }
         }
         .onChange(of: push.openScreen) { screen in
             // A driver reads messages over Home, which clears this itself; a
@@ -121,6 +122,7 @@ struct MainTabs: View {
             }
             if screen == "messages" { selection = .messages }
             else if screen == "tasks", user.isDriver { selection = .tasks }
+            else if screen == "arrival", user.isDriver { selection = .home }
             push.openScreen = nil
         }
         .task {

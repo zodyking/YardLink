@@ -1,7 +1,7 @@
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import { DISPATCH_TASK_KIND_LABELS } from '#shared/utils/domain'
 import { displayContainerNumber } from '#shared/utils/dispatch-cards'
-import { companyMemberships, deviceTokens, messageThreads, users } from '../database/schema'
+import { companyMemberships, deviceTokens, drivers, messageThreads, users } from '../database/schema'
 import type { DbExecutor } from '../utils/db'
 import { loadPushConfig, type PushConfig } from '../utils/push-settings'
 import { sendApns, type ApnsPayload } from './apns'
@@ -111,6 +111,31 @@ export async function pushMessage(db: DbExecutor, input: {
       senderName: input.senderName,
       senderUserId: input.senderUserId,
     },
+  })
+}
+
+/**
+ * The phone crossed into a site's circle. The driver is asked, with the two
+ * answers on the notification itself, and told when it will settle itself.
+ */
+export async function pushArrivalQuestion(db: DbExecutor, input: {
+  driverId: string
+  arrivalId: string
+  locationName: string
+  waitMinutes: number
+}): Promise<void> {
+  const [driver] = await db
+    .select({ userId: drivers.userId })
+    .from(drivers)
+    .where(eq(drivers.id, input.driverId))
+    .limit(1)
+  if (!driver) return
+  await push(db, [driver.userId], {
+    title: `Arrived at ${input.locationName}?`,
+    body: `Yard Link will record the arrival in ${input.waitMinutes} minutes unless you say otherwise.`,
+    threadId: `arrival-${input.arrivalId}`,
+    category: 'YARDLINK_ARRIVAL',
+    data: { screen: 'arrival', arrivalId: input.arrivalId, locationName: input.locationName },
   })
 }
 

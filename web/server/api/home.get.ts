@@ -35,6 +35,10 @@ async function bundleTrip(db: Db, trip: Trip) {
         mainPhone: locations.mainPhone,
         contactPhone: locations.contactPhone,
         contactName: locations.contactName,
+        // The circle the phone watches, so it can ask about arriving.
+        latitude: locations.latitude,
+        longitude: locations.longitude,
+        arrivalRadiusM: locations.arrivalRadiusM,
       }).from(locations).where(eq(locations.id, trip.destinationLocationId)).limit(1)
     : []
 
