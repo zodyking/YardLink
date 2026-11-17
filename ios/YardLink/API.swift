@@ -53,17 +53,19 @@ final class APIClient {
         self.baseURL = baseURL
 
         let configuration = URLSessionConfiguration.default
-        configuration.httpCookieStorage = .shared
+        configuration.httpCookieStorage = SharedStore.cookies
         configuration.httpShouldSetCookies = true
         configuration.timeoutIntervalForRequest = 30
         configuration.waitsForConnectivity = false
         session = URLSession(configuration: configuration)
 
         let patient = URLSessionConfiguration.default
-        patient.httpCookieStorage = .shared
+        patient.httpCookieStorage = SharedStore.cookies
         patient.httpShouldSetCookies = true
         patient.timeoutIntervalForRequest = 180
         patientSession = URLSession(configuration: patient)
+
+        SharedStore.adoptOldSession(for: baseURL)
 
         let withFraction = ISO8601DateFormatter()
         withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -119,8 +121,8 @@ final class APIClient {
 
     /// Forget the session on this phone (after sign-out or disconnect).
     func clearCookies() {
-        guard let cookies = HTTPCookieStorage.shared.cookies(for: baseURL) else { return }
-        cookies.forEach { HTTPCookieStorage.shared.deleteCookie($0) }
+        guard let cookies = SharedStore.cookies.cookies(for: baseURL) else { return }
+        cookies.forEach { SharedStore.cookies.deleteCookie($0) }
     }
 
     private func send<T: Decodable>(method: String, path: String, query: [String: String], body: Data?, patient: Bool = false) async throws -> T {

@@ -112,6 +112,7 @@ struct MainTabs: View {
             guard scenePhase == .active else { return }
             await PushCenter.shared.askAndRegister()
             PushCenter.shared.refresh()
+            if let api = model.api { await WidgetSync.flushPending(api: api) }
             PushCenter.shared.clearBadge()
             if user.isDriver { await ArrivalWatch.shared.refresh() }
         }

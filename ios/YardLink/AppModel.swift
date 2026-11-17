@@ -40,6 +40,7 @@ final class AppModel: ObservableObject {
         AppModel.current = self
         if let saved = defaults.string(forKey: serverKey), let url = URL(string: saved) {
             serverURL = url
+            SharedStore.serverURL = url
             employerName = defaults.string(forKey: nameKey) ?? ""
             api = APIClient(baseURL: url)
         }
@@ -96,6 +97,7 @@ final class AppModel: ObservableObject {
             defaults.set(target.server.absoluteString, forKey: serverKey)
             defaults.set(name, forKey: nameKey)
             serverURL = target.server
+            SharedStore.serverURL = target.server
             employerName = name
             api = candidate
             stage = .signIn
@@ -108,6 +110,8 @@ final class AppModel: ObservableObject {
     func disconnect() {
         Task { await PushCenter.shared.forget() }
         FaceIDLogin.forget(for: serverURL)
+        SharedStore.serverURL = nil
+        WidgetSync.clear()
         api?.clearCookies()
         defaults.removeObject(forKey: serverKey)
         defaults.removeObject(forKey: nameKey)
@@ -172,6 +176,7 @@ final class AppModel: ObservableObject {
             api.clearCookies()
         }
         unreadMessages = 0
+        WidgetSync.clear()
         stage = .signIn
     }
 

@@ -16,6 +16,11 @@ struct YardLinkApp: App {
             RootView()
                 .environmentObject(model)
                 .onOpenURL { url in
+                    // A widget opens yardlink://open/tasks and the like.
+                    if url.host == "open" {
+                        PushCenter.shared.openScreen = url.lastPathComponent
+                        return
+                    }
                     // A tapped yardlink://connect link does the same as scanning the code.
                     model.handleConnectText(url.absoluteString)
                 }

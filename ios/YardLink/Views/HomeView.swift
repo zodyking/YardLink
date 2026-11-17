@@ -433,6 +433,7 @@ struct HomeView: View {
         guard let api = model.api else { return }
         do {
             let payload: HomePayload = try await api.get("/api/home")
+            WidgetSync.update(home: payload)
             home = payload
             errorMessage = nil
             watchArrivalCircle(payload)

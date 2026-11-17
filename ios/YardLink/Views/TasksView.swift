@@ -85,6 +85,7 @@ struct TasksView: View {
     private func replace(_ task: DriverTask) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index] = task
+            WidgetSync.update(tasks: tasks)
         }
     }
 
@@ -93,6 +94,7 @@ struct TasksView: View {
         do {
             let list: TaskList = try await api.get("/api/tasks")
             tasks = list.tasks
+            WidgetSync.update(tasks: list.tasks)
             errorMessage = nil
         } catch {
             errorMessage = model.handle(error)

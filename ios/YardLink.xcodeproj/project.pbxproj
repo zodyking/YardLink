@@ -47,7 +47,44 @@
 		A1B2C3D40000000000000067 /* ShipcsxCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000066 /* ShipcsxCheckView.swift */; };
 		A1B2C3D40000000000000069 /* TaskStepsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000068 /* TaskStepsView.swift */; };
 		A1B2C3D4000000000000006D /* MessageComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000006C /* MessageComposer.swift */; };
+		A1B2C3D400000000000000A0 /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000080 /* SharedStore.swift */; };
+		A1B2C3D400000000000000A1 /* WidgetClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000081 /* WidgetClient.swift */; };
+		A1B2C3D400000000000000A2 /* WidgetSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000008C /* WidgetSync.swift */; };
+		A1B2C3D400000000000000A3 /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000080 /* SharedStore.swift */; };
+		A1B2C3D400000000000000A4 /* WidgetClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000081 /* WidgetClient.swift */; };
+		A1B2C3D400000000000000A5 /* YardLinkWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000082 /* YardLinkWidgets.swift */; };
+		A1B2C3D400000000000000A6 /* TasksWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000083 /* TasksWidget.swift */; };
+		A1B2C3D400000000000000A7 /* TripWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000084 /* TripWidget.swift */; };
+		A1B2C3D400000000000000A8 /* QuickActionsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000085 /* QuickActionsWidget.swift */; };
+		A1B2C3D400000000000000A9 /* ToggleTaskIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000086 /* ToggleTaskIntent.swift */; };
+		A1B2C3D400000000000000AA /* WidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000087 /* WidgetTheme.swift */; };
+		A1B2C3D400000000000000AB /* WidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000088 /* WidgetData.swift */; };
+		A1B2C3D400000000000000AC /* YardLinkWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000008B /* YardLinkWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A1B2C3D400000000000000C5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A1B2C3D40000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A1B2C3D400000000000000C0;
+			remoteInfo = YardLinkWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A1B2C3D400000000000000B3 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A1B2C3D400000000000000AC /* YardLinkWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		A1B2C3D40000000000000007 /* YardLink.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YardLink.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -93,10 +130,30 @@
 		A1B2C3D40000000000000066 /* ShipcsxCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShipcsxCheckView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000068 /* TaskStepsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStepsView.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000006C /* MessageComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageComposer.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000080 /* SharedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedStore.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000081 /* WidgetClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetClient.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000082 /* YardLinkWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YardLinkWidgets.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000083 /* TasksWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksWidget.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000084 /* TripWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripWidget.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000085 /* QuickActionsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsWidget.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000086 /* ToggleTaskIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToggleTaskIntent.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000087 /* WidgetTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTheme.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000088 /* WidgetData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetData.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000089 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3D4000000000000008A /* YardLinkWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = YardLinkWidgets.entitlements; sourceTree = "<group>"; };
+		A1B2C3D4000000000000008B /* YardLinkWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = YardLinkWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1B2C3D4000000000000008C /* WidgetSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSync.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A1B2C3D4000000000000000A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1B2C3D400000000000000B1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -110,6 +167,8 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D40000000000000004 /* YardLink */,
+				A1B2C3D40000000000000090 /* Shared */,
+				A1B2C3D40000000000000091 /* YardLinkWidgets */,
 				A1B2C3D40000000000000006 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -121,6 +180,7 @@
 				A1B2C3D40000000000000016 /* AppModel.swift */,
 				A1B2C3D40000000000000070 /* Push.swift */,
 				A1B2C3D40000000000000075 /* ArrivalWatch.swift */,
+				A1B2C3D4000000000000008C /* WidgetSync.swift */,
 				A1B2C3D40000000000000073 /* Siri.swift */,
 				A1B2C3D40000000000000077 /* FaceIDLogin.swift */,
 				A1B2C3D40000000000000018 /* API.swift */,
@@ -171,10 +231,36 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		A1B2C3D40000000000000090 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D40000000000000080 /* SharedStore.swift */,
+				A1B2C3D40000000000000081 /* WidgetClient.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		A1B2C3D40000000000000091 /* YardLinkWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D40000000000000082 /* YardLinkWidgets.swift */,
+				A1B2C3D40000000000000083 /* TasksWidget.swift */,
+				A1B2C3D40000000000000084 /* TripWidget.swift */,
+				A1B2C3D40000000000000085 /* QuickActionsWidget.swift */,
+				A1B2C3D40000000000000086 /* ToggleTaskIntent.swift */,
+				A1B2C3D40000000000000087 /* WidgetTheme.swift */,
+				A1B2C3D40000000000000088 /* WidgetData.swift */,
+				A1B2C3D40000000000000089 /* Info.plist */,
+				A1B2C3D4000000000000008A /* YardLinkWidgets.entitlements */,
+			);
+			path = YardLinkWidgets;
+			sourceTree = "<group>";
+		};
 		A1B2C3D40000000000000006 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				A1B2C3D40000000000000007 /* YardLink.app */,
+				A1B2C3D4000000000000008B /* YardLinkWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -189,15 +275,34 @@
 				A1B2C3D40000000000000008 /* Sources */,
 				A1B2C3D4000000000000000A /* Frameworks */,
 				A1B2C3D40000000000000009 /* Resources */,
+				A1B2C3D400000000000000B3 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A1B2C3D400000000000000C4 /* PBXTargetDependency */,
 			);
 			name = YardLink;
 			productName = YardLink;
 			productReference = A1B2C3D40000000000000007 /* YardLink.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A1B2C3D400000000000000C0 /* YardLinkWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1B2C3D400000000000000C1 /* Build configuration list for PBXNativeTarget "YardLinkWidgets" */;
+			buildPhases = (
+				A1B2C3D400000000000000B0 /* Sources */,
+				A1B2C3D400000000000000B1 /* Frameworks */,
+				A1B2C3D400000000000000B2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = YardLinkWidgets;
+			productName = YardLinkWidgets;
+			productReference = A1B2C3D4000000000000008B /* YardLinkWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -213,6 +318,17 @@
 						CreatedOnToolsVersion = 15.0;
 						SystemCapabilities = {
 							com.apple.Push = {
+								enabled = 1;
+							};
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+						};
+					};
+					A1B2C3D400000000000000C0 = {
+						CreatedOnToolsVersion = 15.0;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
 								enabled = 1;
 							};
 						};
@@ -233,6 +349,7 @@
 			projectRoot = "";
 			targets = (
 				A1B2C3D40000000000000002 /* YardLink */,
+				A1B2C3D400000000000000C0 /* YardLinkWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -243,6 +360,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D40000000000000012 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1B2C3D400000000000000B2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -257,6 +381,9 @@
 				A1B2C3D40000000000000017 /* AppModel.swift in Sources */,
 				A1B2C3D40000000000000071 /* Push.swift in Sources */,
 				A1B2C3D40000000000000076 /* ArrivalWatch.swift in Sources */,
+				A1B2C3D400000000000000A0 /* SharedStore.swift in Sources */,
+				A1B2C3D400000000000000A1 /* WidgetClient.swift in Sources */,
+				A1B2C3D400000000000000A2 /* WidgetSync.swift in Sources */,
 				A1B2C3D40000000000000074 /* Siri.swift in Sources */,
 				A1B2C3D40000000000000078 /* FaceIDLogin.swift in Sources */,
 				A1B2C3D40000000000000019 /* API.swift in Sources */,
@@ -295,7 +422,31 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A1B2C3D400000000000000B0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1B2C3D400000000000000A3 /* SharedStore.swift in Sources */,
+				A1B2C3D400000000000000A4 /* WidgetClient.swift in Sources */,
+				A1B2C3D400000000000000A5 /* YardLinkWidgets.swift in Sources */,
+				A1B2C3D400000000000000A6 /* TasksWidget.swift in Sources */,
+				A1B2C3D400000000000000A7 /* TripWidget.swift in Sources */,
+				A1B2C3D400000000000000A8 /* QuickActionsWidget.swift in Sources */,
+				A1B2C3D400000000000000A9 /* ToggleTaskIntent.swift in Sources */,
+				A1B2C3D400000000000000AA /* WidgetTheme.swift in Sources */,
+				A1B2C3D400000000000000AB /* WidgetData.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A1B2C3D400000000000000C4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A1B2C3D400000000000000C0 /* YardLinkWidgets */;
+			targetProxy = A1B2C3D400000000000000C5 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A1B2C3D4000000000000000D /* Debug */ = {
@@ -459,6 +610,58 @@
 			};
 			name = Release;
 		};
+		A1B2C3D400000000000000C2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = YardLinkWidgets/YardLinkWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = UN7DY83BZF;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = YardLinkWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link Widgets";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zodyking.yardlink.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A1B2C3D400000000000000C3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = YardLinkWidgets/YardLinkWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = UN7DY83BZF;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = YardLinkWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link Widgets";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zodyking.yardlink.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -476,6 +679,15 @@
 			buildConfigurations = (
 				A1B2C3D4000000000000000F /* Debug */,
 				A1B2C3D40000000000000010 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1B2C3D400000000000000C1 /* Build configuration list for PBXNativeTarget "YardLinkWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1B2C3D400000000000000C2 /* Debug */,
+				A1B2C3D400000000000000C3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
