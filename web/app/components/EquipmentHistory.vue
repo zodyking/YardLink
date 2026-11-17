@@ -131,6 +131,10 @@ function title(event: HistoryEvent) {
     if (!event.containerId && event.eventType === 'PICKUP_CONFIRMED') return 'Picked up bare'
     if (!event.containerId && event.eventType === 'DROPOFF_CONFIRMED') return 'Dropped off bare'
   }
+  // Hooking up to a box already on a chassis moves both, and is not a pairing.
+  if (event.eventType === 'PICKUP_CONFIRMED' && event.containerId && event.chassisId) {
+    return 'Container and chassis picked up'
+  }
   return TITLES[event.eventType] ?? event.eventType.toLowerCase().replace(/_/g, ' ')
 }
 

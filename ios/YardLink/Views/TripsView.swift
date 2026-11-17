@@ -429,7 +429,7 @@ struct TripDetailView: View {
                 ForEach(events) { event in
                     TimelineRow(
                         symbol: Words.eventSymbol(event.eventType),
-                        title: Words.event(event.eventType),
+                        title: Words.event(event),
                         lines: [
                             event.locationName.map { "At \($0)" },
                             event.actorName.map { "By \($0)" },

@@ -381,7 +381,8 @@ function sealForLoadedContainer(isLoaded: boolean, sealNumber?: string | null): 
 
 /**
  * Confirm a pickup: the container moves into driver custody / in transit and
- * the authoritative pickup, chassis-attach and departure events are written.
+ * the authoritative pickup and departure events are written. A chassis-attach
+ * event is written only when the box was not already on that chassis.
  */
 export async function confirmPickup(
   db: Database,
@@ -406,6 +407,9 @@ export async function confirmPickup(
 
     const [parked] = await tx.select().from(containers).where(eq(containers.id, trip.containerId)).limit(1)
     const chassisId = input.chassisId || trip.chassisId || parked?.currentChassisId || null
+    // A box already sitting on this chassis was not placed on it by this
+    // pickup: the driver hooked up to the pair and drove away.
+    const alreadyOnChassis = Boolean(chassisId) && parked?.currentChassisId === chassisId
     const isLoaded = Boolean(trip.swapPairTripId) || input.isLoaded
 
     if (chassisId) {
@@ -460,14 +464,16 @@ export async function confirmPickup(
         .update(chassisTable)
         .set({ currentContainerId: trip.containerId, status: 'IN_USE', updatedAt: now })
         .where(and(eq(chassisTable.id, chassisId), eq(chassisTable.companyId, auth.companyId)))
-      await recordChassisHang(tx, auth, {
-        containerId: trip.containerId,
-        chassisId,
-        tripId: trip.id,
-        locationId: trip.originLocationId,
-        kind: 'ATTACH',
-        now,
-      })
+      if (!alreadyOnChassis) {
+        await recordChassisHang(tx, auth, {
+          containerId: trip.containerId,
+          chassisId,
+          tripId: trip.id,
+          locationId: trip.originLocationId,
+          kind: 'ATTACH',
+          now,
+        })
+      }
     }
 
     // The pickup vacates the origin slot, so any live placement is closed out.

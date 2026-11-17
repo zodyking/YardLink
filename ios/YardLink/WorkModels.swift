@@ -657,6 +657,24 @@ enum Words {
         }
     }
 
+    /// What happened, in the driver's words. A pickup that names a chassis
+    /// moved both pieces of equipment at once, and says so. Hooking up to a
+    /// box already on a chassis is a pickup, never a mounting.
+    static func event(_ record: HistoryEvent) -> String {
+        let hasChassis = !(record.chassisNumber ?? "").isEmpty
+        let bareChassis = record.containerId == nil && hasChassis
+        switch record.eventType {
+        case "PICKUP_CONFIRMED":
+            if bareChassis { return "Chassis picked up" }
+            return hasChassis ? "Container and chassis picked up" : "Picked up"
+        case "DROPOFF_CONFIRMED":
+            if bareChassis { return "Chassis dropped off" }
+            return "Dropped off"
+        default:
+            return event(record.eventType)
+        }
+    }
+
     static func event(_ type: String) -> String {
         switch type {
         case "PICKUP_STARTED": return "Pickup started"

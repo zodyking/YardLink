@@ -214,7 +214,7 @@ struct ContainerDetailView: View {
     private func row(_ event: HistoryEvent) -> some View {
         TimelineRow(
             symbol: Words.eventSymbol(event.eventType),
-            title: Words.event(event.eventType),
+            title: Words.event(event),
             lines: event.detailLines(showContainer: false, showChassis: true),
             date: event.occurredAt
         )
@@ -298,7 +298,7 @@ struct ChassisDetailView: View {
                             ForEach(events) { event in
                                 TimelineRow(
                                     symbol: Words.eventSymbol(event.eventType),
-                                    title: Words.event(event.eventType),
+                                    title: Words.event(event),
                                     lines: event.detailLines(showContainer: true, showChassis: false),
                                     date: event.occurredAt
                                 )

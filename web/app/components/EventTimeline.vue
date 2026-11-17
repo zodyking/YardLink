@@ -81,7 +81,7 @@ function isDelayed(entry: TimelineEntry) {
       />
       <div class="tl-body">
         <div class="tl-title">
-          {{ driverTimelineTitle(entry.eventType) }}
+          {{ driverTimelineTitle(entry.eventType, entry) }}
         </div>
         <div class="tl-when">
           {{ formatDateTime(entry.occurredAt) }}

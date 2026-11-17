@@ -23,9 +23,25 @@ export function isDriverTimelineEvent(eventType: EventType): eventType is Driver
   return (DRIVER_TIMELINE_EVENT_TYPES as readonly string[]).includes(eventType)
 }
 
-export function driverTimelineTitle(eventType: EventType): string {
-  if (isDriverTimelineEvent(eventType)) return DRIVER_TIMELINE_TITLES[eventType]
-  return eventType
+/**
+ * What happened, in the driver's words. A pickup or drop-off that names a
+ * chassis moved both pieces of equipment at once, and says so.
+ */
+export function driverTimelineTitle(eventType: EventType, entry?: TimelineSource): string {
+  if (!isDriverTimelineEvent(eventType)) return eventType
+  const bareChassis = entry?.payload?.kind === 'BARE_CHASSIS'
+  if (eventType === 'PICKUP_CONFIRMED') {
+    if (bareChassis) return 'Chassis picked up'
+    return entry?.chassisNumber ? 'Container and chassis picked up' : 'Picked up'
+  }
+  if (eventType === 'DROPOFF_CONFIRMED') {
+    if (bareChassis) return 'Chassis dropped off'
+    // The box staying on its chassis is one move; a driver who keeps the
+    // chassis took it off, and that detach gets a row of its own.
+    const keptChassis = entry?.payload?.retainChassis === true
+    return entry?.chassisNumber && keptChassis ? 'Container and chassis dropped off' : 'Dropped off'
+  }
+  return DRIVER_TIMELINE_TITLES[eventType]
 }
 
 export function timelineNodeKind(eventType: EventType): TimelineNodeKind {
@@ -43,46 +59,13 @@ export interface TimelineSource {
 }
 
 /**
- * Keep pickups, drop-offs, and chassis hang/unhang. When older trips only
- * stored the chassis on the pickup or drop-off row, add the matching hang
- * or unhang so the rail still reads as equipment movement.
+ * Pickups, drop-offs, and the times a container was actually placed on or
+ * taken off a chassis. Nothing is invented from a row that merely names the
+ * chassis the box was already riding on: hooking up to a parked pair is a
+ * pickup, not a mounting.
  */
 export function visibleTimelineEntries<T extends TimelineSource>(entries: T[]): T[] {
-  const hasDedicated = entries.some(entry =>
-    entry.eventType === 'CHASSIS_ATTACH' || entry.eventType === 'CHASSIS_DETACH',
-  )
-
-  const out: T[] = []
-  for (const entry of entries) {
-    if (!isDriverTimelineEvent(entry.eventType)) continue
-    out.push(entry)
-
-    if (hasDedicated) continue
-
-    if (entry.eventType === 'PICKUP_CONFIRMED' && entry.chassisNumber) {
-      out.push({
-        ...entry,
-        id: `${entry.id}:attach`,
-        eventType: 'CHASSIS_ATTACH',
-      })
-    }
-
-    if (entry.eventType === 'DROPOFF_CONFIRMED' && shouldSynthesizeDetach(entry)) {
-      out.push({
-        ...entry,
-        id: `${entry.id}:detach`,
-        eventType: 'CHASSIS_DETACH',
-      })
-    }
-  }
-  return out
-}
-
-function shouldSynthesizeDetach(entry: TimelineSource): boolean {
-  const retain = entry.payload?.retainChassis
-  if (retain === true) return false
-  if (retain === false) return true
-  return false
+  return entries.filter(entry => isDriverTimelineEvent(entry.eventType))
 }
 
 /** Driver notes only — skip system chatter that used to crowd the rail. */
