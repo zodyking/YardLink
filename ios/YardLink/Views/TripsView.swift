@@ -438,7 +438,7 @@ struct TripDetailView: View {
         }
     }
 
-    private static func lines(for event: HistoryEvent) -> [String] {
+    private static func lines(for event: TripEvent) -> [String] {
         var out: [String] = []
         if let place = event.locationName { out.append("At \(place)") }
         if let actor = event.actorName { out.append("By \(actor)") }

@@ -690,6 +690,18 @@ enum Words {
         }
     }
 
+    /// A trip always moves a container, so a chassis on the event never
+    /// makes it a bare-chassis move.
+    static func event(_ record: TripEvent) -> String {
+        let hasChassis = !(record.chassisNumber ?? "").isEmpty
+        switch record.eventType {
+        case "PICKUP_CONFIRMED":
+            return hasChassis ? "Container and chassis picked up" : "Picked up"
+        default:
+            return event(record.eventType)
+        }
+    }
+
     static func event(_ type: String) -> String {
         switch type {
         case "PICKUP_STARTED": return "Pickup started"
