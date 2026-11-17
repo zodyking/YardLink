@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { LOCATION_TYPE_LABELS, type LocationType } from '#shared/utils/domain'
+import { clusterSites } from '#shared/utils/map-cluster'
 import { loadLeaflet, observeMapSize, waitForMapSize } from '~/utils/leaflet-map'
 import {
+  DARK_ATTRIBUTION,
+  DARK_LABELS_TILE_URL,
+  DARK_NATIVE_ZOOM,
+  DARK_TILE_URL,
   LABELS_ATTRIBUTION,
   LABELS_TILE_URL,
   OSM_ATTRIBUTION,
@@ -13,7 +18,7 @@ import {
 } from '~/utils/map-tiles'
 
 type LeafletModule = typeof import('leaflet')
-type Basemap = 'street' | 'satellite'
+type Basemap = 'dark' | 'street' | 'satellite'
 
 export interface DispatchMapSite {
   id: string
@@ -34,7 +39,7 @@ const emit = defineEmits<{
 }>()
 
 const host = ref<HTMLElement | null>(null)
-const basemap = ref<Basemap>('street')
+const basemap = ref<Basemap>('dark')
 const FALLBACK: [number, number] = [40.792, -74.042]
 
 let map: import('leaflet').Map | null = null
@@ -59,11 +64,37 @@ function pinHtml(site: DispatchMapSite, selected: boolean) {
   </button>`
 }
 
+function clusterHtml(count: number, containers: number) {
+  return `<button type="button" class="dmap-cluster" aria-label="${count} locations, ${containers} containers. Zoom in.">
+    <b>${count}</b>
+  </button>`
+}
+
 function drawPins() {
   if (!map || !pinsLayer || !Lref) return
   pinsLayer.clearLayers()
   const L = Lref
-  for (const site of sitesWithPins(props.locations)) {
+  const groups = clusterSites(sitesWithPins(props.locations), map.getZoom(), { keepApart: props.selectedId })
+  for (const group of groups) {
+    if (group.sites.length > 1) {
+      const marker = L.marker([group.latitude, group.longitude], {
+        icon: L.divIcon({
+          className: 'dmap-pin-wrap',
+          html: clusterHtml(group.sites.length, group.occupancy),
+          iconSize: [48, 48],
+          iconAnchor: [24, 24],
+        }),
+        keyboard: true,
+      })
+      marker.on('click', () => {
+        const bounds = L.latLngBounds(group.sites.map(site => [site.latitude, site.longitude] as [number, number]))
+        map?.fitBounds(bounds, { padding: [72, 72], maxZoom: 16 })
+      })
+      marker.bindTooltip(`${group.sites.length} locations · ${group.occupancy} containers`, { direction: 'top', offset: [0, -14] })
+      pinsLayer.addLayer(marker)
+      continue
+    }
+    const site = group.sites[0]!
     const icon = L.divIcon({
       className: 'dmap-pin-wrap',
       html: pinHtml(site, site.id === props.selectedId),
@@ -97,7 +128,21 @@ function paintBaseLayer() {
   baseLayer?.remove()
   labelsLayer?.remove()
   labelsLayer = null
-  if (basemap.value === 'satellite') {
+  if (basemap.value === 'dark') {
+    baseLayer = Lref.tileLayer(DARK_TILE_URL, {
+      maxZoom: 19,
+      maxNativeZoom: DARK_NATIVE_ZOOM,
+      attribution: DARK_ATTRIBUTION,
+    })
+    labelsLayer = Lref.layerGroup()
+    Lref.tileLayer(DARK_LABELS_TILE_URL, {
+      maxZoom: 19,
+      maxNativeZoom: DARK_NATIVE_ZOOM,
+      attribution: DARK_ATTRIBUTION,
+      pane: 'overlayPane',
+    }).addTo(labelsLayer)
+  }
+  else if (basemap.value === 'satellite') {
     baseLayer = Lref.tileLayer(satelliteTileUrl(), {
       maxZoom: 19,
       maxNativeZoom: 19,
@@ -151,6 +196,7 @@ function createMap(L: LeafletModule, el: HTMLElement) {
   })
   paintBaseLayer()
   pinsLayer = L.layerGroup().addTo(map)
+  map.on('zoomend', drawPins)
   drawPins()
   fitSites()
   map.whenReady(() => {
@@ -233,6 +279,7 @@ onBeforeUnmount(() => {
     <div
       ref="host"
       class="dmap"
+      :class="{ 'dmap-dark': basemap === 'dark' }"
       role="application"
       aria-label="Location map"
     />
@@ -241,6 +288,14 @@ onBeforeUnmount(() => {
       role="group"
       aria-label="Map type"
     >
+      <button
+        type="button"
+        :class="{ on: basemap === 'dark' }"
+        :aria-pressed="basemap === 'dark'"
+        @click="basemap = 'dark'"
+      >
+        Dark
+      </button>
       <button
         type="button"
         :class="{ on: basemap === 'street' }"

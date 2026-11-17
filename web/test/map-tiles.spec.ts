@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DARK_LABELS_TILE_URL,
+  DARK_TILE_URL,
   LABELS_TILE_URL,
   OSM_TILE_URL,
   ROADS_TILE_URL,
@@ -18,5 +20,12 @@ describe('map tile templates', () => {
     expect(LABELS_TILE_URL).toContain('World_Boundaries_and_Places')
     expect(LABELS_TILE_URL).not.toContain('cartocdn')
     expect(ROADS_TILE_URL).toContain('World_Transportation')
+  })
+
+  it('draws the dark board map from Esri too, z/y/x, with its labels on top', () => {
+    expect(DARK_TILE_URL).toContain('World_Dark_Gray_Base')
+    expect(DARK_TILE_URL).toContain('{z}/{y}/{x}')
+    expect(DARK_LABELS_TILE_URL).toContain('World_Dark_Gray_Reference')
+    expect(DARK_TILE_URL).not.toContain('cartocdn')
   })
 })

@@ -21,3 +21,14 @@ export const LABELS_ATTRIBUTION = 'Tiles © Esri — Esri, HERE, Garmin, FAO, NO
 /** Roads on top of satellite. No API key. */
 export const ROADS_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}'
 export const ROADS_ATTRIBUTION = LABELS_ATTRIBUTION
+
+/**
+ * Esri Dark Gray Canvas — a quiet dark map in the style of a navigation app,
+ * keyless like the rest. Its place names ride on top as a reference layer.
+ * The board tints it navy to match the console.
+ */
+export const DARK_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+export const DARK_LABELS_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
+export const DARK_ATTRIBUTION = 'Tiles © Esri — Esri, HERE, Garmin, FAO, NOAA, USGS'
+/** The dark canvas is drawn to this zoom; closer in, the tiles are stretched. */
+export const DARK_NATIVE_ZOOM = 16

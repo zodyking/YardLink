@@ -46,6 +46,8 @@ const isTerminus = computed(() => form.type === 'MARINE_TERMINAL' || form.type =
 const latitude = ref<number | null>(null)
 const longitude = ref<number | null>(null)
 const radiusMeters = ref(SITE_RADIUS_DEFAULT_M)
+/** Only a circle the person sized by hand is sent; otherwise the address sizes it. */
+const radiusTouched = ref(false)
 const addressDirty = ref(false)
 const suggestions = ref<PlaceHit[]>([])
 const searching = ref(false)
@@ -216,7 +218,7 @@ async function save() {
       body.latitude = latitude.value
       body.longitude = longitude.value
     }
-    body.arrivalRadiusM = radiusMeters.value
+    if (radiusTouched.value) body.arrivalRadiusM = radiusMeters.value
     if (isTerminus.value) body.shipcsxTerminal = form.shipcsxTerminal.trim() || null
     await $fetch(`/api/locations/${locationId.value}`, { method: 'PATCH', body })
     await navigateTo(`/locations/${locationId.value}`)
@@ -419,7 +421,7 @@ async function save() {
             :state="form.state"
             :postal-code="form.postalCode"
             @update:pin="latitude = $event.latitude; longitude = $event.longitude"
-            @update:radius-meters="radiusMeters = $event"
+            @update:radius-meters="radiusMeters = $event; radiusTouched = true"
           />
           <template #fallback>
             <div

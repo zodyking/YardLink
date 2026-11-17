@@ -201,9 +201,6 @@ function occupancyPercent(occupancy: number, capacity: number | null): number {
               Occupancy
             </th>
             <th scope="col">
-              Arrival
-            </th>
-            <th scope="col">
               Status
             </th>
           </tr>
@@ -253,23 +250,6 @@ function occupancyPercent(occupancy: number, capacity: number | null): number {
                 v-else
                 class="text-xs"
               >{{ row.occupancy }} on site</span>
-            </td>
-            <td>
-              <NuxtLink
-                v-if="!row.latitude && !row.isUncategorized"
-                :to="`/locations/${row.id}/edit`"
-                class="inline-flex min-h-11 items-center"
-              >
-                <StatusChip
-                  variant="warn"
-                  label="Place the pin"
-                />
-              </NuxtLink>
-              <StatusChip
-                v-else
-                variant="ok"
-                :label="`Arrives within ${row.arrivalRadiusM} m`"
-              />
             </td>
             <td>
               <StatusChip

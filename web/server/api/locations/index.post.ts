@@ -1,9 +1,11 @@
 import { z } from 'zod'
 import { locations } from '../../database/schema'
 import { findDuplicateCandidates, normalizeAddress } from '../../services/geocoding'
+import { placeSite } from '../../services/site-placement'
 import { requireAuth } from '../../utils/session'
 import { LOCATION_TYPES } from '#shared/utils/domain'
 import { isValidPhone, toE164 } from '#shared/utils/phone'
+import { autoSiteRadius, isPlacedPin } from '#shared/utils/geo'
 
 const usPhone = z.string().trim().max(40).nullish().refine(
   value => !value || isValidPhone(value),
@@ -42,6 +44,13 @@ export default defineEventHandler(async (event) => {
 
   const normalizedAddress = normalizeAddress(body)
 
+  // The address puts the pin down and sizes the circle; nothing waits on a save.
+  const given = isPlacedPin(body.latitude, body.longitude)
+  const found = given ? null : await placeSite(body.type, body)
+  const latitude = given ? body.latitude! : found?.latitude ?? null
+  const longitude = given ? body.longitude! : found?.longitude ?? null
+  const arrivalRadiusM = body.arrivalRadiusM ?? found?.arrivalRadiusM ?? autoSiteRadius(body.type)
+
   if (!body.acknowledgeDuplicates) {
     const duplicates = await findDuplicateCandidates(db, auth.companyId, {
       name: body.name,
@@ -70,9 +79,9 @@ export default defineEventHandler(async (event) => {
       postalCode: body.postalCode ?? null,
       country: 'US',
       normalizedAddress,
-      latitude: body.latitude != null ? String(body.latitude) : null,
-      longitude: body.longitude != null ? String(body.longitude) : null,
-      arrivalRadiusM: body.arrivalRadiusM ?? 180,
+      latitude: latitude != null ? String(latitude) : null,
+      longitude: longitude != null ? String(longitude) : null,
+      arrivalRadiusM,
       capacity: body.capacity ?? null,
       hours: body.hours ?? null,
       appointmentRequired: body.appointmentRequired,

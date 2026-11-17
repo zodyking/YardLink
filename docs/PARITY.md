@@ -52,7 +52,7 @@ State key: **Carried** unchanged · **Changed** deliberately different · **New*
 | Location audit: checklist, add, move, delete | `/locations/:id/audit` | Carried |
 | CSX pickup list: type or photograph, review, claim on pickup | `/locations/:id/csx` | Carried |
 | Export a location list as text, site CSV, directory CSV | Location, More | Carried |
-| Add / edit location with address search, an automatic map pin you can drag, and an arrival radius | `/locations/new`, `/edit` | Carried + Changed |
+| Add / edit location with address search, a map pin and arrival radius that the address sets by itself (drag the pin or resize the circle to correct them), and a background sweep that pins imported or older sites | `/locations/new`, `/edit` | Carried + Changed |
 | Yard view and yard generation from map data | `/locations/:id/yard` | Carried |
 | Container page: status, photos and documents, ShipCSX check, edit, move, delete | `/containers/:id` | Carried; history section replaced (section 4) |
 | Chassis page: status, edit, delete, release | `/chassis/:id` | Carried; history section replaced (section 4) |

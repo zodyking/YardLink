@@ -157,6 +157,30 @@ export function clampSiteRadius(meters: number | null | undefined): number {
   return Math.min(SITE_RADIUS_MAX_M, Math.max(SITE_RADIUS_MIN_M, Math.round(meters as number)))
 }
 
+/** The circle a kind of site needs when nothing says how big it is. */
+const SITE_RADIUS_BY_TYPE: Record<string, number> = {
+  MARINE_TERMINAL: 600,
+  RAIL_TERMINAL: 500,
+  COMPANY_YARD: 220,
+  CUSTOMER: 140,
+}
+
+/**
+ * How big a site's circle should be so a truck at its gate is inside it.
+ * When the address came back with an outline (a building or a terminal's
+ * grounds), the circle reaches its far corner; otherwise it is the usual
+ * size for that kind of site. Never smaller than half the usual size, so a
+ * tiny outline still catches a driver waiting at the street.
+ */
+export function autoSiteRadius(type: string, outline?: BoundingBox | null): number {
+  const usual = SITE_RADIUS_BY_TYPE[type] ?? SITE_RADIUS_DEFAULT_M
+  if (!outline || !isValidBbox(outline)) return clampSiteRadius(usual)
+  const centre = bboxCenter(outline)
+  const reach = haversineMeters(centre.latitude, centre.longitude, outline.north, outline.east)
+  const sized = Math.max(reach * 1.15, usual / 2)
+  return clampSiteRadius(Math.round(sized / 10) * 10)
+}
+
 /** Has a site been given a usable point? */
 export function isPlacedPin(
   latitude: number | string | null | undefined,

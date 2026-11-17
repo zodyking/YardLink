@@ -3,8 +3,10 @@ import { z } from 'zod'
 import { locations } from '../../database/schema'
 import { assertTenant, requireAuth } from '../../utils/session'
 import { normalizeAddress } from '../../services/geocoding'
+import { placeSite } from '../../services/site-placement'
 import { LOCATION_TYPES } from '#shared/utils/domain'
 import { isValidPhone, toE164 } from '#shared/utils/phone'
+import { isPlacedPin } from '#shared/utils/geo'
 
 const usPhone = z.string().trim().max(40).nullish().refine(
   value => !value || isValidPhone(value),
@@ -55,6 +57,15 @@ export default defineEventHandler(async (event) => {
     postalCode: body.postalCode ?? location!.postalCode,
   }
 
+  // A new address re-sizes the circle, and re-places the pin unless the request
+  // brings its own point. A site that never had a pin is placed from its address.
+  const addressChanged = normalizeAddress(nextAddress) !== (location!.normalizedAddress ?? '')
+  const bringsPin = body.latitude !== undefined || body.longitude !== undefined
+  const unpinned = !bringsPin && !isPlacedPin(location!.latitude, location!.longitude)
+  const found = addressChanged || unpinned
+    ? await placeSite(body.type ?? location!.type, nextAddress)
+    : null
+
   const [updated] = await db
     .update(locations)
     .set({
@@ -64,12 +75,14 @@ export default defineEventHandler(async (event) => {
       ...(body.city !== undefined ? { city: body.city ?? null } : {}),
       ...(body.state !== undefined ? { state: body.state ?? null } : {}),
       ...(body.postalCode !== undefined ? { postalCode: body.postalCode ?? null } : {}),
+      ...(found ? { latitude: String(found.latitude), longitude: String(found.longitude) } : {}),
       ...(body.latitude !== undefined ? { latitude: body.latitude == null ? null : String(body.latitude) } : {}),
       ...(body.longitude !== undefined ? { longitude: body.longitude == null ? null : String(body.longitude) } : {}),
       ...(body.mainPhone !== undefined ? { mainPhone: body.mainPhone ? toE164(body.mainPhone) : null } : {}),
       ...(body.contactName !== undefined ? { contactName: body.contactName ?? null } : {}),
       ...(body.contactPhone !== undefined ? { contactPhone: body.contactPhone ? toE164(body.contactPhone) : null } : {}),
       ...(body.shipcsxTerminal !== undefined ? { shipcsxTerminal: body.shipcsxTerminal ?? null } : {}),
+      ...(found && addressChanged ? { arrivalRadiusM: found.arrivalRadiusM } : {}),
       ...(body.arrivalRadiusM !== undefined ? { arrivalRadiusM: body.arrivalRadiusM } : {}),
       normalizedAddress: normalizeAddress(nextAddress),
       updatedAt: new Date(),

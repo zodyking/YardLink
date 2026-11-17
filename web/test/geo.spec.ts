@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { countContainersByType } from '../shared/utils/domain'
 import {
+  autoSiteRadius,
   bboxAround,
   bearingDeg,
   containerCorners,
@@ -136,3 +137,27 @@ function headingDelta(a: number, b: number) {
   const delta = Math.abs(normalizeHeading(a) - normalizeHeading(b))
   return Math.min(delta, 360 - delta)
 }
+
+describe('autoSiteRadius', () => {
+  it('uses the usual size for each kind of site when there is no outline', () => {
+    expect(autoSiteRadius('MARINE_TERMINAL')).toBe(600)
+    expect(autoSiteRadius('RAIL_TERMINAL')).toBe(500)
+    expect(autoSiteRadius('COMPANY_YARD')).toBe(220)
+    expect(autoSiteRadius('CUSTOMER')).toBe(140)
+  })
+
+  it('reaches the far corner of an outline, a little past it', () => {
+    const outline = bboxAround(40.7, -74.1, 400)
+    const radius = autoSiteRadius('COMPANY_YARD', outline)
+    expect(radius).toBeGreaterThan(400 * Math.SQRT2)
+    expect(radius).toBeLessThan(400 * Math.SQRT2 * 1.3)
+  })
+
+  it('never shrinks below half the usual size for a tiny outline', () => {
+    expect(autoSiteRadius('MARINE_TERMINAL', bboxAround(40.7, -74.1, 5))).toBe(300)
+  })
+
+  it('stays inside what the app allows', () => {
+    expect(autoSiteRadius('CUSTOMER', bboxAround(40.7, -74.1, 20_000))).toBe(2000)
+  })
+})
