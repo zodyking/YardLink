@@ -430,17 +430,21 @@ struct TripDetailView: View {
                     TimelineRow(
                         symbol: Words.eventSymbol(event.eventType),
                         title: Words.event(event),
-                        lines: [
-                            event.locationName.map { "At \($0)" },
-                            event.actorName.map { "By \($0)" },
-                            event.chassisNumber.map { "Chassis \($0)" },
-                            event.notes,
-                        ].compactMap { $0 }.filter { !$0.isEmpty },
+                        lines: Self.lines(for: event),
                         date: event.occurredAt
                     )
                 }
             }
         }
+    }
+
+    private static func lines(for event: HistoryEvent) -> [String] {
+        var out: [String] = []
+        if let place = event.locationName { out.append("At \(place)") }
+        if let actor = event.actorName { out.append("By \(actor)") }
+        if let chassis = event.chassisNumber { out.append("Chassis \(chassis)") }
+        if let notes = event.notes { out.append(notes) }
+        return out.filter { !$0.isEmpty }
     }
 
     private func changed() {
