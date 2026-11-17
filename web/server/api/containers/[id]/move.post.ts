@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { moveContainerToLocation } from '../../../services/placements'
+import { moveContainerToLocation } from '../../../services/equipment-moves'
 import { requireAuth } from '../../../utils/session'
 
 const schema = z.object({

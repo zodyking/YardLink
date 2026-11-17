@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { addContainerAtLocation } from '../../../services/placements'
+import { addContainerAtLocation } from '../../../services/equipment-moves'
 import { requireAuth } from '../../../utils/session'
 import { CONTAINER_TYPES, EQUIPMENT_TYPES } from '#shared/utils/domain'
 
@@ -11,14 +11,9 @@ const schema = z.object({
   isLoaded: z.boolean(),
   sealNumber: z.string().trim().max(60).nullish(),
   chassisNumber: z.string().trim().max(40).nullish(),
-  placement: z.object({
-    latitude: z.number().min(-90).max(90),
-    longitude: z.number().min(-180).max(180),
-    rotation: z.number(),
-  }).nullish(),
 })
 
-/** Record a container at this location. A map pin is optional. */
+/** Record a container at this location. */
 export default defineEventHandler(async (event) => {
   const auth = await requireAuth(event)
   const locationId = getRouterParam(event, 'id')

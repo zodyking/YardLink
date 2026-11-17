@@ -2,7 +2,6 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 import {
   chassis,
   containerEvents,
-  containerPlacements,
   containers,
   documents,
   drivers,
@@ -73,7 +72,6 @@ export default defineEventHandler(async (event) => {
       source: containerEvents.source,
       notes: containerEvents.notes,
       payload: containerEvents.payload,
-      yardPosition: containerEvents.yardPosition,
       tripId: containerEvents.tripId,
       locationName: locations.name,
       locationType: locations.type,
@@ -93,12 +91,6 @@ export default defineEventHandler(async (event) => {
 
   const timeline = sliceCurrentServiceLife(events)
   const serviceLife = summarizeServiceLife(timeline)
-
-  const [placement] = await db
-    .select()
-    .from(containerPlacements)
-    .where(and(eq(containerPlacements.containerId, containerId), isNull(containerPlacements.supersededAt)))
-    .limit(1)
 
   const files = await db
     .select({
@@ -127,7 +119,6 @@ export default defineEventHandler(async (event) => {
     currentLocation: currentLocation ?? null,
     currentChassis: currentChassis ?? null,
     currentDriver: currentDriver ? { id: currentDriver.id, name: `${currentDriver.firstName} ${currentDriver.lastName}` } : null,
-    placement: placement ?? null,
     serviceLife,
     timeline,
     /** Every duty cycle, newest first — the current one and all earlier ones. */

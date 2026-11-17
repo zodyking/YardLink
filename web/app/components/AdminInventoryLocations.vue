@@ -201,7 +201,7 @@ function occupancyPercent(occupancy: number, capacity: number | null): number {
               Occupancy
             </th>
             <th scope="col">
-              Boundary
+              Arrival
             </th>
             <th scope="col">
               Status
@@ -256,19 +256,19 @@ function occupancyPercent(occupancy: number, capacity: number | null): number {
             </td>
             <td>
               <NuxtLink
-                v-if="!row.hasBoundary && !row.isUncategorized"
-                :to="`/locations/${row.id}/yard/setup`"
+                v-if="!row.latitude && !row.isUncategorized"
+                :to="`/locations/${row.id}/edit`"
                 class="inline-flex min-h-11 items-center"
               >
                 <StatusChip
                   variant="warn"
-                  label="Draw zone"
+                  label="Place the pin"
                 />
               </NuxtLink>
               <StatusChip
                 v-else
-                :variant="row.hasBoundary ? 'ok' : 'warn'"
-                :label="row.hasBoundary ? 'Boundary drawn' : 'No boundary'"
+                variant="ok"
+                :label="`Arrives within ${row.arrivalRadiusM} m`"
               />
             </td>
             <td>

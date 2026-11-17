@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { addChassisAtLocation } from '../../../services/placements'
+import { addChassisAtLocation } from '../../../services/equipment-moves'
 import { requireAuth } from '../../../utils/session'
 
 const schema = z.object({

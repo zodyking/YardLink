@@ -8,15 +8,6 @@ import { calendarDateInZone } from '#shared/utils/sms-task'
 const schema = z.object({
   eventId: z.string().uuid('An idempotency key is required.'),
   destinationLocationId: z.string().uuid('Select a drop-off location.'),
-  placement: z.object({
-    latitude: z.number().min(-90).max(90).optional(),
-    longitude: z.number().min(-180).max(180).optional(),
-    rotation: z.number(),
-    x: z.number().optional(),
-    y: z.number().optional(),
-    zoneId: z.string().uuid().nullish(),
-    slotCode: z.string().trim().max(40).nullish(),
-  }).nullish(),
   retainChassis: z.boolean().default(false),
   isFinalRelease: z.boolean().optional(),
   notes: z.string().trim().max(2000).nullish(),

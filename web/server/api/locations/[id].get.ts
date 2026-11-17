@@ -8,7 +8,7 @@ import { assertTenant, requireAuth } from '../../utils/session'
 import { countContainersByType, emptyTypeCounts } from '#shared/utils/domain'
 import { parseCoord } from '#shared/utils/geo'
 
-/** One location plus the active-pool containers currently sitting on its map. */
+/** One location plus the active-pool containers currently on site. */
 export default defineEventHandler(async (event) => {
   const auth = await requireAuth(event)
   const id = getRouterParam(event, 'id')
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
     ? await locationIdsAtSameAddress(db, auth.companyId, id)
     : [id]
 
-  const mapped = await listOnSiteContainers(db, auth.companyId, locationIds, location!)
+  const mapped = await listOnSiteContainers(db, auth.companyId, locationIds)
   const chassisRows = await listOnSiteChassis(db, auth.companyId, locationIds)
 
   return {
@@ -46,8 +46,7 @@ export default defineEventHandler(async (event) => {
       capacity: location!.capacity,
       latitude: parseCoord(location!.latitude),
       longitude: parseCoord(location!.longitude),
-      mapHeading: location!.mapHeading ?? 0,
-      boundary: location!.boundary,
+      arrivalRadiusM: location!.arrivalRadiusM,
       hours: location!.hours,
       mainPhone: location!.mainPhone,
       contactName: location!.contactName,

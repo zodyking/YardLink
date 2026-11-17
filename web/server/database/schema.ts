@@ -1,3 +1,10 @@
+/* ============================================================
+   Geospatial storage
+   A site is a point and a radius in plain columns, so the app runs on a
+   stock PostgreSQL server with no extensions. Distances are computed with
+   the haversine formula.
+   ============================================================ */
+
 /**
  * Yard Link — PostgreSQL schema (Drizzle ORM).
  *
@@ -26,26 +33,6 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
-
-/* ============================================================
-   Geospatial storage
-   Boundaries are GeoJSON polygons in `jsonb` and points are plain
-   latitude/longitude columns, so the app runs on a stock PostgreSQL server
-   with no extensions. Distances are computed with the haversine formula.
-   ============================================================ */
-
-/** GeoJSON Polygon: rings of [longitude, latitude] pairs, WGS 84. */
-export interface GeoJsonPolygon {
-  type: 'Polygon'
-  coordinates: [number, number][][]
-}
-
-/** GeoJSON geometry stored on generated yard features. */
-export type GeoJsonGeometry
-  = | GeoJsonPolygon
-    | { type: 'MultiPolygon', coordinates: [number, number][][][] }
-    | { type: 'LineString', coordinates: [number, number][] }
-    | { type: 'MultiLineString', coordinates: [number, number][][] }
 
 const utc = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
 
@@ -141,40 +128,6 @@ export const locationTypeEnum = pgEnum('location_type', [
 ])
 
 export const locationStatusEnum = pgEnum('location_status', ['ACTIVE', 'PENDING_APPROVAL', 'ARCHIVED'])
-
-export const yardObjectTypeEnum = pgEnum('yard_object_type', [
-  'BUILDING',
-  'ROAD',
-  'FENCE',
-  'GATE',
-  'SLOT',
-  'ROW',
-  'LABEL',
-  'RESTRICTED',
-  'PARKING',
-])
-
-export const yardLayoutStatusEnum = pgEnum('yard_layout_status', [
-  'PENDING',
-  'GENERATING',
-  'READY',
-  'FAILED',
-])
-
-export const yardFeatureTypeEnum = pgEnum('yard_feature_type', [
-  'PAVEMENT',
-  'BUILDING',
-  'ROAD',
-  'DRIVEWAY',
-  'RAIL',
-  'FENCE',
-  'GATE',
-  'VEGETATION',
-])
-
-export const yardFeatureSourceEnum = pgEnum('yard_feature_source', ['OSM', 'ORTHO', 'MANUAL'])
-
-export const yardAssetTypeEnum = pgEnum('yard_asset_type', ['CHASSIS'])
 
 export const documentCategoryEnum = pgEnum('document_category', [
   'EIR',
@@ -384,13 +337,11 @@ export const locations = pgTable('locations', {
   /** Lower-cased, whitespace-collapsed address used for duplicate detection. */
   normalizedAddress: text('normalized_address'),
 
-  /** Site centre point. Proximity search reads these directly. */
+  /** Site point, geocoded from the address and movable by hand. */
   latitude: numeric('latitude', { precision: 10, scale: 7 }),
   longitude: numeric('longitude', { precision: 10, scale: 7 }),
-  /** Operational perimeter drawn on OpenStreetMap. */
-  boundary: jsonb('boundary').$type<GeoJsonPolygon>(),
-  /** Clockwise map bearing in degrees so the yard sits square to the street. */
-  mapHeading: real('map_heading').notNull().default(0),
+  /** How far from the point still counts as being at this site, in metres. */
+  arrivalRadiusM: integer('arrival_radius_m').notNull().default(180),
 
   timezone: text('timezone').notNull().default('America/New_York'),
   hours: text('hours'),
@@ -443,109 +394,9 @@ export const locationZones = pgTable('location_zones', {
   locationId: uuid('location_id').notNull().references(() => locations.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   purpose: text('purpose'),
-  boundary: jsonb('boundary').$type<GeoJsonPolygon>(),
-  /** Local yard-plane rectangle, kept distinct from the geographic layer (spec 32.2). */
-  localGeometry: jsonb('local_geometry').$type<Record<string, unknown>>(),
   capacity: integer('capacity'),
   createdAt: utc('created_at').notNull().defaultNow(),
 }, t => [index('location_zones_location_idx').on(t.locationId)])
-
-export const yardLayouts = pgTable('yard_layouts', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
-  locationId: uuid('location_id').notNull().references(() => locations.id, { onDelete: 'cascade' }),
-  version: integer('version').notNull().default(1),
-  name: text('name'),
-  isCurrent: boolean('is_current').notNull().default(true),
-  /** Yard-plane extents in local metres. */
-  planeWidth: real('plane_width').notNull().default(1000),
-  planeHeight: real('plane_height').notNull().default(700),
-  /** Affine transform between the geographic boundary and the local plane. */
-  geoTransform: jsonb('geo_transform').$type<Record<string, number>>(),
-  supportsStacking: boolean('supports_stacking').notNull().default(false),
-  boundary: jsonb('boundary').$type<GeoJsonPolygon>(),
-  originLng: real('origin_lng'),
-  originLat: real('origin_lat'),
-  rotationDeg: real('rotation_deg').notNull().default(0),
-  status: yardLayoutStatusEnum('status').notNull().default('PENDING'),
-  generatorVersion: text('generator_version'),
-  errorMessage: text('error_message'),
-  createdByUserId: uuid('created_by_user_id'),
-  createdAt: utc('created_at').notNull().defaultNow(),
-  updatedAt: utc('updated_at').notNull().defaultNow(),
-}, t => [
-  index('yard_layouts_location_idx').on(t.locationId),
-  uniqueIndex('yard_layouts_location_version_key').on(t.locationId, t.version),
-])
-
-export const yardObjects = pgTable('yard_objects', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
-  layoutId: uuid('layout_id').notNull().references(() => yardLayouts.id, { onDelete: 'cascade' }),
-  type: yardObjectTypeEnum('type').notNull(),
-  label: text('label'),
-  x: real('x').notNull(),
-  y: real('y').notNull(),
-  width: real('width').notNull(),
-  height: real('height').notNull(),
-  rotation: real('rotation').notNull().default(0),
-  zoneId: uuid('zone_id'),
-  slotCode: text('slot_code'),
-  style: jsonb('style').$type<Record<string, unknown>>(),
-  createdAt: utc('created_at').notNull().defaultNow(),
-}, t => [index('yard_objects_layout_idx').on(t.layoutId)])
-
-export const yardFeatures = pgTable('yard_features', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
-  layoutId: uuid('layout_id').notNull().references(() => yardLayouts.id, { onDelete: 'cascade' }),
-  type: yardFeatureTypeEnum('type').notNull(),
-  localGeometry: jsonb('local_geometry').$type<GeoJsonGeometry>().notNull(),
-  geoGeometry: jsonb('geo_geometry').$type<GeoJsonGeometry>().notNull(),
-  source: yardFeatureSourceEnum('source').notNull().default('OSM'),
-  confidence: real('confidence').notNull().default(1),
-  manuallyModified: boolean('manually_modified').notNull().default(false),
-  createdAt: utc('created_at').notNull().defaultNow(),
-  updatedAt: utc('updated_at').notNull().defaultNow(),
-}, t => [
-  index('yard_features_layout_idx').on(t.layoutId),
-  index('yard_features_layout_type_idx').on(t.layoutId, t.type),
-])
-
-export const yardSlots = pgTable('yard_slots', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
-  layoutId: uuid('layout_id').notNull().references(() => yardLayouts.id, { onDelete: 'cascade' }),
-  code: text('code').notNull(),
-  type: text('type').notNull().default('CONTAINER'),
-  x: real('x').notNull(),
-  y: real('y').notNull(),
-  width: real('width').notNull(),
-  height: real('height').notNull(),
-  rotation: real('rotation').notNull().default(0),
-  manuallyModified: boolean('manually_modified').notNull().default(false),
-  createdAt: utc('created_at').notNull().defaultNow(),
-}, t => [
-  index('yard_slots_layout_idx').on(t.layoutId),
-  uniqueIndex('yard_slots_layout_code_key').on(t.layoutId, t.code),
-])
-
-export const yardAssetPositions = pgTable('yard_asset_positions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
-  layoutId: uuid('layout_id').notNull().references(() => yardLayouts.id, { onDelete: 'cascade' }),
-  assetType: yardAssetTypeEnum('asset_type').notNull(),
-  assetId: uuid('asset_id').notNull(),
-  x: real('x').notNull(),
-  y: real('y').notNull(),
-  rotation: real('rotation').notNull().default(0),
-  slotId: uuid('slot_id').references(() => yardSlots.id, { onDelete: 'set null' }),
-  updatedAt: utc('updated_at').notNull().defaultNow(),
-  createdAt: utc('created_at').notNull().defaultNow(),
-}, t => [
-  index('yard_asset_positions_layout_idx').on(t.layoutId),
-  uniqueIndex('yard_asset_positions_layout_asset_key').on(t.layoutId, t.assetType, t.assetId),
-])
 
 /* ============================================================
    Equipment
@@ -765,8 +616,6 @@ export const containerEvents = pgTable('container_events', {
   /** Reported accuracy in metres; stored with every geofence-derived signal. */
   gpsAccuracyMeters: real('gps_accuracy_meters'),
 
-  /** x/y/rotation/zone/slot/stack when the event carries a yard position. */
-  yardPosition: jsonb('yard_position').$type<Record<string, unknown>>(),
   /** Structured payload: previous/next state, seal, notes, OCR references. */
   payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
   notes: text('notes'),
@@ -817,32 +666,6 @@ export const containerDutyCycles = pgTable('container_duty_cycles', {
     .on(t.containerId)
     .where(sql`status = 'ACTIVE'`),
   index('container_duty_cycles_company_idx').on(t.companyId, t.status),
-])
-
-export const containerPlacements = pgTable('container_placements', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
-  containerId: uuid('container_id').notNull().references(() => containers.id, { onDelete: 'cascade' }),
-  locationId: uuid('location_id').notNull().references(() => locations.id, { onDelete: 'cascade' }),
-  layoutId: uuid('layout_id'),
-  zoneId: uuid('zone_id'),
-  slotCode: text('slot_code'),
-  /** Local metres east/north of the location's south-west corner. */
-  x: real('x').notNull(),
-  y: real('y').notNull(),
-  rotation: real('rotation').notNull().default(0),
-  /** WGS 84 pin used to draw the box on OpenStreetMap. */
-  latitude: numeric('latitude', { precision: 10, scale: 7 }),
-  longitude: numeric('longitude', { precision: 10, scale: 7 }),
-  stackLevel: integer('stack_level').notNull().default(0),
-  /** Null while this is the container's current position. */
-  supersededAt: utc('superseded_at'),
-  eventId: uuid('event_id'),
-  placedByUserId: uuid('placed_by_user_id'),
-  createdAt: utc('created_at').notNull().defaultNow(),
-}, t => [
-  index('container_placements_container_idx').on(t.containerId),
-  index('container_placements_location_idx').on(t.locationId, t.supersededAt),
 ])
 
 /* ============================================================
@@ -1094,16 +917,11 @@ export type Driver = typeof drivers.$inferSelect
 export type Truck = typeof trucks.$inferSelect
 export type Location = typeof locations.$inferSelect
 export type LocationNote = typeof locationNotes.$inferSelect
-export type YardLayout = typeof yardLayouts.$inferSelect
-export type YardFeature = typeof yardFeatures.$inferSelect
-export type YardSlot = typeof yardSlots.$inferSelect
-export type YardAssetPosition = typeof yardAssetPositions.$inferSelect
 export type Container = typeof containers.$inferSelect
 export type Chassis = typeof chassis.$inferSelect
 export type Trip = typeof trips.$inferSelect
 export type TripGapRecord = typeof tripGaps.$inferSelect
 export type ContainerEvent = typeof containerEvents.$inferSelect
-export type ContainerPlacement = typeof containerPlacements.$inferSelect
 export type DocumentRecord = typeof documents.$inferSelect
 export type OcrResult = typeof ocrResults.$inferSelect
 export type SmsInboundEndpoint = typeof smsInboundEndpoints.$inferSelect

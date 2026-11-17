@@ -336,20 +336,6 @@ async function confirmDelete() {
       >
         {{ checkingCsx ? 'Checking ShipCSX…' : 'Check CSX' }}
       </button>
-      <NuxtLink
-        v-if="user?.role === 'ADMIN' && !data.location.isUncategorized && !data.location.boundary"
-        :to="`/locations/${locationId}/yard/setup`"
-        class="btn-ghost mt-2 w-full"
-      >
-        Draw yard zone
-      </NuxtLink>
-      <NuxtLink
-        v-if="!data.location.isUncategorized"
-        :to="`/locations/${locationId}/yard`"
-        class="btn-ghost mt-2 w-full"
-      >
-        Yard
-      </NuxtLink>
 
       <template v-if="isTerminus">
         <div class="section-label mt-6">
@@ -539,22 +525,6 @@ async function confirmDelete() {
           @click="menuOpen = false; navigateTo(`/locations/${locationId}/audit`)"
         >
           Audit
-        </button>
-        <button
-          v-if="!data.location.isUncategorized"
-          type="button"
-          class="menu-row"
-          @click="menuOpen = false; navigateTo(`/locations/${locationId}/yard`)"
-        >
-          Yard
-        </button>
-        <button
-          v-if="user?.role === 'ADMIN' && !data.location.isUncategorized && !data.location.boundary"
-          type="button"
-          class="menu-row"
-          @click="menuOpen = false; navigateTo(`/locations/${locationId}/yard/setup`)"
-        >
-          Draw yard zone
         </button>
         <button
           type="button"

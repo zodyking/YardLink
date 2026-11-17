@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { LOCATION_TYPE_LABELS, LOCATION_TYPES } from '#shared/utils/domain'
 import type { LocationType } from '#shared/utils/domain'
-import { isPlacedPin } from '#shared/utils/yard-slots'
+import { isPlacedPin } from '#shared/utils/geo'
 import { formatPhoneInput, isBlankOrValidPhone } from '#shared/utils/phone'
 import { formatCityStateZip, parseUsAddressQuery } from '#shared/utils/us-address'
 

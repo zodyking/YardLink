@@ -1,10 +1,10 @@
-import { and, eq, inArray, sql } from 'drizzle-orm'
-import { chassis, containerPlacements, containers, locations, trips } from '../database/schema'
+import { and, eq, inArray } from 'drizzle-orm'
+import { chassis, containers, locations, trips } from '../database/schema'
 import type { Database, DbExecutor } from '../utils/db'
 import type { AuthContext } from '../utils/session'
 import { assertTenant } from '../utils/session'
 import { TRIP_STATUSES } from '#shared/utils/domain'
-import { addContainerAtLocation } from './placements'
+import { addContainerAtLocation } from './equipment-moves'
 import { ensureUncategorizedLocation } from './locations'
 
 const OPEN_TRIP_STATUSES = TRIP_STATUSES.filter(status => status !== 'COMPLETED' && status !== 'CANCELLED')
@@ -66,15 +66,6 @@ export async function softDeleteContainer(
     .update(chassis)
     .set({ currentContainerId: null, updatedAt: now })
     .where(and(eq(chassis.companyId, auth.companyId), eq(chassis.currentContainerId, containerId)))
-
-  await db
-    .update(containerPlacements)
-    .set({ supersededAt: now })
-    .where(and(
-      eq(containerPlacements.companyId, auth.companyId),
-      eq(containerPlacements.containerId, containerId),
-      sql`${containerPlacements.supersededAt} is null`,
-    ))
 
   return { ok: true as const }
 }

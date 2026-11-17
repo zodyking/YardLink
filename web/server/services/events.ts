@@ -18,7 +18,6 @@ export interface RecordEventInput {
   locationId?: string | null
   chassisId?: string | null
   gps?: { latitude: number, longitude: number, accuracyMeters?: number } | null
-  yardPosition?: Record<string, unknown> | null
   payload?: Record<string, unknown>
   notes?: string | null
   correctsEventId?: string | null
@@ -76,7 +75,6 @@ export async function recordEvent(
       gpsLatitude: input.gps ? String(input.gps.latitude) : null,
       gpsLongitude: input.gps ? String(input.gps.longitude) : null,
       gpsAccuracyMeters: input.gps?.accuracyMeters ?? null,
-      yardPosition: input.yardPosition ?? null,
       payload: input.payload ?? {},
       notes: input.notes ?? null,
       correctsEventId: input.correctsEventId ?? null,

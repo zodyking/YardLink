@@ -1,9 +1,6 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { Database, DbExecutor } from '../utils/db'
-import { chassis, containerEvents, containerPlacements, containers, locations } from '../database/schema'
-import type { Location } from '../database/schema'
-import { displayContainers, mapContainerFromRow } from './placements'
-import type { GeoJsonPolygon } from '#shared/utils/geo'
+import { chassis, containerEvents, containers, locations } from '../database/schema'
 import { occupancyFromEvents, type Occupancy } from '#shared/utils/occupancy'
 import type { EventType, LocationType } from '#shared/utils/domain'
 
@@ -12,7 +9,6 @@ export async function listOnSiteContainers(
   db: Database | DbExecutor,
   companyId: string,
   locationIds: string[],
-  displayAt: Location,
 ) {
   if (!locationIds.length) return []
 
@@ -29,21 +25,8 @@ export async function listOnSiteContainers(
       doNotMove: containers.doNotMove,
       currentChassisId: containers.currentChassisId,
       chassisNumber: chassis.number,
-      x: containerPlacements.x,
-      y: containerPlacements.y,
-      rotation: containerPlacements.rotation,
-      latitude: containerPlacements.latitude,
-      longitude: containerPlacements.longitude,
     })
     .from(containers)
-    .leftJoin(
-      containerPlacements,
-      and(
-        eq(containerPlacements.containerId, containers.id),
-        inArray(containerPlacements.locationId, locationIds),
-        isNull(containerPlacements.supersededAt),
-      ),
-    )
     .leftJoin(chassis, eq(chassis.id, containers.currentChassisId))
     .where(and(
       eq(containers.companyId, companyId),
@@ -53,20 +36,7 @@ export async function listOnSiteContainers(
     ))
     .orderBy(containers.numberNormalized)
 
-  const mapped = displayContainers(
-    items.map(item => mapContainerFromRow({
-      ...item,
-      boundary: displayAt.boundary as GeoJsonPolygon | null,
-      locationLatitude: displayAt.latitude,
-      locationLongitude: displayAt.longitude,
-    })),
-    {
-      latitude: displayAt.latitude ? Number(displayAt.latitude) : null,
-      longitude: displayAt.longitude ? Number(displayAt.longitude) : null,
-      mapHeading: displayAt.mapHeading ?? 0,
-      boundary: displayAt.boundary as GeoJsonPolygon | null,
-    },
-  )
+  const mapped = items
 
   const occupancy = await occupancyByContainerIds(db, companyId, mapped.map(item => item.id))
   const flags = new Map(items.map(item => [item.id, Boolean(item.doNotMove)]))

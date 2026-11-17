@@ -5,11 +5,6 @@ import { requireAuth } from '../../utils/session'
 import { LOCATION_TYPES } from '#shared/utils/domain'
 import { isValidPhone, toE164 } from '#shared/utils/phone'
 
-const polygonSchema = z.object({
-  type: z.literal('Polygon'),
-  coordinates: z.array(z.array(z.tuple([z.number(), z.number()]))).min(1),
-})
-
 const usPhone = z.string().trim().max(40).nullish().refine(
   value => !value || isValidPhone(value),
   'Enter a 10-digit United States phone number.',
@@ -27,8 +22,7 @@ const schema = z.object({
   country: z.string().trim().max(2).default('US'),
   latitude: z.number().min(-90).max(90).nullish(),
   longitude: z.number().min(-180).max(180).nullish(),
-  boundary: polygonSchema.optional(),
-  mapHeading: z.coerce.number().min(0).max(360).optional(),
+  arrivalRadiusM: z.coerce.number().int().min(40).max(2000).optional(),
   capacity: z.coerce.number().int().min(0).max(100000).nullish(),
   hours: z.string().trim().max(200).nullish(),
   appointmentRequired: z.boolean().default(false),
@@ -78,8 +72,7 @@ export default defineEventHandler(async (event) => {
       normalizedAddress,
       latitude: body.latitude != null ? String(body.latitude) : null,
       longitude: body.longitude != null ? String(body.longitude) : null,
-      boundary: body.boundary ?? null,
-      mapHeading: body.mapHeading ?? 0,
+      arrivalRadiusM: body.arrivalRadiusM ?? 180,
       capacity: body.capacity ?? null,
       hours: body.hours ?? null,
       appointmentRequired: body.appointmentRequired,

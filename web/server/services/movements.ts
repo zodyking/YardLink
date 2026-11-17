@@ -3,7 +3,6 @@ import type { Database, DbExecutor } from '../utils/db'
 import {
   chassis as chassisTable,
   containerEvents,
-  containerPlacements,
   containers,
   drivers,
   locations,
@@ -12,7 +11,6 @@ import {
 import type { Container, Location, Trip } from '../database/schema'
 import { claimContainerForPickup, nextTripReference, releasePickupClaim } from './activePool'
 import { eventExists, recordEvent } from './events'
-import { resolvePlacement, writePlacement, type GeoPlacementInput } from './placements'
 import { locationIdsAtSameAddress } from './location-sites'
 import { claimCsxReleaseForTrip, confirmCsxReleaseForTrip, reopenCsxReleaseForTrip } from './csx-releases'
 import type { AuthContext } from '../utils/session'
@@ -476,16 +474,6 @@ export async function confirmPickup(
       }
     }
 
-    // The pickup vacates the origin slot, so any live placement is closed out.
-    await tx
-      .update(containerPlacements)
-      .set({ supersededAt: now })
-      .where(and(
-        eq(containerPlacements.containerId, trip.containerId),
-        eq(containerPlacements.companyId, auth.companyId),
-        sql`${containerPlacements.supersededAt} is null`,
-      ))
-
     const [updatedTrip] = await tx
       .update(trips)
       .set({
@@ -900,7 +888,6 @@ export interface CompleteDropoffInput {
   tripId: string
   destinationLocationId: string
   /** Geographic pin on the location's OpenStreetMap fence. */
-  placement?: (GeoPlacementInput & { x?: number, y?: number, zoneId?: string | null, slotCode?: string | null }) | null
   retainChassis: boolean
   /**
    * Ignored by the server. A service life completes only when the drop-off
@@ -958,7 +945,6 @@ export async function completeDropoff(
         locationId: input.destinationLocationId,
         chassisId: input.retainChassis ? trip.chassisId : null,
         gps: input.gps,
-        yardPosition: input.placement ?? null,
         payload: {
           isFinalRelease,
           retainChassis: input.retainChassis,
@@ -1023,49 +1009,6 @@ export async function completeDropoff(
         locationId: input.destinationLocationId,
         notes: 'Final release from the tracked network.',
       })
-    }
-
-    if (trip.containerId) {
-      const occupied = await tx
-        .select({
-          latitude: containerPlacements.latitude,
-          longitude: containerPlacements.longitude,
-        })
-        .from(containerPlacements)
-        .where(and(
-          eq(containerPlacements.locationId, destination.id),
-          eq(containerPlacements.companyId, auth.companyId),
-          sql`${containerPlacements.supersededAt} is null`,
-        ))
-      const [box] = await tx
-        .select({ equipmentType: containers.equipmentType })
-        .from(containers)
-        .where(eq(containers.id, trip.containerId))
-        .limit(1)
-      const requested = input.placement && input.placement.latitude != null && input.placement.longitude != null
-        ? {
-            latitude: input.placement.latitude,
-            longitude: input.placement.longitude,
-            rotation: input.placement.rotation,
-          }
-        : null
-      const placement = resolvePlacement(
-        destination,
-        occupied.map(row => ({
-          latitude: row.latitude != null ? Number(row.latitude) : null,
-          longitude: row.longitude != null ? Number(row.longitude) : null,
-        })),
-        box?.equipmentType ?? 'HC_40',
-        requested,
-      )
-      if (placement) {
-        await writePlacement(tx, auth, {
-          containerId: trip.containerId,
-          location: destination,
-          placement,
-          eventId: input.eventId,
-        })
-      }
     }
 
     const [updatedTrip] = await tx

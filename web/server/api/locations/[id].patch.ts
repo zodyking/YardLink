@@ -3,14 +3,8 @@ import { z } from 'zod'
 import { locations } from '../../database/schema'
 import { assertTenant, requireAuth } from '../../utils/session'
 import { normalizeAddress } from '../../services/geocoding'
-import { normalizeHeading } from '#shared/utils/geo'
 import { LOCATION_TYPES } from '#shared/utils/domain'
 import { isValidPhone, toE164 } from '#shared/utils/phone'
-
-const polygonSchema = z.object({
-  type: z.literal('Polygon'),
-  coordinates: z.array(z.array(z.tuple([z.number(), z.number()]))).min(1),
-})
 
 const usPhone = z.string().trim().max(40).nullish().refine(
   value => !value || isValidPhone(value),
@@ -18,8 +12,7 @@ const usPhone = z.string().trim().max(40).nullish().refine(
 )
 
 const schema = z.object({
-  boundary: polygonSchema.optional(),
-  mapHeading: z.coerce.number().optional(),
+  arrivalRadiusM: z.coerce.number().int().min(40, 'A site is at least 40 metres across.').max(2000).optional(),
   name: z.string().trim().min(1, 'Give the location a name.').max(160).optional(),
   type: z.enum(LOCATION_TYPES).optional(),
   addressLine1: z.string().trim().max(200).nullish(),
@@ -36,7 +29,7 @@ const schema = z.object({
   message: 'Nothing to update.',
 })
 
-/** Update location details or the yard map heading. */
+/** Update location details, its point, or how far out counts as arrived. */
 export default defineEventHandler(async (event) => {
   const auth = await requireAuth(event)
   const id = getRouterParam(event, 'id')
@@ -65,7 +58,6 @@ export default defineEventHandler(async (event) => {
   const [updated] = await db
     .update(locations)
     .set({
-      ...(body.mapHeading != null ? { mapHeading: normalizeHeading(body.mapHeading) } : {}),
       ...(body.name ? { name: body.name } : {}),
       ...(body.type ? { type: body.type } : {}),
       ...(body.addressLine1 !== undefined ? { addressLine1: body.addressLine1 ?? null } : {}),
@@ -78,7 +70,7 @@ export default defineEventHandler(async (event) => {
       ...(body.contactName !== undefined ? { contactName: body.contactName ?? null } : {}),
       ...(body.contactPhone !== undefined ? { contactPhone: body.contactPhone ? toE164(body.contactPhone) : null } : {}),
       ...(body.shipcsxTerminal !== undefined ? { shipcsxTerminal: body.shipcsxTerminal ?? null } : {}),
-      ...(body.boundary !== undefined ? { boundary: body.boundary } : {}),
+      ...(body.arrivalRadiusM !== undefined ? { arrivalRadiusM: body.arrivalRadiusM } : {}),
       normalizedAddress: normalizeAddress(nextAddress),
       updatedAt: new Date(),
     })

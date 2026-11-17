@@ -1,10 +1,8 @@
 import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import { containerPlacements, containers, chassis, locations } from '../../database/schema'
-import { displayContainers, mapContainerFromRow } from '../../services/placements'
+import { containers, chassis, locations } from '../../database/schema'
 import { requireAuth } from '../../utils/session'
 import { countContainersByType, emptyTypeCounts, LOCATION_TYPES } from '#shared/utils/domain'
-import type { GeoJsonPolygon } from '#shared/utils/geo'
 import { equipmentSearchNeedle } from '#shared/utils/location-search'
 
 const querySchema = z.object({
@@ -16,7 +14,7 @@ const querySchema = z.object({
   lite: z.enum(['1', 'true']).optional(),
 })
 
-/** Shared location pool with live occupancy, brand counts, and map placements. */
+/** Shared location pool with live occupancy and brand counts. */
 export default defineEventHandler(async (event) => {
   const auth = await requireAuth(event)
   const query = readValidatedQuery(event, querySchema)
@@ -64,9 +62,7 @@ export default defineEventHandler(async (event) => {
       isUncategorized: locations.isUncategorized,
       latitude: locations.latitude,
       longitude: locations.longitude,
-      boundary: locations.boundary,
-      mapHeading: locations.mapHeading,
-      hasBoundary: sql<boolean>`${locations.boundary} is not null`,
+      arrivalRadiusM: locations.arrivalRadiusM,
     })
     .from(locations)
     .where(and(...filters))
@@ -113,9 +109,7 @@ export default defineEventHandler(async (event) => {
         isUncategorized: row.isUncategorized,
         latitude: row.latitude ? Number(row.latitude) : null,
         longitude: row.longitude ? Number(row.longitude) : null,
-        mapHeading: row.mapHeading ?? 0,
-        boundary: row.boundary,
-        hasBoundary: row.hasBoundary,
+        arrivalRadiusM: row.arrivalRadiusM,
         occupancy: 0,
         availableChassis: chassisByLocation.get(row.id) ?? 0,
         typeCounts: emptyTypeCounts(),
@@ -139,21 +133,8 @@ export default defineEventHandler(async (event) => {
           sealNumber: containers.sealNumber,
           currentChassisId: containers.currentChassisId,
           chassisNumber: chassis.number,
-          x: containerPlacements.x,
-          y: containerPlacements.y,
-          rotation: containerPlacements.rotation,
-          latitude: containerPlacements.latitude,
-          longitude: containerPlacements.longitude,
         })
         .from(containers)
-        .leftJoin(
-          containerPlacements,
-          and(
-            eq(containerPlacements.containerId, containers.id),
-            eq(containerPlacements.locationId, containers.currentLocationId),
-            isNull(containerPlacements.supersededAt),
-          ),
-        )
         .leftJoin(chassis, eq(chassis.id, containers.currentChassisId))
         .where(and(
           eq(containers.companyId, auth.companyId),
@@ -173,21 +154,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const items = rows.map((row) => {
-    const siteContainers = byLocation.get(row.id) ?? []
-    const mapped = displayContainers(
-      siteContainers.map(item => mapContainerFromRow({
-        ...item,
-        boundary: row.boundary as GeoJsonPolygon | null,
-        locationLatitude: row.latitude,
-        locationLongitude: row.longitude,
-      })),
-      {
-        latitude: row.latitude ? Number(row.latitude) : null,
-        longitude: row.longitude ? Number(row.longitude) : null,
-        mapHeading: row.mapHeading ?? 0,
-        boundary: row.boundary as GeoJsonPolygon | null,
-      },
-    )
+    const mapped = byLocation.get(row.id) ?? []
     return {
       id: row.id,
       name: row.name,
@@ -203,9 +170,7 @@ export default defineEventHandler(async (event) => {
       isUncategorized: row.isUncategorized,
       latitude: row.latitude ? Number(row.latitude) : null,
       longitude: row.longitude ? Number(row.longitude) : null,
-      mapHeading: row.mapHeading ?? 0,
-      boundary: row.boundary,
-      hasBoundary: row.hasBoundary,
+      arrivalRadiusM: row.arrivalRadiusM,
       occupancy: mapped.length,
       availableChassis: chassisByLocation.get(row.id) ?? 0,
       typeCounts: countContainersByType(mapped),

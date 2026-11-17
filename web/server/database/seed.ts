@@ -16,7 +16,6 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import { computeCheckDigit, normalizeContainerNumber, validateContainerNumber } from '../../shared/utils/iso6346'
-import { bboxAround, localMetersFromLatLng, offsetLatLng, polygonFromBbox } from '../../shared/utils/geo'
 import { addIsoDays, calendarDateInZone, taskFingerprintSource } from '../../shared/utils/sms-task'
 import { stepsFromBlob } from '../../shared/utils/task-steps'
 import {
@@ -32,7 +31,6 @@ const {
   companies,
   companyMemberships,
   containerEvents,
-  containerPlacements,
   containers,
   dispatchTasks,
   drivers,
@@ -267,13 +265,8 @@ async function main() {
   ]
 
   const locationIds: Record<string, string> = {}
-  const locationBoxes: Record<string, ReturnType<typeof bboxAround>> = {}
 
   for (const seed of locationSeed) {
-    const box = bboxAround(seed.latitude, seed.longitude, seed.halfMeters)
-    const boundary = polygonFromBbox(box)
-    locationBoxes[seed.name] = box
-
     const existing = await db
       .select({ id: locations.id })
       .from(locations)
@@ -288,7 +281,7 @@ async function main() {
           type: seed.type,
           latitude: seed.latitude.toFixed(7),
           longitude: seed.longitude.toFixed(7),
-          boundary,
+          arrivalRadiusM: seed.halfMeters * 2,
           mainPhone: seed.mainPhone,
           contactName: seed.contactName,
           contactPhone: seed.contactPhone,
@@ -316,7 +309,7 @@ async function main() {
           .trim(),
         latitude: seed.latitude.toFixed(7),
         longitude: seed.longitude.toFixed(7),
-        boundary,
+        arrivalRadiusM: seed.halfMeters * 2,
         capacity: seed.capacity,
         appointmentRequired: seed.appointmentRequired,
         hours: seed.hours,
@@ -541,69 +534,6 @@ async function main() {
       .returning({ id: containers.id })
 
     if (row) containerIds[normalized] = row.id
-  }
-
-  /* ---- Map placements (OpenStreetMap pins inside each fence) ------ */
-  const placementSeeds: Array<{
-    number: string
-    locationName: string
-    east: number
-    north: number
-    rotation: number
-  }> = [
-    { number: containerSeed[0]!.number, locationName: 'Sensible Yard — Davie', east: -12, north: 18, rotation: 90 },
-    { number: containerNumber('TCKU', '118902'), locationName: 'Sensible Yard — Davie', east: 10, north: 16, rotation: 0 },
-    { number: containerNumber('CMAU', '552017'), locationName: 'Sensible Yard — Davie', east: 10, north: 4, rotation: 0 },
-    { number: containerNumber('CAIU', '298455'), locationName: 'Port Everglades Terminal 3', east: -8, north: 12, rotation: 80 },
-    { number: containerNumber('HLXU', '884560'), locationName: 'Coastal Tile Imports', east: 6, north: 8, rotation: 12 },
-    { number: containerNumber('TGHU', '731004'), locationName: 'Hialeah Empty Depot', east: -14, north: 10, rotation: 95 },
-    { number: containerNumber('ZIMU', '773401'), locationName: 'Hialeah Empty Depot', east: -14, north: 0, rotation: 95 },
-  ]
-
-  for (const seed of placementSeeds) {
-    const containerId = containerIds[normalizeContainerNumber(seed.number)]
-    const locationId = locationIds[seed.locationName]
-    const box = locationBoxes[seed.locationName]
-    if (!containerId || !locationId || !box) continue
-
-    const pin = offsetLatLng((box.north + box.south) / 2, (box.west + box.east) / 2, seed.east, seed.north)
-    const local = localMetersFromLatLng(box, pin.latitude, pin.longitude)
-
-    const [live] = await db
-      .select({ id: containerPlacements.id })
-      .from(containerPlacements)
-      .where(and(
-        eq(containerPlacements.containerId, containerId),
-        eq(containerPlacements.locationId, locationId),
-        sql`${containerPlacements.supersededAt} is null`,
-      ))
-      .limit(1)
-
-    if (live) {
-      await db
-        .update(containerPlacements)
-        .set({
-          x: local.x,
-          y: local.y,
-          rotation: seed.rotation,
-          latitude: pin.latitude.toFixed(7),
-          longitude: pin.longitude.toFixed(7),
-        })
-        .where(eq(containerPlacements.id, live.id))
-      continue
-    }
-
-    await db.insert(containerPlacements).values({
-      companyId: company.id,
-      containerId,
-      locationId,
-      x: local.x,
-      y: local.y,
-      rotation: seed.rotation,
-      latitude: pin.latitude.toFixed(7),
-      longitude: pin.longitude.toFixed(7),
-      placedByUserId: admin.id,
-    })
   }
 
   /* ---- Service-life pickup / drop-off histories ------------------ */

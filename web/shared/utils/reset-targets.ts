@@ -18,7 +18,7 @@ export const RESET_TARGETS: Array<{
   hint: string
 }> = [
   { id: 'locations', label: 'Customers & locations', hint: 'Yards, terminals, and customer sites' },
-  { id: 'containers', label: 'Containers', hint: 'Boxes and yard placements' },
+  { id: 'containers', label: 'Containers', hint: 'Boxes and their history' },
   { id: 'trips', label: 'Trips', hint: 'Pickups, drop-offs, and movement history' },
   { id: 'chassis', label: 'Chassis', hint: 'Company chassis records' },
   { id: 'documents', label: 'Documents', hint: 'EIRs, PODs, and uploads' },

@@ -52,7 +52,7 @@ State key: **Carried** unchanged · **Changed** deliberately different · **New*
 | Location audit: checklist, add, move, delete | `/locations/:id/audit` | Carried |
 | CSX pickup list: type or photograph, review, claim on pickup | `/locations/:id/csx` | Carried |
 | Export a location list as text, site CSV, directory CSV | Location, More | Carried |
-| Add / edit location with address search, map pin, boundary | `/locations/new`, `/edit` | Carried |
+| Add / edit location with address search, an automatic map pin you can drag, and an arrival radius | `/locations/new`, `/edit` | Carried + Changed |
 | Yard view and yard generation from map data | `/locations/:id/yard` | Carried |
 | Container page: status, photos and documents, ShipCSX check, edit, move, delete | `/containers/:id` | Carried; history section replaced (section 4) |
 | Chassis page: status, edit, delete, release | `/chassis/:id` | Carried; history section replaced (section 4) |
@@ -120,8 +120,7 @@ It also borrows the web app's shell: a slim navy brand strip across the top of e
 | Time cards: list, edit header and stops, add a stop, PDF, position pings while the app is open | Yes |
 | Tasks: dispatch cards and notes by day, tick steps, edit steps (add, remove, split lines, join above), mark done, remove own note, add a note, start a pickup | Yes |
 | Containers tab: grouped locations, search by location or equipment number, add a location | Yes |
-| Location page: details, phones, equipment on site, notes, edit, Add Equipment (with camera), Audit (checklist, move, remove), CSX pickup list (type a row, or read a list from a photo), yard map | Yes |
-| Yard map: containers drawn to size at their angle, place or move one | Yes. Drawing the yard outline: no |
+| Location page: details, phones, equipment on site, notes, edit, Add Equipment (with camera), Audit (checklist, move, remove), CSX pickup list (type a row, or read a list from a photo) | Yes |
 | Container page: status, duty-cycle selector, timeline, photos, ShipCSX check, edit, move, delete | Yes |
 | Chassis page: status, pairings, trail, edit, release, delete | Yes |
 | Messages | Yes |
@@ -130,7 +129,7 @@ It also borrows the web app's shell: a slim navy brand strip across the top of e
 
 ## 7. Open work
 
-1. **Drawing a location's outline and compass heading** stays in the web app. The phone places containers inside a yard but does not draw the yard itself.
-2. **Dispatcher console redesign** and dispatch assignment improvements. Dispatchers use the web console; the phone gives them Messages, the equipment lists and More.
-3. **Push notifications** for messages and assignments (the apps poll today). Until they exist, Yard Link messages cannot appear as communication notifications (sender's face on the lock screen, allowed through a Focus), and Yard Link cannot offer to send a message through Siri.
+1. **Dispatcher console redesign** and dispatch assignment improvements. Dispatchers use the web console; the phone gives them Messages, the equipment lists and More.
+2. **Communication notifications** — a Yard Link message showing the sender's face on the lock screen and passing a Focus. Needs a notification service extension.
+3. **An iMessage extension** — a trip-update card inserted into a conversation from the iMessage app drawer.
 4. **The iPhone screens compile but have not been run against a server.** Every push builds the app for the simulator (`.github/workflows/ios-build.yml`).

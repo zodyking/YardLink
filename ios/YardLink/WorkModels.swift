@@ -360,6 +360,8 @@ struct LocationRecord: Decodable, Hashable {
     let type: String?
     let latitude: Double?
     let longitude: Double?
+    /// How close a phone has to be for Yard Link to ask about arriving.
+    let arrivalRadiusM: Int?
     let addressLine1: String?
     let city: String?
     let state: String?
@@ -427,10 +429,6 @@ struct SiteContainer: Decodable, Identifiable, Hashable {
     let isLoaded: Bool?
     let sealNumber: String?
     let chassisNumber: String?
-    /// Where it sits on the yard map, once someone has placed it.
-    let latitude: Double?
-    let longitude: Double?
-    let rotation: Double?
     let doNotMove: Bool?
 }
 
@@ -890,7 +888,7 @@ struct ResetCounts: Decodable {
 /// What can be cleared, in the server's order and wording.
 let resetTargets: [(id: String, label: String, hint: String)] = [
     ("locations", "Customers and locations", "Yards, terminals and customer sites"),
-    ("containers", "Containers", "Boxes and yard placements"),
+    ("containers", "Containers", "Boxes and their history"),
     ("trips", "Trips", "Pickups, drop-offs and movement history"),
     ("chassis", "Chassis", "Company chassis records"),
     ("documents", "Documents", "EIRs, PODs and uploads"),

@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
 
   const locationIds = await locationIdsAtSameAddress(db, auth.companyId, destination.id)
   const [containerRows, chassisRows] = await Promise.all([
-    listOnSiteContainers(db, auth.companyId, locationIds, destination),
+    listOnSiteContainers(db, auth.companyId, locationIds),
     listOnSiteChassis(db, auth.companyId, locationIds),
   ])
 

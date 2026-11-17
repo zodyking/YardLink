@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { LOCATION_TYPE_LABELS, LOCATION_TYPES } from '#shared/utils/domain'
 import type { LocationType } from '#shared/utils/domain'
-import type { GeoJsonPolygon } from '#shared/utils/geo'
-import { isPlacedPin } from '#shared/utils/yard-slots'
+import { clampSiteRadius, SITE_RADIUS_DEFAULT_M } from '#shared/utils/geo'
 import { formatPhoneInput, isValidPhone } from '#shared/utils/phone'
 import { formatCityStateZip, parseUsAddressQuery } from '#shared/utils/us-address'
 
@@ -46,8 +45,7 @@ const isTerminus = computed(() => form.type === 'MARINE_TERMINAL' || form.type =
 
 const latitude = ref<number | null>(null)
 const longitude = ref<number | null>(null)
-const heading = ref(0)
-const boundary = ref<GeoJsonPolygon | null>(null)
+const radiusMeters = ref(SITE_RADIUS_DEFAULT_M)
 const addressDirty = ref(false)
 const suggestions = ref<PlaceHit[]>([])
 const searching = ref(false)
@@ -74,8 +72,7 @@ onMounted(async () => {
         postalCode: string | null
         latitude: number | null
         longitude: number | null
-        mapHeading?: number | null
-        boundary?: GeoJsonPolygon | null
+        arrivalRadiusM?: number | null
       }
     }>(`/api/locations/${locationId.value}`)
     const loc = data.location
@@ -94,8 +91,7 @@ onMounted(async () => {
     form.addressQuery = [loc.addressLine1, loc.city, loc.state].filter(Boolean).join(', ')
     latitude.value = loc.latitude
     longitude.value = loc.longitude
-    heading.value = loc.mapHeading ?? 0
-    boundary.value = loc.boundary ?? null
+    radiusMeters.value = clampSiteRadius(loc.arrivalRadiusM)
   }
   catch (error) {
     errorMessage.value = apiErrorMessage(error, 'Could not load this location.')
@@ -204,11 +200,11 @@ async function save() {
         body.city = parsed.city
         body.state = parsed.state
         body.postalCode = parsed.postalCode
-        body.latitude = isPlacedPin(latitude.value, longitude.value) ? latitude.value : null
-        body.longitude = isPlacedPin(latitude.value, longitude.value) ? longitude.value : null
+        body.latitude = latitude.value
+        body.longitude = longitude.value
       }
     }
-    else if (isPlacedPin(latitude.value, longitude.value) && form.addressLine1) {
+    else if (latitude.value != null && longitude.value != null && form.addressLine1) {
       body.addressLine1 = form.addressLine1
       body.city = form.city || null
       body.state = form.state || null
@@ -216,8 +212,11 @@ async function save() {
       body.latitude = latitude.value
       body.longitude = longitude.value
     }
-    if (boundary.value) body.boundary = boundary.value
-    body.mapHeading = heading.value
+    if (latitude.value != null && longitude.value != null) {
+      body.latitude = latitude.value
+      body.longitude = longitude.value
+    }
+    body.arrivalRadiusM = radiusMeters.value
     if (isTerminus.value) body.shipcsxTerminal = form.shipcsxTerminal.trim() || null
     await $fetch(`/api/locations/${locationId.value}`, { method: 'PATCH', body })
     await navigateTo(`/locations/${locationId.value}`)
@@ -405,23 +404,22 @@ async function save() {
         class="card p-4"
       >
         <p class="eyebrow mb-2">
-          Yard zone
+          Where it is
         </p>
         <p class="field-hint mb-3">
-          Draw the usable yard around this site. Existing locations keep their address — you can add the zone here without recreating them.
+          The address puts the pin down. Drag it to the gate your drivers use, and set how close a phone has to be before Yard Link asks whether they have arrived.
         </p>
         <ClientOnly>
-          <LocationMapEditor
+          <LocationPinEditor
             :latitude="latitude"
             :longitude="longitude"
-            :boundary="boundary"
-            :heading="heading"
+            :radius-meters="radiusMeters"
             :address-line1="form.addressLine1"
             :city="form.city"
             :state="form.state"
             :postal-code="form.postalCode"
-            @update:boundary="boundary = $event"
-            @update:heading="heading = $event"
+            @update:pin="latitude = $event.latitude; longitude = $event.longitude"
+            @update:radius-meters="radiusMeters = $event"
           />
           <template #fallback>
             <div

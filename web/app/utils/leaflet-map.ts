@@ -1,19 +1,10 @@
-import type { BoundingBox } from '#shared/utils/geo'
-import { mapBearingFromStreetHeading } from '#shared/utils/yard-slots'
 
 type LeafletModule = typeof import('leaflet')
 
-/**
- * Leaflet-rotate patches the global `L` object. Vite prefers the package's
- * ESM entry, which assumes that global, so we assign it then load the UMD build.
- */
+/** Leaflet, loaded in the browser only. */
 export async function loadLeaflet(): Promise<LeafletModule> {
   const mod = await import('leaflet')
-  const L = (mod.default ?? mod) as LeafletModule
-  const globalL = globalThis as typeof globalThis & { L?: LeafletModule }
-  globalL.L = L
-  await import('leaflet-rotate/dist/leaflet-rotate.js')
-  return L
+  return (mod.default ?? mod) as LeafletModule
 }
 
 export function waitForMapSize(
@@ -57,22 +48,4 @@ export function observeMapSize(
   })
   observer.observe(el)
   return () => observer.disconnect()
-}
-
-export async function fetchMapBearing(
-  latitude: number,
-  longitude: number,
-  box?: BoundingBox | null,
-): Promise<number> {
-  const result = await $fetch('/api/geocode/heading', {
-    query: {
-      lat: latitude,
-      lng: longitude,
-      west: box?.west,
-      south: box?.south,
-      east: box?.east,
-      north: box?.north,
-    },
-  })
-  return mapBearingFromStreetHeading(result.heading)
 }

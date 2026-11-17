@@ -4,7 +4,7 @@ import type { Database } from '../utils/db'
 import type { AuthContext } from '../utils/session'
 import { assertTenant } from '../utils/session'
 import { LIVE_TRIP_STATUSES } from './movements'
-import { addChassisAtLocation } from './placements'
+import { addChassisAtLocation } from './equipment-moves'
 import { ensureUncategorizedLocation } from './locations'
 import type { RetireEquipmentResult } from './container-delete'
 

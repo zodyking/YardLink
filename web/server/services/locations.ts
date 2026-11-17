@@ -1,8 +1,7 @@
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { Database, DbExecutor } from '../utils/db'
 import {
   chassis,
-  containerPlacements,
   containers,
   locations,
 } from '../database/schema'
@@ -107,15 +106,6 @@ export async function retireLocation(
         isNull(chassis.deletedAt),
       ))
       .returning({ id: chassis.id })
-
-    await tx
-      .update(containerPlacements)
-      .set({ supersededAt: now })
-      .where(and(
-        eq(containerPlacements.companyId, companyId),
-        eq(containerPlacements.locationId, locationId),
-        sql`${containerPlacements.supersededAt} is null`,
-      ))
 
     await tx
       .update(locations)

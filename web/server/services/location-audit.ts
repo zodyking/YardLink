@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { chassis, containers, locations } from '../database/schema'
-import { addChassisAtLocation, addContainerAtLocation, moveContainerToLocation } from './placements'
+import { addChassisAtLocation, addContainerAtLocation, moveContainerToLocation } from './equipment-moves'
 import { retireContainer } from './container-delete'
 import { retireChassis } from './chassis-delete'
 import { ensureUncategorizedLocation } from './locations'
