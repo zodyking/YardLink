@@ -45,6 +45,16 @@ struct InfoRow: View {
     let label: String
     let value: String?
 
+    /// "Container", "Chassis" and "Seal" rows copy in pieces, as on the web.
+    private var copyKind: CopyPart.Kind {
+        switch label.lowercased() {
+        case "container": return .container
+        case "chassis": return .chassis
+        case "seal", "seal number": return .seal
+        default: return .plain
+        }
+    }
+
     var body: some View {
         if let value, !value.isEmpty {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -56,6 +66,7 @@ struct InfoRow: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(Brand.navy)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .copyable(value, label: label, kind: copyKind)
             }
         }
     }
@@ -77,12 +88,17 @@ struct SectionTitle: View {
 struct EquipmentNumber: View {
     let text: String
     var font: Font = .system(.title3, design: .monospaced)
+    /// Names the number in the "copied" note, e.g. Container.
+    var label: String? = nil
+    /// Off inside a row that opens something, where a tap has to navigate.
+    var copyOnTap = true
+    var kind: CopyPart.Kind = .plain
 
     var body: some View {
         Text(text)
             .font(font.weight(.bold))
             .foregroundColor(Brand.navy)
-            .textSelection(.enabled)
+            .copyable(text, label: label, onTap: copyOnTap, kind: kind)
     }
 }
 
@@ -150,7 +166,10 @@ struct PhoneRow: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(label).font(.footnote).foregroundColor(Brand.muted)
-                    Text(number).font(.subheadline.weight(.semibold)).foregroundColor(Brand.navy)
+                    Text(number)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(Brand.navy)
+                        .copyable(number, label: label)
                 }
                 Spacer(minLength: 0)
 

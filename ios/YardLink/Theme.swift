@@ -111,13 +111,15 @@ extension View {
 /// The large heading at the top of a root screen's content, as on the web.
 struct PageTitle: View {
     let text: String
+    var alignment: Alignment = .leading
 
     var body: some View {
         Text(text)
             .font(.system(size: 28, weight: .bold))
             .tracking(-0.4)
             .foregroundColor(Brand.navy)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .multilineTextAlignment(alignment == .center ? .center : .leading)
+            .frame(maxWidth: .infinity, alignment: alignment)
             .accessibilityAddTraits(.isHeader)
     }
 }
@@ -455,6 +457,9 @@ struct FactCell: View {
     let value: String
     var mono = false
     var alignment: HorizontalAlignment = .leading
+    /// Off inside a button, where the tap belongs to the button.
+    var copyOnTap = true
+    var copyKind: CopyPart.Kind = .plain
 
     var body: some View {
         VStack(alignment: alignment, spacing: 3) {
@@ -467,6 +472,7 @@ struct FactCell: View {
                 .foregroundColor(Brand.navy)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+                .copyable(mono ? value : nil, label: label, onTap: copyOnTap, kind: copyKind)
         }
         .frame(maxWidth: .infinity, alignment: alignment == .trailing ? .trailing : .leading)
         .accessibilityElement(children: .combine)

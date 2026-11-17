@@ -46,15 +46,19 @@ struct TripCard: View {
                     .foregroundColor(Brand.navy)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
-                    .textSelection(.enabled)
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel(content.isBareChassis ? "Chassis \(headline)" : "Container \(headline)")
+                    .copyable(
+                        headline,
+                        label: content.isBareChassis ? "Chassis" : "Container",
+                        kind: content.isBareChassis ? .chassis : .container
+                    )
 
                 Divider()
 
                 HStack(alignment: .top, spacing: 8) {
                     FactCell(label: "Length", value: content.isBareChassis ? "—" : (Words.size(content.equipmentType) ?? "—"))
-                    FactCell(label: "Chassis", value: content.chassisNumber ?? "None", mono: content.chassisNumber != nil)
+                    FactCell(label: "Chassis", value: content.chassisNumber ?? "None", mono: content.chassisNumber != nil, copyKind: .chassis)
                     sealCell
                 }
 
@@ -80,7 +84,7 @@ struct TripCard: View {
         if let onEditSeal {
             Button(action: onEditSeal) {
                 HStack(alignment: .top, spacing: 4) {
-                    FactCell(label: "Seal", value: (seal?.isEmpty == false ? seal : nil) ?? "—", mono: true)
+                    FactCell(label: "Seal", value: (seal?.isEmpty == false ? seal : nil) ?? "—", mono: true, copyOnTap: false, copyKind: .seal)
                     Image(systemName: "pencil")
                         .font(.caption.weight(.bold))
                         .foregroundColor(Brand.linkBlue)
@@ -89,7 +93,7 @@ struct TripCard: View {
             .buttonStyle(.plain)
             .accessibilityHint("Corrects the seal number")
         } else {
-            FactCell(label: "Seal", value: (seal?.isEmpty == false ? seal : nil) ?? "—", mono: true)
+            FactCell(label: "Seal", value: (seal?.isEmpty == false ? seal : nil) ?? "—", mono: true, copyKind: .seal)
         }
     }
 }

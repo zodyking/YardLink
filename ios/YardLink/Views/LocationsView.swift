@@ -47,7 +47,10 @@ struct LocationsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         EquipmentNumber(
                                             text: hit.kind == "CHASSIS" ? hit.number : Marking.formatContainer(hit.number),
-                                            font: .system(.body, design: .monospaced)
+                                            font: .system(.body, design: .monospaced),
+                                            label: hit.kind == "CHASSIS" ? "Chassis" : "Container",
+                                            copyOnTap: false,
+                                            kind: hit.kind == "CHASSIS" ? .chassis : .container
                                         )
                                         Text("\(hit.kind == "CHASSIS" ? "Chassis" : "Container") · \(hit.locationName ?? "No location")")
                                             .font(.footnote)
@@ -327,7 +330,7 @@ struct LocationDetailView: View {
                     NavigationLink(value: EquipmentRoute(kind: "CONTAINER", id: box.id)) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                EquipmentNumber(text: Marking.formatContainer(box.number), font: .system(.body, design: .monospaced))
+                                EquipmentNumber(text: Marking.formatContainer(box.number), font: .system(.body, design: .monospaced), label: "Container", copyOnTap: false, kind: .container)
                                 Text([
                                     Words.line(box.containerType),
                                     Words.size(box.equipmentType),
@@ -354,7 +357,7 @@ struct LocationDetailView: View {
                     NavigationLink(value: EquipmentRoute(kind: "CHASSIS", id: unit.id)) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                EquipmentNumber(text: unit.number, font: .system(.body, design: .monospaced))
+                                EquipmentNumber(text: unit.number, font: .system(.body, design: .monospaced), label: "Chassis", copyOnTap: false, kind: .chassis)
                                 if let provider = unit.provider, !provider.isEmpty {
                                     Text(provider).font(.footnote).foregroundColor(Brand.muted)
                                 }

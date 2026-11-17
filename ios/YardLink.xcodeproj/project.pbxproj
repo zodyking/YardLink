@@ -23,6 +23,7 @@
 		A1B2C3D40000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000011 /* Assets.xcassets */; };
 		A1B2C3D40000000000000041 /* WorkModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000040 /* WorkModels.swift */; };
 		A1B2C3D40000000000000043 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000042 /* Components.swift */; };
+		A1B2C3D4000000000000006F /* Copyable.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000006E /* Copyable.swift */; };
 		A1B2C3D40000000000000045 /* TripsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000044 /* TripsView.swift */; };
 		A1B2C3D40000000000000047 /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000046 /* TasksView.swift */; };
 		A1B2C3D40000000000000049 /* LocationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000048 /* LocationsView.swift */; };
@@ -66,6 +67,7 @@
 		A1B2C3D40000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1B2C3D40000000000000040 /* WorkModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkModels.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000042 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000006E /* Copyable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Copyable.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000044 /* TripsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripsView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000046 /* TasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000048 /* LocationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationsView.swift; sourceTree = "<group>"; };
@@ -139,6 +141,7 @@
 				A1B2C3D40000000000000028 /* MessagesView.swift */,
 				A1B2C3D4000000000000002A /* MoreView.swift */,
 				A1B2C3D40000000000000042 /* Components.swift */,
+				A1B2C3D4000000000000006E /* Copyable.swift */,
 				A1B2C3D40000000000000044 /* TripsView.swift */,
 				A1B2C3D40000000000000046 /* TasksView.swift */,
 				A1B2C3D40000000000000048 /* LocationsView.swift */,
@@ -251,6 +254,7 @@
 				A1B2C3D4000000000000002B /* MoreView.swift in Sources */,
 				A1B2C3D40000000000000041 /* WorkModels.swift in Sources */,
 				A1B2C3D40000000000000043 /* Components.swift in Sources */,
+				A1B2C3D4000000000000006F /* Copyable.swift in Sources */,
 				A1B2C3D40000000000000045 /* TripsView.swift in Sources */,
 				A1B2C3D40000000000000047 /* TasksView.swift in Sources */,
 				A1B2C3D40000000000000049 /* LocationsView.swift in Sources */,

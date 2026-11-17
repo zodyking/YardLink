@@ -211,7 +211,13 @@ private struct TripRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                EquipmentNumber(text: title, font: .system(.headline, design: .monospaced))
+                EquipmentNumber(
+                    text: title,
+                    font: .system(.headline, design: .monospaced),
+                    label: trip.containerNumber?.isEmpty == false ? "Container" : nil,
+                    copyOnTap: false,
+                    kind: trip.containerNumber?.isEmpty == false ? .container : .plain
+                )
                 Spacer()
                 StatusPill(text: Words.tripStatus(trip.status), color: tripStatusColor(trip.status))
             }

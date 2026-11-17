@@ -533,6 +533,7 @@ struct CsxListView: View {
                                     Text(Marking.formatContainer(pair.containerNumber))
                                         .font(.system(.subheadline, design: .monospaced).weight(.bold))
                                         .foregroundColor(Brand.navy)
+                                        .copyable(Marking.formatContainer(pair.containerNumber), label: "Container", kind: .container)
                                     Text("Pickup \(pair.pickupNumber)")
                                         .font(.footnote)
                                         .foregroundColor(Brand.muted)
@@ -593,10 +594,11 @@ struct CsxListView: View {
                     ForEach(releases) { release in
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 2) {
-                                EquipmentNumber(text: Marking.formatContainer(release.containerNumber), font: .system(.body, design: .monospaced))
+                                EquipmentNumber(text: Marking.formatContainer(release.containerNumber), font: .system(.body, design: .monospaced), label: "Container", kind: .container)
                                 Text("Pickup \(release.pickupNumber ?? "—")")
                                     .font(.footnote)
                                     .foregroundColor(Brand.muted)
+                                    .copyable(release.pickupNumber, label: "Pickup number")
                             }
                             Spacer(minLength: 0)
                             Button(role: .destructive) {

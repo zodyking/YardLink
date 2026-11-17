@@ -139,7 +139,7 @@ struct ContainerDetailView: View {
     private func now(_ detail: ContainerDetail) -> some View {
         Card {
             HStack {
-                EquipmentNumber(text: detail.container.number)
+                EquipmentNumber(text: detail.container.number, label: "Container", kind: .container)
                 Spacer()
                 if let status = Words.containerStatus(detail.container.containerStatus) {
                     StatusPill(text: status)
@@ -267,7 +267,7 @@ struct ChassisDetailView: View {
                 if let detail {
                     Card {
                         HStack {
-                            EquipmentNumber(text: detail.chassis.number)
+                            EquipmentNumber(text: detail.chassis.number, label: "Chassis", kind: .chassis)
                             Spacer()
                             if let status = detail.chassis.status {
                                 StatusPill(text: status.replacingOccurrences(of: "_", with: " ").capitalized)
@@ -360,7 +360,7 @@ struct ChassisDetailView: View {
     private func pairingRow(_ pairing: ChassisPairing) -> some View {
         let content = VStack(alignment: .leading, spacing: 2) {
             HStack {
-                EquipmentNumber(text: pairing.containerNumber ?? "Container", font: .system(.body, design: .monospaced))
+                EquipmentNumber(text: pairing.containerNumber ?? "Container", font: .system(.body, design: .monospaced), label: "Container", copyOnTap: false, kind: .container)
                 if let sequence = pairing.dutyCycleSequence {
                     StatusPill(text: "Cycle \(sequence)", color: pairing.dutyCycleStatus == "ACTIVE" ? Brand.linkBlue : Brand.muted)
                 }

@@ -98,8 +98,8 @@ struct HomeView: View {
     // MARK: Sections
 
     private func masthead(_ home: HomePayload) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            PageTitle(text: "Hello \(home.driver.firstName)")
+        VStack(spacing: 12) {
+            PageTitle(text: "Hello \(home.driver.firstName)", alignment: .center)
             HStack(spacing: 12) {
                 tally(label: "Bridge Crosses", value: home.stats?.bridgeCrosses ?? 0)
                 tally(label: "Swaps", value: home.stats?.swaps ?? 0)
