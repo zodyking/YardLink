@@ -30,6 +30,37 @@ export type ApnsResult = {
   /** Tokens Apple says are dead, to be deleted. */
   expired: string[]
   failed: number
+  /** Apple's own words for each refusal, without repeats. */
+  reasons: string[]
+}
+
+/** What Apple's refusal means, and what to do about it, in plain words. */
+export function explainApnsReason(reason: string): string {
+  switch (reason) {
+    case 'InvalidProviderToken':
+    case 'ExpiredProviderToken':
+    case 'MissingProviderToken':
+      return 'Apple did not accept the key. Check the Key ID, the Team ID and that the whole .p8 file was pasted.'
+    case 'BadEnvironmentKeyInToken':
+      return 'The key is not allowed for this kind of build. In Apple Developer, make the key work for both Sandbox and Production.'
+    case 'TopicDisallowed':
+    case 'BadTopic':
+    case 'MissingTopic':
+    case 'DeviceTokenNotForTopic':
+      return 'The Bundle ID in Settings does not match the app. It must be exactly com.zodyking.yardlink.'
+    case 'BadDeviceToken':
+      return 'This phone registered with the other Apple service. Close Yard Link, open it again and try once more.'
+    case 'Unregistered':
+      return 'Apple says the app was removed from this phone. Sign in again.'
+    case 'Forbidden':
+      return 'Apple refused the key for this app. Check the Team ID and that the key has Push Notifications turned on.'
+    case 'TooManyProviderTokenUpdates':
+      return 'Apple is rate limiting. Try again in a few minutes.'
+    case 'NetworkError':
+      return 'The server could not reach Apple.'
+    default:
+      return reason ? `Apple answered: ${reason}.` : 'Apple did not answer.'
+  }
 }
 
 function base64url(value: Buffer | string): string {
@@ -150,7 +181,7 @@ export async function sendApns(
   deviceTokens: readonly string[],
   payload: ApnsPayload,
 ): Promise<ApnsResult> {
-  const result: ApnsResult = { sent: 0, expired: [], failed: 0 }
+  const result: ApnsResult = { sent: 0, expired: [], failed: 0, reasons: [] }
   if (!deviceTokens.length) return result
 
   const authorization = providerToken(config)
@@ -164,9 +195,14 @@ export async function sendApns(
       }),
     )
     for (const answer of answers) {
-      if (answer.status === 200) result.sent += 1
-      else if (DEAD_TOKEN_REASONS.has(answer.reason)) result.expired.push(answer.deviceToken)
+      if (answer.status === 200) {
+        result.sent += 1
+        continue
+      }
+      if (DEAD_TOKEN_REASONS.has(answer.reason)) result.expired.push(answer.deviceToken)
       else result.failed += 1
+      const reason = answer.reason || (answer.status ? `HTTP ${answer.status}` : 'NetworkError')
+      if (!result.reasons.includes(reason)) result.reasons.push(reason)
     }
   }
   finally {

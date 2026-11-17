@@ -100,6 +100,13 @@ const pushBusy = ref<'save' | 'test' | 'off' | null>(null)
 const pushResult = ref<{ ok: boolean, message: string } | null>(null)
 const confirmPushOff = ref(false)
 
+interface PushStatus {
+  phones: Array<{ name: string, service: string, appVersion: string | null, lastSeenAt: string }>
+  recent: Array<{ at: string, kind: string, outcome: 'sent' | 'off' | 'nobody' | 'failed', sent: number, detail: string }>
+}
+const { data: pushStatus, refresh: refreshPushStatus } = await useFetch<PushStatus>('/api/admin/push/status')
+const OUTCOME_LABELS = { sent: 'Sent', off: 'Push is off', nobody: 'No phone', failed: 'Refused' } as const
+
 async function runPush(action: 'save' | 'test' | 'off') {
   if (pushBusy.value) return
   pushResult.value = null
@@ -113,6 +120,7 @@ async function runPush(action: 'save' | 'test' | 'off') {
     else if (action === 'test') {
       const result = await $fetch<{ message: string }>('/api/admin/push/test', { method: 'POST' })
       pushResult.value = { ok: true, message: result.message }
+      await refreshPushStatus()
     }
     else {
       await $fetch('/api/admin/push', { method: 'DELETE' })
@@ -648,6 +656,42 @@ const countCards = computed(() => {
             type="checkbox"
           >
         </label>
+
+        <div class="settings-status">
+          <StatusChip
+            :variant="pushStatus?.phones.length ? 'ok' : 'warn'"
+            :label="pushStatus?.phones.length ? `${pushStatus.phones.length} ${pushStatus.phones.length === 1 ? 'phone' : 'phones'} signed in` : 'No phones signed in'"
+          />
+          <span v-if="!pushStatus?.phones.length">
+            A phone appears here after someone signs in on the iPhone app and allows notifications.
+          </span>
+          <ul
+            v-else
+            class="settings-key"
+          >
+            <li
+              v-for="(phone, index) in pushStatus.phones"
+              :key="index"
+            >
+              {{ phone.name }} · {{ phone.service }} build{{ phone.appVersion ? ` ${phone.appVersion}` : '' }}
+            </li>
+          </ul>
+        </div>
+
+        <div
+          v-if="pushStatus?.recent.length"
+          class="settings-status"
+        >
+          <span><strong>Recent notices</strong> (cleared when the server restarts)</span>
+          <ul class="settings-key">
+            <li
+              v-for="entry in pushStatus.recent"
+              :key="entry.at + entry.kind"
+            >
+              {{ new Date(entry.at).toLocaleTimeString() }} · {{ entry.kind }} · {{ OUTCOME_LABELS[entry.outcome] }}: {{ entry.detail }}
+            </li>
+          </ul>
+        </div>
 
         <p
           v-if="pushResult"

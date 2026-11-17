@@ -20,6 +20,11 @@ final class PushCenter: NSObject, ObservableObject {
     private(set) var deviceToken: String?
     private var registered = false
 
+    /// What the Notifications check shows, so a silent phone can say why.
+    @Published private(set) var appleError: String?
+    @Published private(set) var serverError: String?
+    @Published private(set) var serverKnowsPhone = false
+
     /// Development builds talk to Apple's sandbox; everything else does not.
     private var usesSandbox: Bool {
         #if DEBUG
@@ -56,6 +61,7 @@ final class PushCenter: NSObject, ObservableObject {
     func received(token data: Data) {
         let token = data.map { String(format: "%02x", $0) }.joined()
         deviceToken = token
+        appleError = nil
         Task { await send(token: token) }
     }
 
@@ -72,11 +78,34 @@ final class PushCenter: NSObject, ObservableObject {
             let sandbox: Bool
             let appVersion: String
         }
-        let _: OkResult? = try? await api.post(
-            "/api/devices/register",
-            body: Device(token: token, sandbox: usesSandbox, appVersion: appVersion)
-        )
-        registered = true
+        do {
+            let _: OkResult = try await api.post(
+                "/api/devices/register",
+                body: Device(token: token, sandbox: usesSandbox, appVersion: appVersion)
+            )
+            registered = true
+            serverKnowsPhone = true
+            serverError = nil
+        } catch {
+            serverKnowsPhone = false
+            serverError = (error as? APIError)?.message ?? "The server could not be reached."
+        }
+    }
+
+    func failed(registering error: Error) {
+        appleError = error.localizedDescription
+        print("[push] Apple would not register this phone: \(error.localizedDescription)")
+    }
+
+    /// Ask the server to send this phone a notice, and answer in a sentence.
+    func sendTest() async -> (ok: Bool, message: String) {
+        guard let api = AppModel.current?.api else { return (false, "Connect to your employer first.") }
+        do {
+            let result: MessageResult = try await api.post("/api/devices/test")
+            return (true, result.message)
+        } catch {
+            return (false, (error as? APIError)?.message ?? "The server could not be reached.")
+        }
     }
 
     /// Stop the notices to this phone on sign-out or disconnect.
@@ -160,6 +189,6 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
-        print("[push] Apple would not register this phone: \(error.localizedDescription)")
+        MainActor.assumeIsolated { PushCenter.shared.failed(registering: error) }
     }
 }

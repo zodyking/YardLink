@@ -4,7 +4,8 @@ import { displayContainerNumber } from '#shared/utils/dispatch-cards'
 import { companyMemberships, deviceTokens, drivers, messageThreads, users } from '../database/schema'
 import type { DbExecutor } from '../utils/db'
 import { loadPushConfig, type PushConfig } from '../utils/push-settings'
-import { sendApns, type ApnsPayload } from './apns'
+import { explainApnsReason, sendApns, type ApnsPayload } from './apns'
+import { logPush } from '../utils/push-log'
 import type { DispatchTaskView } from './tasks'
 
 /**
@@ -28,25 +29,58 @@ async function forget(db: DbExecutor, tokens: readonly string[]): Promise<void> 
   await db.delete(deviceTokens).where(inArray(deviceTokens.token, [...tokens]))
 }
 
-/** Send to a set of people, on whichever of Apple's two services they are on. */
-async function push(db: DbExecutor, userIds: readonly string[], payload: ApnsPayload): Promise<void> {
-  const config = await loadPushConfig(db)
-  if (!config) return
-  const devices = await devicesFor(db, userIds)
-  if (!devices.length) return
+interface Delivery {
+  sent: number
+  failed: number
+  reasons: string[]
+}
 
+/** Hand a notice to Apple for each phone, on whichever service that phone is on. */
+async function deliver(db: DbExecutor, config: PushConfig, devices: Device[], payload: ApnsPayload): Promise<Delivery> {
+  const delivery: Delivery = { sent: 0, failed: 0, reasons: [] }
   for (const sandbox of [false, true]) {
     const tokens = devices.filter(device => device.sandbox === sandbox).map(device => device.token)
     if (!tokens.length) continue
-    const target: PushConfig = { ...config, sandbox }
     try {
-      const result = await sendApns(target, tokens, payload)
+      const result = await sendApns({ ...config, sandbox }, tokens, payload)
       await forget(db, result.expired)
+      delivery.sent += result.sent
+      delivery.failed += result.failed + result.expired.length
+      for (const reason of result.reasons) if (!delivery.reasons.includes(reason)) delivery.reasons.push(reason)
     }
     catch (error) {
       console.warn('[push] could not reach Apple', error)
+      delivery.failed += tokens.length
+      if (!delivery.reasons.includes('NetworkError')) delivery.reasons.push('NetworkError')
     }
   }
+  return delivery
+}
+
+/**
+ * Send to a set of people. Every outcome, including "nobody to send to" and
+ * "push is off", is logged so Settings can say why a phone stayed quiet.
+ */
+async function push(db: DbExecutor, kind: string, userIds: readonly string[], payload: ApnsPayload): Promise<void> {
+  const config = await loadPushConfig(db)
+  if (!config) {
+    logPush({ kind, outcome: 'off', sent: 0, detail: 'Push is not set up. Add the Apple key under Settings.' })
+    return
+  }
+  const devices = await devicesFor(db, userIds)
+  if (!devices.length) {
+    logPush({ kind, outcome: 'nobody', sent: 0, detail: 'No phone is signed in for the person this was for.' })
+    return
+  }
+  const delivery = await deliver(db, config, devices, payload)
+  logPush({
+    kind,
+    outcome: delivery.sent ? 'sent' : 'failed',
+    sent: delivery.sent,
+    detail: delivery.failed
+      ? delivery.reasons.map(explainApnsReason).join(' ')
+      : `Sent to ${delivery.sent} ${delivery.sent === 1 ? 'phone' : 'phones'}.`,
+  })
 }
 
 /** Work assigned or changed for the day. */
@@ -62,7 +96,7 @@ export async function pushAssignment(db: DbExecutor, input: {
   const box = first ? displayContainerNumber(first.card.containerNumber) : ''
   const lead = first ? [DISPATCH_TASK_KIND_LABELS[first.kind], box].filter(Boolean).join(' · ') : ''
   const more = input.tasks.length - 1
-  await push(db, [input.driverUserId], {
+  await push(db, 'work', [input.driverUserId], {
     title: input.kind === 'assigned' ? 'New work for you' : 'Your work changed',
     body: [lead, more > 0 ? `and ${more} more` : ''].filter(Boolean).join(' ') || `${input.tasks.length} tasks`,
     threadId: `tasks-${input.workDate}`,
@@ -99,7 +133,7 @@ export async function pushMessage(db: DbExecutor, input: {
   if (!recipients.length) return
 
   const body = input.body.trim() || 'Sent a file.'
-  await push(db, recipients.map(row => row.id), {
+  await push(db, 'message', recipients.map(row => row.id), {
     title: input.senderName,
     body: body.length > 160 ? `${body.slice(0, 160)}…` : body,
     threadId: thread.id,
@@ -130,7 +164,7 @@ export async function pushArrivalQuestion(db: DbExecutor, input: {
     .where(eq(drivers.id, input.driverId))
     .limit(1)
   if (!driver) return
-  await push(db, [driver.userId], {
+  await push(db, 'arrival', [driver.userId], {
     title: `Arrived at ${input.locationName}?`,
     body: `Yard Link will record the arrival in ${input.waitMinutes} minutes unless you say otherwise.`,
     threadId: `arrival-${input.arrivalId}`,
@@ -175,30 +209,27 @@ export async function forgetDevice(db: DbExecutor, token: string): Promise<void>
   await forget(db, [token])
 }
 
-/** A quick check that the key, the team and the bundle id work together. */
+/** Sends a test notice to the person's own phones, and says exactly what went wrong if it fails. */
 export async function testPush(db: DbExecutor, userId: string): Promise<{ sent: number, devices: number }> {
   const config = await loadPushConfig(db)
   if (!config) {
-    throw createError({ statusCode: 422, statusMessage: 'Set up push notifications first.' })
+    logPush({ kind: 'test', outcome: 'off', sent: 0, detail: 'Push is not set up.' })
+    throw createError({ statusCode: 422, statusMessage: 'Push notifications are not set up yet. A dispatcher adds the Apple key under Settings, then Push.' })
   }
   const devices = await devicesFor(db, [userId])
   if (!devices.length) {
-    throw createError({ statusCode: 422, statusMessage: 'Sign in on an iPhone and allow notifications first.' })
+    logPush({ kind: 'test', outcome: 'nobody', sent: 0, detail: 'No phone is signed in for this person.' })
+    throw createError({ statusCode: 422, statusMessage: 'This phone has not registered with the server. Allow notifications, then close and reopen Yard Link.' })
   }
-  let sent = 0
-  for (const sandbox of [false, true]) {
-    const tokens = devices.filter(device => device.sandbox === sandbox).map(device => device.token)
-    if (!tokens.length) continue
-    const result = await sendApns({ ...config, sandbox }, tokens, {
-      title: 'Yard Link',
-      body: 'Push notifications are working.',
-      data: { screen: 'home' },
-    })
-    await forget(db, result.expired)
-    sent += result.sent
-  }
-  if (!sent) {
-    throw createError({ statusCode: 422, statusMessage: 'Apple would not take the notice. Check the key, the team ID and the bundle identifier.' })
-  }
-  return { sent, devices: devices.length }
+  const delivery = await deliver(db, config, devices, {
+    title: 'Yard Link',
+    body: 'Push notifications are working.',
+    data: { screen: 'home' },
+  })
+  const detail = delivery.sent
+    ? `Sent to ${delivery.sent} of ${devices.length} ${devices.length === 1 ? 'phone' : 'phones'}.`
+    : delivery.reasons.map(explainApnsReason).join(' ')
+  logPush({ kind: 'test', outcome: delivery.sent ? 'sent' : 'failed', sent: delivery.sent, detail })
+  if (!delivery.sent) throw createError({ statusCode: 422, statusMessage: detail })
+  return { sent: delivery.sent, devices: devices.length }
 }

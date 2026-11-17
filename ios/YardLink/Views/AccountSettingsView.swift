@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 /// The signed-in person's own details: name, sign-in email, mobile number,
 /// password, and for a driver the licence and truck their time card uses.
@@ -64,6 +65,9 @@ struct AccountSettingsView: View {
                             saveButton("Save License and Truck", part: .driver, enabled: cdlState.count <= 2) { await saveDriver() }
                         }
                     }
+
+                    SectionTitle(text: "Notifications")
+                    NotificationsCard()
 
                     SectionTitle(text: "Sign-in and security")
                     Card {
@@ -241,5 +245,93 @@ struct AccountSettingsView: View {
             newPassword = ""
             confirmPassword = ""
         }
+    }
+}
+
+
+/// Why a phone is or is not getting notices, one line per step, with a button
+/// that sends a real test through the server and Apple.
+struct NotificationsCard: View {
+    @ObservedObject private var push = PushCenter.shared
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var permission: UNAuthorizationStatus = .notDetermined
+    @State private var testing = false
+    @State private var result: (ok: Bool, message: String)?
+
+    private var allowed: Bool {
+        permission == .authorized || permission == .provisional || permission == .ephemeral
+    }
+
+    var body: some View {
+        Card {
+            step(
+                ok: allowed,
+                title: allowed ? "Notifications are allowed" : (permission == .denied ? "Notifications are off for Yard Link" : "Notifications have not been allowed"),
+                detail: permission == .denied ? "Turn them on in the iPhone's Settings app." : nil
+            )
+            if permission == .denied {
+                Button("Open iPhone Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            } else if permission == .notDetermined {
+                Button("Allow Notifications") { Task { await turnOn() } }
+                    .buttonStyle(SecondaryButtonStyle())
+            }
+
+            step(
+                ok: push.deviceToken != nil,
+                title: push.deviceToken != nil ? "Apple knows this iPhone" : "Waiting for Apple",
+                detail: push.deviceToken == nil ? (push.appleError ?? "This can take a few seconds. Close and reopen Yard Link if it stays here.") : nil
+            )
+
+            step(
+                ok: push.serverKnowsPhone,
+                title: push.serverKnowsPhone ? "Your employer's server knows this iPhone" : "The server does not know this iPhone yet",
+                detail: push.serverKnowsPhone ? nil : push.serverError
+            )
+
+            Button(testing ? "Sending…" : "Send a Test Notification") { Task { await test() } }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(testing || !allowed)
+
+            if let result {
+                Banner(kind: result.ok ? .success : .error, message: result.message)
+            }
+        }
+        .task(id: scenePhase) {
+            await refresh()
+        }
+    }
+
+    private func step(ok: Bool, title: String, detail: String?) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .foregroundColor(ok ? Brand.ok : Brand.warn)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.subheadline.weight(.semibold)).foregroundColor(Brand.navy)
+                if let detail {
+                    Text(detail).font(.footnote).foregroundColor(Brand.muted)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func refresh() async {
+        permission = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    private func turnOn() async {
+        await push.askAndRegister()
+        await refresh()
+    }
+
+    private func test() async {
+        testing = true
+        result = nil
+        result = await push.sendTest()
+        testing = false
     }
 }

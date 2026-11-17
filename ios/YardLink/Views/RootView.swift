@@ -105,8 +105,11 @@ struct MainTabs: View {
             DriverTabBar(items: items, selection: $selection)
         }
         .background(Brand.mist)
-        .task {
-            // The question arrives with Yard Link on screen, not at launch.
+        .task(id: scenePhase) {
+            // The question arrives with Yard Link on screen, not at launch. The
+            // phone registers again every time the app comes forward, because
+            // Apple can change its address without telling anyone.
+            guard scenePhase == .active else { return }
             await PushCenter.shared.askAndRegister()
             PushCenter.shared.refresh()
             PushCenter.shared.clearBadge()
