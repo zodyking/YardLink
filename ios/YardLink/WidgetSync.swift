@@ -31,6 +31,7 @@ enum WidgetSync {
             snapshot.trip = nil
         }
         remember(snapshot)
+        TripActivityCenter.sync(home: home)
     }
 
     private static func remember(_ snapshot: WidgetSnapshot) {
@@ -44,6 +45,7 @@ enum WidgetSync {
     /// Forget everything on sign-out, so a widget never shows the last person's work.
     static func clear() {
         SharedStore.clearSnapshot()
+        TripActivityCenter.endAll()
         WidgetCenter.shared.reloadAllTimelines()
     }
 

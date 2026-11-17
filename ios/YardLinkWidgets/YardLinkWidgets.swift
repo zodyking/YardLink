@@ -7,5 +7,6 @@ struct YardLinkWidgets: WidgetBundle {
         TasksWidget()
         TripWidget()
         QuickActionsWidget()
+        TripLiveActivity()
     }
 }

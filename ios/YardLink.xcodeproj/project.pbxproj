@@ -60,6 +60,10 @@
 		A1B2C3D400000000000000AA /* WidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000087 /* WidgetTheme.swift */; };
 		A1B2C3D400000000000000AB /* WidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000088 /* WidgetData.swift */; };
 		A1B2C3D400000000000000AC /* YardLinkWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000008B /* YardLinkWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A1B2C3D400000000000000AD /* TripActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000008D /* TripActivity.swift */; };
+		A1B2C3D400000000000000AE /* TripActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000008D /* TripActivity.swift */; };
+		A1B2C3D400000000000000AF /* TripActivityCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000008E /* TripActivityCenter.swift */; };
+		A1B2C3D400000000000000B4 /* TripLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000008F /* TripLiveActivity.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -143,6 +147,9 @@
 		A1B2C3D4000000000000008A /* YardLinkWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = YardLinkWidgets.entitlements; sourceTree = "<group>"; };
 		A1B2C3D4000000000000008B /* YardLinkWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = YardLinkWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1B2C3D4000000000000008C /* WidgetSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSync.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000008D /* TripActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripActivity.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000008E /* TripActivityCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripActivityCenter.swift; sourceTree = "<group>"; };
+		A1B2C3D4000000000000008F /* TripLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripLiveActivity.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -181,6 +188,7 @@
 				A1B2C3D40000000000000070 /* Push.swift */,
 				A1B2C3D40000000000000075 /* ArrivalWatch.swift */,
 				A1B2C3D4000000000000008C /* WidgetSync.swift */,
+				A1B2C3D4000000000000008E /* TripActivityCenter.swift */,
 				A1B2C3D40000000000000073 /* Siri.swift */,
 				A1B2C3D40000000000000077 /* FaceIDLogin.swift */,
 				A1B2C3D40000000000000018 /* API.swift */,
@@ -236,6 +244,7 @@
 			children = (
 				A1B2C3D40000000000000080 /* SharedStore.swift */,
 				A1B2C3D40000000000000081 /* WidgetClient.swift */,
+				A1B2C3D4000000000000008D /* TripActivity.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -250,6 +259,7 @@
 				A1B2C3D40000000000000086 /* ToggleTaskIntent.swift */,
 				A1B2C3D40000000000000087 /* WidgetTheme.swift */,
 				A1B2C3D40000000000000088 /* WidgetData.swift */,
+				A1B2C3D4000000000000008F /* TripLiveActivity.swift */,
 				A1B2C3D40000000000000089 /* Info.plist */,
 				A1B2C3D4000000000000008A /* YardLinkWidgets.entitlements */,
 			);
@@ -384,6 +394,8 @@
 				A1B2C3D400000000000000A0 /* SharedStore.swift in Sources */,
 				A1B2C3D400000000000000A1 /* WidgetClient.swift in Sources */,
 				A1B2C3D400000000000000A2 /* WidgetSync.swift in Sources */,
+				A1B2C3D400000000000000AF /* TripActivityCenter.swift in Sources */,
+				A1B2C3D400000000000000AD /* TripActivity.swift in Sources */,
 				A1B2C3D40000000000000074 /* Siri.swift in Sources */,
 				A1B2C3D40000000000000078 /* FaceIDLogin.swift in Sources */,
 				A1B2C3D40000000000000019 /* API.swift in Sources */,
@@ -435,6 +447,8 @@
 				A1B2C3D400000000000000A9 /* ToggleTaskIntent.swift in Sources */,
 				A1B2C3D400000000000000AA /* WidgetTheme.swift in Sources */,
 				A1B2C3D400000000000000AB /* WidgetData.swift in Sources */,
+				A1B2C3D400000000000000B4 /* TripLiveActivity.swift in Sources */,
+				A1B2C3D400000000000000AE /* TripActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
