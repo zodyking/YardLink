@@ -33,7 +33,7 @@ struct TasksProvider: TimelineProvider {
 }
 
 struct TasksWidget: Widget {
-    static let kind = "YardLinkTasks"
+    nonisolated static let kind = "YardLinkTasks"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: Self.kind, provider: TasksProvider()) { entry in

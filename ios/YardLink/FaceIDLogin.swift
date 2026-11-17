@@ -20,10 +20,9 @@ enum FaceIDLogin {
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else { return nil }
         switch context.biometryType {
-        case .faceID: return "Face ID"
         case .touchID: return "Touch ID"
-        case .none: return nil
-        @unknown default: return "Face ID"
+        case LABiometryType.none: return nil
+        default: return "Face ID"
         }
     }
 

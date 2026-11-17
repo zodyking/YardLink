@@ -35,7 +35,7 @@ struct TripProvider: TimelineProvider {
 }
 
 struct TripWidget: Widget {
-    static let kind = "YardLinkTrip"
+    nonisolated static let kind = "YardLinkTrip"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: Self.kind, provider: TripProvider()) { entry in
