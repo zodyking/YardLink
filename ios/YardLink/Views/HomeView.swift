@@ -33,7 +33,7 @@ struct HomeView: View {
         case seal(tripId: String, current: String?)
         case update(trip: TripUpdateFields, dropped: TripUpdateFields?)
         case contacts(origin: NamedPlace?, destination: NamedPlace?)
-        case documents(tripId: String, number: String?)
+        case documents
 
         var id: String {
             switch self {
@@ -43,7 +43,7 @@ struct HomeView: View {
             case .seal(let tripId, _): return "seal-\(tripId)"
             case .update(let trip, _): return "update-\(trip.tripId)"
             case .contacts: return "contacts"
-            case .documents(let tripId, _): return "documents-\(tripId)"
+            case .documents: return "documents"
             }
         }
     }
@@ -186,15 +186,12 @@ struct HomeView: View {
 
     private func actionGrid(_ home: HomePayload) -> some View {
         let shown = displayTrip(home)
-        let documentsTrip = loadTrip(home) ?? shown
         let update = updateFields(home)
         let swap = swapMode(home)
 
         return LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
-            HomeAction(symbol: "doc.text.fill", title: "Documents", enabled: documentsTrip != nil) {
-                if let trip = documentsTrip {
-                    sheet = .documents(tripId: trip.trip.id, number: trip.container?.number ?? trip.chassis?.number)
-                }
+            HomeAction(symbol: "doc.text.fill", title: "Documents", enabled: true) {
+                sheet = .documents
             }
             HomeAction(symbol: "paperplane.fill", title: "Send Update", enabled: update != nil) {
                 if let update { sheet = .update(trip: update.trip, dropped: update.dropped) }
@@ -325,8 +322,8 @@ struct HomeView: View {
             SendUpdateSheet(trip: trip, swapDropped: dropped)
         case .contacts(let origin, let destination):
             ContactsSheet(origin: origin, destination: destination)
-        case .documents(let tripId, let number):
-            DocumentsSheet(scope: .trip(tripId), equipmentNumber: number)
+        case .documents:
+            DriverDocumentsSheet()
         }
     }
 

@@ -1,6 +1,7 @@
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { documents } from '../../database/schema'
+import { tripDocumentCondition } from '../../services/document-scope'
 import { requireAuth } from '../../utils/session'
 
 const querySchema = z.object({
@@ -9,7 +10,10 @@ const querySchema = z.object({
   chassisId: z.string().uuid().optional(),
 })
 
-/** Files saved against a trip, container or chassis, newest first. */
+/**
+ * Files saved against a trip, container or chassis, newest first. A trip's
+ * files are everything that followed its container's service cycle.
+ */
 export default defineEventHandler(async (event) => {
   const auth = await requireAuth(event)
   const query = readValidatedQuery(event, querySchema)
@@ -18,7 +22,11 @@ export default defineEventHandler(async (event) => {
   }
 
   const filters = [eq(documents.companyId, auth.companyId), isNull(documents.deletedAt)]
-  if (query.tripId) filters.push(eq(documents.tripId, query.tripId))
+  if (query.tripId) {
+    const condition = await tripDocumentCondition(useDb(), auth.companyId, query.tripId)
+    if (!condition) throw createError({ statusCode: 404, statusMessage: 'Trip not found.' })
+    filters.push(condition)
+  }
   if (query.containerId) filters.push(eq(documents.containerId, query.containerId))
   if (query.chassisId) filters.push(eq(documents.chassisId, query.chassisId))
 

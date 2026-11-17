@@ -680,3 +680,92 @@ struct DocumentsSheet: View {
         }
     }
 }
+
+
+/// Everything the driver has on file: the equipment still on the road and
+/// what was dropped off this week. Each entry opens that equipment's files,
+/// which stay with it for its whole service cycle.
+struct DriverDocumentsSheet: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var groups: [DocumentGroup] = []
+    @State private var loading = true
+    @State private var errorMessage: String?
+    @State private var opened: DocumentGroup?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if let errorMessage { ErrorBanner(message: errorMessage) }
+
+                    if loading {
+                        ProgressView().frame(maxWidth: .infinity, minHeight: 120)
+                    } else if groups.isEmpty {
+                        EmptyNote(title: "No documents yet", detail: "Photos and paperwork for your trips appear here, and stay here after you drop the equipment off.")
+                    } else {
+                        ForEach(groups) { group in
+                            row(group)
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .screenBackground()
+            .navigationTitle("Documents")
+            .navigationBarTitleDisplayMode(.inline)
+            .lightBar()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+            .sheet(item: $opened, onDismiss: { Task { await load() } }) { group in
+                DocumentsSheet(scope: .trip(group.tripId), equipmentNumber: group.containerNumber ?? group.chassisNumber)
+                    .environmentObject(model)
+            }
+            .task { await load() }
+        }
+    }
+
+    private func row(_ group: DocumentGroup) -> some View {
+        Button {
+            opened = group
+        } label: {
+            Card {
+                HStack(spacing: 12) {
+                    Image(systemName: group.droppedOff ? "checkmark.circle.fill" : "shippingbox.fill")
+                        .foregroundColor(group.droppedOff ? Brand.linkBlue : Brand.ink)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(group.title.isEmpty ? "Trip" : group.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(Brand.ink)
+                        Text(group.droppedOff ? "Dropped off" : "On the road")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Text(group.count == 1 ? "1 file" : "\(group.count) files")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Image(systemName: "chevron.right").font(.caption).foregroundColor(.secondary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens the files for this equipment.")
+    }
+
+    private func load() async {
+        guard let api = model.api else { return }
+        do {
+            let list: DocumentGroupList = try await api.get("/api/documents/recent")
+            groups = list.groups
+            errorMessage = nil
+        } catch {
+            errorMessage = model.handle(error)
+        }
+        loading = false
+    }
+}

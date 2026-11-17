@@ -285,6 +285,26 @@ struct DocumentList: Decodable {
     let items: [DocumentItem]
 }
 
+/// Equipment the driver is working or has just dropped off, with a count of
+/// the files that followed it through its service cycle.
+struct DocumentGroup: Decodable, Identifiable, Hashable {
+    let tripId: String
+    let containerNumber: String?
+    let chassisNumber: String?
+    let droppedOff: Bool
+    let count: Int
+
+    var id: String { tripId }
+
+    var title: String {
+        [containerNumber, chassisNumber].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " on ")
+    }
+}
+
+struct DocumentGroupList: Decodable {
+    let groups: [DocumentGroup]
+}
+
 struct DocumentEnvelope: Decodable {
     struct Ref: Decodable {
         let id: String
