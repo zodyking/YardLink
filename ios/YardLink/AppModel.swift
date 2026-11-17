@@ -1,6 +1,13 @@
 import Foundation
 import SwiftUI
 
+/// Where the connected server is kept. The Siri intent reads the same key,
+/// and it runs without the app's model.
+enum StoredKeys {
+    static let server = "yardlink.server"
+    static let employerName = "yardlink.employerName"
+}
+
 /// Where the app is in its one fixed sequence:
 /// Connect to Your Employer → Sign In → Yard Link.
 @MainActor
@@ -26,8 +33,8 @@ final class AppModel: ObservableObject {
     static private(set) weak var current: AppModel?
 
     private let defaults = UserDefaults.standard
-    private let serverKey = "yardlink.server"
-    private let nameKey = "yardlink.employerName"
+    private let serverKey = StoredKeys.server
+    private let nameKey = StoredKeys.employerName
 
     init() {
         AppModel.current = self
