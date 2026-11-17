@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import { companyMemberships, users } from '../database/schema'
 import type { DispatchTaskView } from './tasks'
 import { sendAssignmentEmail } from './emails'
+import { pushAssignment } from './push'
 import { postSystemNotice } from './messages'
 import { DISPATCH_TASK_KIND_LABELS } from '#shared/utils/domain'
 import { displayContainerNumber } from '#shared/utils/dispatch-cards'
@@ -64,13 +65,15 @@ export async function notifyDriverTaskChange(input: {
       body,
       senderName: input.dispatcherName,
     })
-    await sendAssignmentEmail(db, {
+    const notice = {
       driverUserId: driver.userId,
       workDate: input.workDate,
       dispatcherName: input.dispatcherName,
       kind: input.kind,
       tasks: input.tasks,
-    })
+    }
+    await sendAssignmentEmail(db, notice)
+    await pushAssignment(db, notice)
   }
   catch (error) {
     console.warn('[tasks] could not post the assignment notice', error)

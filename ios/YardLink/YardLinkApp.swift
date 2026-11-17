@@ -3,6 +3,7 @@ import UIKit
 
 @main
 struct YardLinkApp: App {
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
     @StateObject private var model = AppModel()
 
     init() {

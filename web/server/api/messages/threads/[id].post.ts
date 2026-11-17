@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { sendMessageEmails } from '../../../services/emails'
+import { pushMessage } from '../../../services/push'
 import { MESSAGE_BODY_MAX, loadThreadFor, postMessage } from '../../../services/messages'
 import { requireAuth } from '../../../utils/session'
 
@@ -37,5 +38,11 @@ export default defineEventHandler(async (event) => {
     senderName: auth.fullName,
     body: message.body,
   }).catch(error => console.warn('[messages] email copy failed', error))
+  await pushMessage(db, {
+    thread,
+    senderUserId: auth.userId,
+    senderName: auth.fullName,
+    body: message.body,
+  }).catch(error => console.warn('[messages] push failed', error))
   return { message: { ...message, mine: true } }
 })

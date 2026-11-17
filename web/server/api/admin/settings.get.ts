@@ -6,6 +6,7 @@ import { databaseStatus } from '../../utils/database-config'
 import { currentDatabaseUrl } from '../../utils/db'
 import { loadCompanySettings } from '../../utils/settings'
 import { loadSmtpConfig, summarizeSmtp } from '../../utils/smtp-settings'
+import { loadPushConfig, summarizePush } from '../../utils/push-settings'
 import { SHIPCSX_TERMINALS } from '#shared/utils/csx-lookup'
 import { useOcrService } from '../../services/ocr'
 import { useObjectStorage } from '../../services/storage'
@@ -44,6 +45,7 @@ export default defineEventHandler(async (event) => {
   ])
 
   const smtp = await loadSmtpConfig(db)
+  const apns = await loadPushConfig(db)
 
   const [adminCount] = await db
     .select({ value: sql<number>`count(*)::int` })
@@ -61,6 +63,7 @@ export default defineEventHandler(async (event) => {
     },
     settings: await loadCompanySettings(db, { fresh: true }),
     email: summarizeSmtp(smtp),
+    push: summarizePush(apns),
     database: databaseStatus(currentDatabaseUrl()),
     shipcsxTerminals: SHIPCSX_TERMINALS,
     counts: { ...counts, admins: adminCount?.value ?? 0 },
@@ -75,6 +78,15 @@ export default defineEventHandler(async (event) => {
         detail: smtp
           ? `Sending as ${smtp.fromEmail} through ${smtp.host}.`
           : 'Not set up. New accounts are not asked to confirm an address and nobody is emailed.',
+        phase: 'Optional',
+      },
+      {
+        key: 'push',
+        name: 'Push notifications',
+        healthy: Boolean(apns),
+        detail: apns
+          ? `Sending to ${apns.bundleId} with key ${apns.keyId}${apns.sandbox ? ' (Apple sandbox)' : ''}.`
+          : 'Not set up. Phones see messages and work when the app is open.',
         phase: 'Optional',
       },
       { key: 'geocoder', name: 'OpenStreetMap / Photon', healthy: geocoder.healthy, detail: geocoder.message, phase: 'Phase 1' },

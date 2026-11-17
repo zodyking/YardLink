@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var sheet: HomeSheet?
     @State private var confirmingCancel = false
     @State private var cancelling = false
+    @ObservedObject private var push = PushCenter.shared
     @AppStorage("home-cleared-trip") private var clearedTripId = ""
 
     /// A pickup to open: new, resumed, a swap, or a container for a bare chassis.
@@ -92,6 +93,12 @@ struct HomeView: View {
             }
             .refreshable { await load() }
             .task { await load() }
+            .onChange(of: push.openScreen) { screen in
+                // A tapped message notice opens Messages over Home.
+                guard screen == "messages" else { return }
+                sheet = .messages
+                push.openScreen = nil
+            }
         }
     }
 

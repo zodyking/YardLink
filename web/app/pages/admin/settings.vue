@@ -12,6 +12,7 @@ interface SettingsPayload {
   company: { id: string, name: string, legalName: string | null, usdotNumber: string | null, timezone: string, inviteCode: string }
   settings: { publicUrl: string, shipcsxDefaultTerminal: string, shipcsxPoll: boolean, approveNewAccounts: boolean }
   email: { configured: boolean, host: string, port: number, user: string, fromName: string, fromEmail: string, hasPassword: boolean }
+  push: { configured: boolean, keyId: string, teamId: string, bundleId: string, sandbox: boolean, hasKey: boolean }
   database: { source: 'builtin' | 'wizard' | 'env', external: boolean, label: string }
   shipcsxTerminals: string[]
   counts: { containers: number, activeContainers: number, locations: number, drivers: number, trucks: number, admins: number }
@@ -92,6 +93,46 @@ async function turnEmailOff() {
   await runEmail('off')
 }
 
+/* Apple push: the signing key is pasted once and never comes back from the
+   server, so an empty key field means "keep the one already saved". */
+const pushForm = ref({ keyId: '', teamId: '', bundleId: '', signingKey: '', sandbox: false })
+const pushBusy = ref<'save' | 'test' | 'off' | null>(null)
+const pushResult = ref<{ ok: boolean, message: string } | null>(null)
+const confirmPushOff = ref(false)
+
+async function runPush(action: 'save' | 'test' | 'off') {
+  if (pushBusy.value) return
+  pushResult.value = null
+  pushBusy.value = action
+  try {
+    if (action === 'save') {
+      await $fetch('/api/admin/push', { method: 'PUT', body: { ...pushForm.value } })
+      pushForm.value.signingKey = ''
+      pushResult.value = { ok: true, message: 'Push settings saved. Send yourself a test to check them.' }
+    }
+    else if (action === 'test') {
+      const result = await $fetch<{ message: string }>('/api/admin/push/test', { method: 'POST' })
+      pushResult.value = { ok: true, message: result.message }
+    }
+    else {
+      await $fetch('/api/admin/push', { method: 'DELETE' })
+      pushResult.value = { ok: true, message: 'Push notifications are off.' }
+    }
+    if (action !== 'test') await refresh()
+  }
+  catch (err) {
+    pushResult.value = { ok: false, message: apiErrorMessage(err, 'That did not work. Check the key and try again.') }
+  }
+  finally {
+    pushBusy.value = null
+  }
+}
+
+async function turnPushOff() {
+  confirmPushOff.value = false
+  await runPush('off')
+}
+
 function fill() {
   if (!data.value) return
   emailForm.value = {
@@ -101,6 +142,13 @@ function fill() {
     password: '',
     fromName: data.value.email.fromName,
     fromEmail: data.value.email.fromEmail,
+  }
+  pushForm.value = {
+    keyId: data.value.push.keyId,
+    teamId: data.value.push.teamId,
+    bundleId: data.value.push.bundleId,
+    signingKey: '',
+    sandbox: data.value.push.sandbox,
   }
   form.name = data.value.company.name
   form.legalName = data.value.company.legalName ?? ''
@@ -505,6 +553,141 @@ const countCards = computed(() => {
         </div>
       </form>
 
+      <!-- ── Push notifications ──────────────────────────────────── -->
+      <div class="section-label">
+        <span>Push notifications</span>
+      </div>
+      <form
+        class="card p-5 settings-form"
+        novalidate
+        @submit.prevent="runPush('save')"
+      >
+        <div class="settings-status">
+          <StatusChip
+            :variant="data.push.configured ? 'ok' : 'idle'"
+            :label="data.push.configured ? 'Push is on' : 'Push is off'"
+          />
+          <span>
+            {{ data.push.configured
+              ? 'Phones are told about new messages and new work straight away, even when the app is closed.'
+              : 'Phones find new messages and work when the app is opened. Paste the key from your Apple Developer account to send notices instead.' }}
+          </span>
+        </div>
+
+        <div class="settings-grid">
+          <label class="field">
+            <span>Key ID</span>
+            <input
+              v-model.trim="pushForm.keyId"
+              class="input mono"
+              autocapitalize="characters"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="ABCD123456"
+              maxlength="20"
+            >
+            <small class="field-hint">Apple Developer → Keys. The ten characters beside the key you made for APNs.</small>
+          </label>
+
+          <label class="field">
+            <span>Team ID</span>
+            <input
+              v-model.trim="pushForm.teamId"
+              class="input mono"
+              autocapitalize="characters"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="A1B2C3D4E5"
+              maxlength="20"
+            >
+            <small class="field-hint">Apple Developer → Membership details.</small>
+          </label>
+
+          <label class="field settings-wide">
+            <span>App bundle identifier</span>
+            <input
+              v-model.trim="pushForm.bundleId"
+              class="input mono"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="com.yourcompany.yardlink"
+              maxlength="200"
+            >
+            <small class="field-hint">The same identifier the iPhone app is built with.</small>
+          </label>
+
+          <label class="field settings-wide">
+            <span>Signing key (.p8)</span>
+            <textarea
+              v-model="pushForm.signingKey"
+              class="input mono settings-key"
+              rows="5"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+              :placeholder="data.push.hasKey ? 'A key is saved. Paste a new one only to replace it.' : '-----BEGIN PRIVATE KEY-----'"
+              maxlength="4000"
+            />
+            <small class="field-hint">
+              {{ data.push.hasKey
+                ? 'A key is saved. Leave this empty to keep it.'
+                : 'Open the AuthKey_XXXXXXXXXX.p8 file Apple gave you in a text editor and paste the whole thing, BEGIN and END lines included.' }}
+            </small>
+          </label>
+        </div>
+
+        <label class="yl-switch-row">
+          <span>
+            <b>This build is signed for development</b>
+            <small>Turn on while testing a build from Xcode. TestFlight and App Store builds need this off.</small>
+          </span>
+          <input
+            v-model="pushForm.sandbox"
+            class="yl-switch"
+            type="checkbox"
+          >
+        </label>
+
+        <p
+          v-if="pushResult"
+          class="banner"
+          :class="pushResult.ok ? 'ok' : 'err'"
+          :role="pushResult.ok ? 'status' : 'alert'"
+        >
+          <span aria-hidden="true">{{ pushResult.ok ? '✓' : '✕' }}</span>
+          <span>{{ pushResult.message }}</span>
+        </p>
+
+        <div class="settings-actions">
+          <button
+            class="btn-primary-action settings-save"
+            type="submit"
+            :disabled="pushBusy !== null"
+          >
+            {{ pushBusy === 'save' ? 'Saving…' : 'Save push settings' }}
+          </button>
+          <button
+            v-if="data.push.configured"
+            class="btn-ghost"
+            type="button"
+            :disabled="pushBusy !== null"
+            @click="runPush('test')"
+          >
+            {{ pushBusy === 'test' ? 'Sending…' : 'Send me a test notice' }}
+          </button>
+          <button
+            v-if="data.push.configured"
+            class="btn-ghost"
+            type="button"
+            :disabled="pushBusy !== null"
+            @click="confirmPushOff = true"
+          >
+            Turn push off
+          </button>
+        </div>
+      </form>
+
       <!-- ── Database ────────────────────────────────────────────── -->
       <div class="section-label">
         <span>Database</span>
@@ -665,6 +848,32 @@ const countCards = computed(() => {
           @click="turnEmailOff"
         >
           Turn email off
+        </button>
+      </div>
+    </BottomSheet>
+
+    <BottomSheet
+      :open="confirmPushOff"
+      title="Turn push notifications off?"
+      @close="confirmPushOff = false"
+    >
+      <p class="px-4 pb-2 text-sm">
+        Yard Link forgets the Apple key and stops sending notices. Phones will find new messages and work the next time the app is opened.
+      </p>
+      <div class="sheet-actions">
+        <button
+          type="button"
+          class="btn-cancel"
+          @click="confirmPushOff = false"
+        >
+          Keep push on
+        </button>
+        <button
+          type="button"
+          class="btn-save"
+          @click="turnPushOff"
+        >
+          Turn push off
         </button>
       </div>
     </BottomSheet>

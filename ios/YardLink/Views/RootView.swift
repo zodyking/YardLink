@@ -43,6 +43,7 @@ private struct LaunchView: View {
 struct MainTabs: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var push = PushCenter.shared
     let user: SessionUser
 
     enum Screen: Hashable {
@@ -104,6 +105,24 @@ struct MainTabs: View {
             DriverTabBar(items: items, selection: $selection)
         }
         .background(Brand.mist)
+        .task {
+            // The question arrives with Yard Link on screen, not at launch.
+            await PushCenter.shared.askAndRegister()
+            PushCenter.shared.refresh()
+            PushCenter.shared.clearBadge()
+        }
+        .onChange(of: push.openScreen) { screen in
+            // A driver reads messages over Home, which clears this itself; a
+            // dispatcher has a Messages tab.
+            guard let screen else { return }
+            if screen == "messages", user.isDriver {
+                selection = .home
+                return
+            }
+            if screen == "messages" { selection = .messages }
+            else if screen == "tasks", user.isDriver { selection = .tasks }
+            push.openScreen = nil
+        }
         .task {
             // Keep the Messages badge current while the app is open.
             while !Task.isCancelled {

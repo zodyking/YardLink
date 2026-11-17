@@ -293,6 +293,28 @@ export const emailVerificationTokens = pgTable('email_verification_tokens', {
   index('email_verification_tokens_user_idx').on(t.userId),
 ])
 
+/**
+ * One row per phone signed in to Yard Link, so the server can push a message
+ * or an assignment to it. Apple hands the app a new token whenever it feels
+ * like it, so the token is the key and the row is refreshed on every sign-in.
+ */
+export const deviceTokens = pgTable('device_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  /** APNs device token, hex. */
+  token: text('token').notNull(),
+  platform: text('platform').notNull().default('ios'),
+  /** Development builds talk to Apple's sandbox. */
+  sandbox: boolean('sandbox').notNull().default(false),
+  appVersion: text('app_version'),
+  lastSeenAt: utc('last_seen_at').notNull().defaultNow(),
+  createdAt: utc('created_at').notNull().defaultNow(),
+}, t => [
+  uniqueIndex('device_tokens_token_key').on(t.token),
+  index('device_tokens_user_idx').on(t.userId),
+])
+
 export const companyMemberships = pgTable('company_memberships', {
   id: uuid('id').primaryKey().defaultRandom(),
   companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),

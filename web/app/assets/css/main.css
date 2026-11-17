@@ -8405,6 +8405,20 @@ body,
   padding-inline: var(--s5);
 }
 
+/* The .p8 key and the bundle identifier want the full width of the grid. */
+.settings-grid .settings-wide {
+  grid-column: 1 / -1;
+}
+
+.settings-key {
+  min-height: 7rem;
+  line-height: 1.45;
+  resize: vertical;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+
 .settings-status {
   display: flex;
   flex-wrap: wrap;

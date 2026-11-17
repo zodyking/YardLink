@@ -21,11 +21,16 @@ final class AppModel: ObservableObject {
 
     private(set) var api: APIClient?
 
+    /// The one model the app runs on, so the push layer can reach the server
+    /// without being handed down through every screen.
+    static private(set) weak var current: AppModel?
+
     private let defaults = UserDefaults.standard
     private let serverKey = "yardlink.server"
     private let nameKey = "yardlink.employerName"
 
     init() {
+        AppModel.current = self
         if let saved = defaults.string(forKey: serverKey), let url = URL(string: saved) {
             serverURL = url
             employerName = defaults.string(forKey: nameKey) ?? ""
@@ -94,6 +99,7 @@ final class AppModel: ObservableObject {
 
     /// Forget this employer entirely and go back to the first screen.
     func disconnect() {
+        Task { await PushCenter.shared.forget() }
         api?.clearCookies()
         defaults.removeObject(forKey: serverKey)
         defaults.removeObject(forKey: nameKey)
@@ -140,6 +146,7 @@ final class AppModel: ObservableObject {
     }
 
     func signOut() async {
+        await PushCenter.shared.forget()
         if let api {
             let _: OkResult? = try? await api.post("/api/auth/logout")
             api.clearCookies()

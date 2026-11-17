@@ -10,6 +10,7 @@
 		A1B2C3D40000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000011 /* Assets.xcassets */; };
 		A1B2C3D40000000000000015 /* YardLinkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000014 /* YardLinkApp.swift */; };
 		A1B2C3D40000000000000017 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000016 /* AppModel.swift */; };
+		A1B2C3D40000000000000071 /* Push.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000070 /* Push.swift */; };
 		A1B2C3D40000000000000019 /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000018 /* API.swift */; };
 		A1B2C3D4000000000000001B /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000001A /* Models.swift */; };
 		A1B2C3D4000000000000001D /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000001C /* Theme.swift */; };
@@ -53,6 +54,8 @@
 		A1B2C3D40000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1B2C3D40000000000000014 /* YardLinkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YardLinkApp.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000016 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000070 /* Push.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Push.swift; sourceTree = "<group>"; };
+		A1B2C3D40000000000000072 /* YardLink.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = YardLink.entitlements; sourceTree = "<group>"; };
 		A1B2C3D40000000000000018 /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000001A /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000001C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -115,6 +118,7 @@
 			children = (
 				A1B2C3D40000000000000014 /* YardLinkApp.swift */,
 				A1B2C3D40000000000000016 /* AppModel.swift */,
+				A1B2C3D40000000000000070 /* Push.swift */,
 				A1B2C3D40000000000000018 /* API.swift */,
 				A1B2C3D4000000000000001A /* Models.swift */,
 				A1B2C3D40000000000000040 /* WorkModels.swift */,
@@ -126,6 +130,7 @@
 				A1B2C3D40000000000000005 /* Views */,
 				A1B2C3D40000000000000011 /* Assets.xcassets */,
 				A1B2C3D40000000000000013 /* Info.plist */,
+				A1B2C3D40000000000000072 /* YardLink.entitlements */,
 			);
 			path = YardLink;
 			sourceTree = "<group>";
@@ -242,6 +247,7 @@
 			files = (
 				A1B2C3D40000000000000015 /* YardLinkApp.swift in Sources */,
 				A1B2C3D40000000000000017 /* AppModel.swift in Sources */,
+				A1B2C3D40000000000000071 /* Push.swift in Sources */,
 				A1B2C3D40000000000000019 /* API.swift in Sources */,
 				A1B2C3D4000000000000001B /* Models.swift in Sources */,
 				A1B2C3D4000000000000001D /* Theme.swift in Sources */,
@@ -383,6 +389,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				CODE_SIGN_ENTITLEMENTS = YardLink/YardLink.entitlements;
 				INFOPLIST_FILE = YardLink/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link Driver";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
@@ -414,6 +421,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				CODE_SIGN_ENTITLEMENTS = YardLink/YardLink.entitlements;
 				INFOPLIST_FILE = YardLink/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link Driver";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
