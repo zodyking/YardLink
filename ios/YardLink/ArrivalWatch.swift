@@ -79,7 +79,8 @@ final class ArrivalWatch: NSObject, ObservableObject {
         reporting = true
         defer { reporting = false }
 
-        let position = fix ?? await LocationFix.shared.current()
+        var position = fix
+        if position == nil { position = await LocationFix.shared.current() }
         guard let position else { return }
         struct Crossing: Encodable {
             let latitude: Double
