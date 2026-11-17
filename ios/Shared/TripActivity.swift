@@ -13,6 +13,12 @@ struct TripActivityAttributes: ActivityAttributes {
         var destination: String?
         /// What the driver does next, in the app's words.
         var next: String?
+        /// Road distance left to the drop-off, estimated from the phone's position.
+        var distanceMeters: Double?
+        /// Distance when the trip began being tracked, for the progress bar.
+        var startMeters: Double?
+        /// When the phone expects to be there; the Lock Screen counts down to it.
+        var arriveBy: Date?
     }
 
     /// The trip this activity follows, so a new trip starts a fresh one.
@@ -38,5 +44,26 @@ extension TripActivityAttributes.ContentState {
         case 2: return "Dropping off"
         default: return "Dropped off"
         }
+    }
+}
+
+@available(iOS 16.2, *)
+extension TripActivityAttributes.ContentState {
+    /// 0 at the start of the drive, 1 at the drop-off. Nil until the phone has a position.
+    var progress: Double? {
+        guard let distanceMeters, let startMeters, startMeters > 0 else { return nil }
+        return min(1, max(0, 1 - distanceMeters / startMeters))
+    }
+
+    /// "3.2 mi", "850 ft" — or kilometres and metres where the phone is set to metric.
+    var distanceText: String? {
+        guard let meters = distanceMeters else { return nil }
+        if Locale.current.measurementSystem == .metric {
+            if meters < 1_000 { return "\(Int((meters / 50).rounded()) * 50) m" }
+            return String(format: meters < 10_000 ? "%.1f km" : "%.0f km", meters / 1_000)
+        }
+        let miles = meters / 1_609.344
+        if miles < 0.1 { return "\(max(50, Int((meters * 3.28084 / 50).rounded()) * 50)) ft" }
+        return String(format: miles < 10 ? "%.1f mi" : "%.0f mi", miles)
     }
 }

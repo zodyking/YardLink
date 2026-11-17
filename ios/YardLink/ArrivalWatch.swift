@@ -59,8 +59,12 @@ final class ArrivalWatch: NSObject, ObservableObject {
             manager.stopMonitoring(for: region)
         }
         watching = site
-        guard let site else { return }
+        guard let site else {
+            stopTracking()
+            return
+        }
         requestAlwaysIfNeeded()
+        startTracking()
         let region = CLCircularRegion(
             center: CLLocationCoordinate2D(latitude: site.latitude, longitude: site.longitude),
             radius: max(80, min(site.radiusMeters, 2_000)),
@@ -71,6 +75,29 @@ final class ArrivalWatch: NSObject, ObservableObject {
         manager.startMonitoring(for: region)
         // A driver already parked inside the circle never crosses it.
         manager.requestState(for: region)
+    }
+
+    /// Follow the phone along the drive, so the Lock Screen and Dynamic Island can
+    /// show the distance left. Only while a trip is live, and a fix every 100 m.
+    private func startTracking() {
+        manager.activityType = .automotiveNavigation
+        manager.distanceFilter = 100
+        manager.allowsBackgroundLocationUpdates = true
+        manager.showsBackgroundLocationIndicator = true
+        manager.startUpdatingLocation()
+    }
+
+    private func stopTracking() {
+        manager.stopUpdatingLocation()
+        manager.allowsBackgroundLocationUpdates = false
+    }
+
+    fileprivate func moved(latitude: Double, longitude: Double, speed: Double) {
+        guard let site = watching else { return }
+        TripActivityCenter.moved(
+            meters: TripEstimate.roadMeters(fromLatitude: latitude, longitude: longitude, to: site),
+            speed: speed
+        )
     }
 
     /// Tell the server the phone is inside the circle.
@@ -137,6 +164,14 @@ final class ArrivalWatch: NSObject, ObservableObject {
 extension ArrivalWatch: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
         Task { @MainActor in await ArrivalWatch.shared.reportCrossing(at: nil) }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let last = locations.last, last.horizontalAccuracy >= 0 else { return }
+        let latitude = last.coordinate.latitude
+        let longitude = last.coordinate.longitude
+        let speed = max(0, last.speed)
+        Task { @MainActor in ArrivalWatch.shared.moved(latitude: latitude, longitude: longitude, speed: speed) }
     }
 
     nonisolated func locationManager(
