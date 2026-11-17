@@ -1,12 +1,14 @@
 import CoreLocation
 import Foundation
+import MapKit
 
-/// How far the drop-off is and how long it will take, worked out on the phone
-/// from the driver's position and the drop-off address — no routing service.
+/// How far the drop-off is and how long it will take.
 ///
-/// Distance is the straight line between the two points stretched by a road
-/// factor, because roads are never straight. Time uses the driver's own recent
-/// speed once they are moving, and a steady town-driving speed before that.
+/// The real answer comes from Apple Maps, which is built into the phone: free,
+/// no key, and it knows live traffic and the roads a truck would drive.
+/// When Apple Maps cannot answer (no signal, too many requests) the phone works
+/// it out itself: the straight line stretched by a road factor, and the
+/// driver's own recent speed once they are moving.
 enum TripEstimate {
     /// Roads run about a third longer than the crow flies.
     static let roadFactor = 1.3
@@ -17,10 +19,26 @@ enum TripEstimate {
     private static let slowest = 6.0
     private static let fastest = 30.0
 
-    static func roadMeters(fromLatitude lat: Double, longitude lon: Double, to site: ArrivalWatch.WatchedSite) -> Double {
-        let here = CLLocation(latitude: lat, longitude: lon)
-        let there = CLLocation(latitude: site.latitude, longitude: site.longitude)
-        return here.distance(from: there) * roadFactor
+    struct Route {
+        let meters: Double
+        let seconds: TimeInterval
+    }
+
+    /// Ask Apple Maps for the driving distance and time, with today's traffic.
+    static func route(fromLatitude lat: Double, longitude lon: Double, to site: ArrivalWatch.WatchedSite) async -> Route? {
+        let request = MKDirections.Request()
+        request.source = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)))
+        request.destination = MKMapItem(placemark: MKPlacemark(
+            coordinate: CLLocationCoordinate2D(latitude: site.latitude, longitude: site.longitude)
+        ))
+        request.transportType = .automobile
+        request.departureDate = Date()
+        guard let answer = try? await MKDirections(request: request).calculateETA() else { return nil }
+        return Route(meters: answer.distance, seconds: answer.expectedTravelTime)
+    }
+
+    static func straightMeters(fromLatitude lat: Double, longitude lon: Double, to site: ArrivalWatch.WatchedSite) -> Double {
+        CLLocation(latitude: lat, longitude: lon).distance(from: CLLocation(latitude: site.latitude, longitude: site.longitude))
     }
 
     /// Smooth the driver's speed so a red light does not double the time.

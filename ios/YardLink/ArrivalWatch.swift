@@ -94,10 +94,7 @@ final class ArrivalWatch: NSObject, ObservableObject {
 
     fileprivate func moved(latitude: Double, longitude: Double, speed: Double) {
         guard let site = watching else { return }
-        TripActivityCenter.moved(
-            meters: TripEstimate.roadMeters(fromLatitude: latitude, longitude: longitude, to: site),
-            speed: speed
-        )
+        TripActivityCenter.moved(latitude: latitude, longitude: longitude, speed: speed, site: site)
     }
 
     /// Tell the server the phone is inside the circle.

@@ -1,4 +1,5 @@
 import ActivityKit
+import CoreLocation
 import Foundation
 
 /// Keeps one Live Activity in step with the driver's live trip, so the Lock
@@ -11,10 +12,12 @@ enum TripActivityCenter {
         Task { @MainActor in await Follower.shared.follow(home) }
     }
 
-    /// The phone moved: `meters` is the road distance left, `speed` the GPS speed in metres per second.
-    static func moved(meters: Double, speed: Double) {
+    /// The phone moved: work out what is left to the drop-off. `speed` is the GPS speed in metres per second.
+    static func moved(latitude: Double, longitude: Double, speed: Double, site: ArrivalWatch.WatchedSite) {
         guard #available(iOS 16.2, *) else { return }
-        Task { @MainActor in await Follower.shared.moved(meters: meters, speed: speed) }
+        Task { @MainActor in
+            await Follower.shared.moved(latitude: latitude, longitude: longitude, speed: speed, site: site)
+        }
     }
 
     /// End everything, on sign-out, so a stranger's lock screen shows nothing.
@@ -33,6 +36,10 @@ enum TripActivityCenter {
         private var meters: Double?
         private var startMeters: Double?
         private var speed: Double?
+        private var seconds: TimeInterval?
+        /// The last answer from Apple Maps, and where the phone was when it came.
+        private var route: (answer: TripEstimate.Route, straight: Double, at: Date, latitude: Double, longitude: Double)?
+        private var asking = false
         private var sent: (meters: Double, at: Date)?
 
         func follow(_ home: HomePayload) async {
@@ -53,14 +60,41 @@ enum TripActivityCenter {
             await push(forceStart: true)
         }
 
-        func moved(meters: Double, speed reading: Double) async {
+        func moved(latitude: Double, longitude: Double, speed reading: Double, site: ArrivalWatch.WatchedSite) async {
             guard tripId != nil else { return }
             speed = TripEstimate.smoothed(speed, with: reading)
-            self.meters = meters
+            let straight = TripEstimate.straightMeters(fromLatitude: latitude, longitude: longitude, to: site)
+
+            // Ask Apple Maps once a minute, or after a good stretch of driving;
+            // in between, scale its last answer by how much closer the phone is.
+            if !asking, needsRoute(latitude: latitude, longitude: longitude) {
+                asking = true
+                let id = tripId
+                let answer = await TripEstimate.route(fromLatitude: latitude, longitude: longitude, to: site)
+                asking = false
+                if let answer, id == tripId {
+                    route = (answer, max(straight, 1), Date(), latitude, longitude)
+                }
+            }
+            if let route {
+                let ratio = min(1, straight / route.straight)
+                meters = route.answer.meters * ratio
+                seconds = route.answer.seconds * ratio
+            } else {
+                meters = straight * TripEstimate.roadFactor
+                seconds = TripEstimate.seconds(forMeters: meters ?? 0, speed: self.speed)
+            }
             if startMeters == nil { startMeters = meters }
             // A fix every hundred metres is plenty; the countdown ticks on its own.
-            if let sent, abs(sent.meters - meters) < 100, Date().timeIntervalSince(sent.at) < 60 { return }
+            if let sent, let meters, abs(sent.meters - meters) < 100, Date().timeIntervalSince(sent.at) < 60 { return }
             await push(forceStart: false)
+        }
+
+        private func needsRoute(latitude: Double, longitude: Double) -> Bool {
+            guard let route else { return true }
+            if Date().timeIntervalSince(route.at) > 60 { return true }
+            return CLLocation(latitude: latitude, longitude: longitude)
+                .distance(from: CLLocation(latitude: route.latitude, longitude: route.longitude)) > 500
         }
 
         private func reset(tripId: String?) {
@@ -69,6 +103,8 @@ enum TripActivityCenter {
             meters = nil
             startMeters = nil
             speed = nil
+            seconds = nil
+            route = nil
             sent = nil
         }
 
@@ -77,7 +113,7 @@ enum TripActivityCenter {
             if let meters {
                 state.distanceMeters = meters
                 state.startMeters = max(startMeters ?? meters, meters)
-                state.arriveBy = Date().addingTimeInterval(TripEstimate.seconds(forMeters: meters, speed: speed))
+                state.arriveBy = Date().addingTimeInterval(seconds ?? TripEstimate.seconds(forMeters: meters, speed: speed))
             }
             return state
         }
