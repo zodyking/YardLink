@@ -8462,6 +8462,15 @@ body,
   overflow-x: auto;
 }
 
+.settings-list {
+  display: grid;
+  flex-basis: 100%;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .settings-status {
   display: flex;
   flex-wrap: wrap;

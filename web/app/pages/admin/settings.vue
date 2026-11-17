@@ -667,7 +667,7 @@ const countCards = computed(() => {
           </span>
           <ul
             v-else
-            class="settings-key"
+            class="settings-list"
           >
             <li
               v-for="(phone, index) in pushStatus.phones"
@@ -683,7 +683,7 @@ const countCards = computed(() => {
           class="settings-status"
         >
           <span><strong>Recent notices</strong> (cleared when the server restarts)</span>
-          <ul class="settings-key">
+          <ul class="settings-list">
             <li
               v-for="entry in pushStatus.recent"
               :key="entry.at + entry.kind"
