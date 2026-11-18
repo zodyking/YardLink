@@ -70,6 +70,12 @@
 		A1B2C3D400000000000000D6 /* MessageIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000000D9 /* MessageIntents.swift */; };
 		A1B2C3D400000000000000D7 /* MessageNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000000DA /* MessageNotification.swift */; };
 		A1B2C3D400000000000000D8 /* YardLinkNotifications.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000000D2 /* YardLinkNotifications.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A1B2C3D400000000000000F7 /* MessagesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000000F0 /* MessagesViewController.swift */; };
+		A1B2C3D400000000000000F8 /* TripShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000000F1 /* TripShareView.swift */; };
+		A1B2C3D400000000000000F9 /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000080 /* SharedStore.swift */; };
+		A1B2C3D400000000000000FA /* WidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000087 /* WidgetTheme.swift */; };
+		A1B2C3D400000000000000FB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000000F4 /* Assets.xcassets */; };
+		A1B2C3D400000000000000FC /* YardLinkMessages.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000000F5 /* YardLinkMessages.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -87,6 +93,13 @@
 			remoteGlobalIDString = A1B2C3D400000000000000DE;
 			remoteInfo = YardLinkNotifications;
 		};
+		A1B2C3D40000000000000105 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A1B2C3D40000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A1B2C3D40000000000000100;
+			remoteInfo = YardLinkMessages;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -98,6 +111,7 @@
 			files = (
 				A1B2C3D400000000000000AC /* YardLinkWidgets.appex in Embed Foundation Extensions */,
 				A1B2C3D400000000000000D8 /* YardLinkNotifications.appex in Embed Foundation Extensions */,
+				A1B2C3D400000000000000FC /* YardLinkMessages.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -170,6 +184,12 @@
 		A1B2C3D400000000000000D2 /* YardLinkNotifications.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = YardLinkNotifications.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1B2C3D400000000000000D9 /* MessageIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageIntents.swift; sourceTree = "<group>"; };
 		A1B2C3D400000000000000DA /* MessageNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageNotification.swift; sourceTree = "<group>"; };
+		A1B2C3D400000000000000F0 /* MessagesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesViewController.swift; sourceTree = "<group>"; };
+		A1B2C3D400000000000000F1 /* TripShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripShareView.swift; sourceTree = "<group>"; };
+		A1B2C3D400000000000000F2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3D400000000000000F3 /* YardLinkMessages.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = YardLinkMessages.entitlements; sourceTree = "<group>"; };
+		A1B2C3D400000000000000F4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A1B2C3D400000000000000F5 /* YardLinkMessages.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = YardLinkMessages.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -194,6 +214,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A1B2C3D400000000000000FE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -204,6 +231,7 @@
 				A1B2C3D40000000000000090 /* Shared */,
 				A1B2C3D40000000000000091 /* YardLinkWidgets */,
 				A1B2C3D400000000000000D3 /* YardLinkNotifications */,
+				A1B2C3D400000000000000F6 /* YardLinkMessages */,
 				A1B2C3D40000000000000006 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -276,6 +304,7 @@
 				A1B2C3D40000000000000081 /* WidgetClient.swift */,
 				A1B2C3D4000000000000008D /* TripActivity.swift */,
 				A1B2C3D400000000000000D9 /* MessageIntents.swift */,
+				A1B2C3D40000000000000087 /* WidgetTheme.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -288,7 +317,6 @@
 				A1B2C3D40000000000000084 /* TripWidget.swift */,
 				A1B2C3D40000000000000085 /* QuickActionsWidget.swift */,
 				A1B2C3D40000000000000086 /* ToggleTaskIntent.swift */,
-				A1B2C3D40000000000000087 /* WidgetTheme.swift */,
 				A1B2C3D40000000000000088 /* WidgetData.swift */,
 				A1B2C3D4000000000000008F /* TripLiveActivity.swift */,
 				A1B2C3D40000000000000089 /* Info.plist */,
@@ -306,12 +334,25 @@
 			path = YardLinkNotifications;
 			sourceTree = "<group>";
 		};
+		A1B2C3D400000000000000F6 /* YardLinkMessages */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D400000000000000F0 /* MessagesViewController.swift */,
+				A1B2C3D400000000000000F1 /* TripShareView.swift */,
+				A1B2C3D400000000000000F4 /* Assets.xcassets */,
+				A1B2C3D400000000000000F2 /* Info.plist */,
+				A1B2C3D400000000000000F3 /* YardLinkMessages.entitlements */,
+			);
+			path = YardLinkMessages;
+			sourceTree = "<group>";
+		};
 		A1B2C3D40000000000000006 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				A1B2C3D40000000000000007 /* YardLink.app */,
 				A1B2C3D4000000000000008B /* YardLinkWidgets.appex */,
 				A1B2C3D400000000000000D2 /* YardLinkNotifications.appex */,
+				A1B2C3D400000000000000F5 /* YardLinkMessages.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -333,6 +374,7 @@
 			dependencies = (
 				A1B2C3D400000000000000C4 /* PBXTargetDependency */,
 				A1B2C3D400000000000000E2 /* PBXTargetDependency */,
+				A1B2C3D40000000000000104 /* PBXTargetDependency */,
 			);
 			name = YardLink;
 			productName = YardLink;
@@ -373,6 +415,23 @@
 			productReference = A1B2C3D400000000000000D2 /* YardLinkNotifications.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		A1B2C3D40000000000000100 /* YardLinkMessages */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1B2C3D40000000000000101 /* Build configuration list for PBXNativeTarget "YardLinkMessages" */;
+			buildPhases = (
+				A1B2C3D400000000000000FD /* Sources */,
+				A1B2C3D400000000000000FE /* Frameworks */,
+				A1B2C3D400000000000000FF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = YardLinkMessages;
+			productName = YardLinkMessages;
+			productReference = A1B2C3D400000000000000F5 /* YardLinkMessages.appex */;
+			productType = "com.apple.product-type.app-extension.messages";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -393,6 +452,9 @@
 								enabled = 1;
 							};
 						};
+					};
+					A1B2C3D40000000000000100 = {
+						CreatedOnToolsVersion = 15.0;
 					};
 					A1B2C3D400000000000000DE = {
 						CreatedOnToolsVersion = 15.0;
@@ -423,6 +485,7 @@
 				A1B2C3D40000000000000002 /* YardLink */,
 				A1B2C3D400000000000000C0 /* YardLinkWidgets */,
 				A1B2C3D400000000000000DE /* YardLinkNotifications */,
+				A1B2C3D40000000000000100 /* YardLinkMessages */,
 			);
 		};
 /* End PBXProject section */
@@ -447,6 +510,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1B2C3D400000000000000FF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1B2C3D400000000000000FB /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -534,6 +605,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A1B2C3D400000000000000FD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1B2C3D400000000000000F7 /* MessagesViewController.swift in Sources */,
+				A1B2C3D400000000000000F8 /* TripShareView.swift in Sources */,
+				A1B2C3D400000000000000F9 /* SharedStore.swift in Sources */,
+				A1B2C3D400000000000000FA /* WidgetTheme.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -546,6 +628,11 @@
 			isa = PBXTargetDependency;
 			target = A1B2C3D400000000000000DE /* YardLinkNotifications */;
 			targetProxy = A1B2C3D400000000000000E3 /* PBXContainerItemProxy */;
+		};
+		A1B2C3D40000000000000104 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A1B2C3D40000000000000100 /* YardLinkMessages */;
+			targetProxy = A1B2C3D40000000000000105 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -813,6 +900,60 @@
 			};
 			name = Release;
 		};
+		A1B2C3D40000000000000102 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
+				CODE_SIGN_ENTITLEMENTS = YardLinkMessages/YardLinkMessages.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = UN7DY83BZF;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = YardLinkMessages/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zodyking.yardlink.messages;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A1B2C3D40000000000000103 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
+				CODE_SIGN_ENTITLEMENTS = YardLinkMessages/YardLinkMessages.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = UN7DY83BZF;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = YardLinkMessages/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Yard Link";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zodyking.yardlink.messages;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -848,6 +989,15 @@
 			buildConfigurations = (
 				A1B2C3D400000000000000E0 /* Debug */,
 				A1B2C3D400000000000000E1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1B2C3D40000000000000101 /* Build configuration list for PBXNativeTarget "YardLinkMessages" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1B2C3D40000000000000102 /* Debug */,
+				A1B2C3D40000000000000103 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
