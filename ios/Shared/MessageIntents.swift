@@ -45,15 +45,15 @@ enum MessageIntents {
 
     /// The person a message came from or is going to. The handle is their
     /// Yard Link user id, which is stable and never shown.
-    static func person(named name: String, handle: String?, isMe: Bool = false) -> INPerson {
+    static func person(named name: String, handle: String?) -> INPerson {
         INPerson(
             personHandle: INPersonHandle(value: handle ?? name, type: .unknown),
             nameComponents: nil,
             displayName: name,
-            image: isMe ? nil : avatar(for: name),
+            image: avatar(for: name),
             contactIdentifier: nil,
             customIdentifier: handle,
-            isMe: isMe,
+            isMe: false,
             suggestionType: .instantMessageAddress
         )
     }
