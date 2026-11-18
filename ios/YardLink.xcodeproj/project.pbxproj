@@ -455,6 +455,11 @@
 					};
 					A1B2C3D40000000000000100 = {
 						CreatedOnToolsVersion = 15.0;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+						};
 					};
 					A1B2C3D400000000000000DE = {
 						CreatedOnToolsVersion = 15.0;
