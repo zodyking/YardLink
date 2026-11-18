@@ -85,7 +85,8 @@ extension TripActivityAttributes.ContentState {
         formatter.locale = .autoupdatingCurrent
         formatter.setLocalizedDateFormatFromTemplate("jmm")
         let whole = formatter.string(from: arriveBy)
-        for marker in [formatter.amSymbol, formatter.pmSymbol] where !marker.isEmpty && whole.hasSuffix(marker) {
+        let markers = [formatter.amSymbol, formatter.pmSymbol].compactMap { $0 }.filter { !$0.isEmpty }
+        for marker in markers where whole.hasSuffix(marker) {
             return (whole.dropLast(marker.count).trimmingCharacters(in: .whitespaces), marker)
         }
         return (whole, "")
