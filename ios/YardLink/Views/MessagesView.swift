@@ -264,6 +264,12 @@ struct ThreadView: View {
                 messages.append(sent.message)
             }
             draft = ""
+            // Tell iOS this conversation happened, so the person turns up in
+            // the share sheet and their notices arrive with a face on them.
+            await MessageIntents.donate(
+                MessageIntents.incoming(from: thread.title, handle: nil, body: body, threadId: thread.id),
+                incoming: false
+            )
         } catch {
             errorMessage = model.handle(error)
         }

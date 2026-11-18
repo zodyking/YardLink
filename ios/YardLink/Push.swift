@@ -40,7 +40,10 @@ final class PushCenter: NSObject, ObservableObject {
 
     func start() {
         UNUserNotificationCenter.current().delegate = self
-        ArrivalNotification.registerCategory()
+        UNUserNotificationCenter.current().setNotificationCategories([
+            ArrivalNotification.category,
+            MessageNotification.category,
+        ])
     }
 
     /// Ask for permission, then register. Called once the person is signed in,
@@ -156,6 +159,18 @@ extension PushCenter: UNUserNotificationCenterDelegate {
                     autoAt: ""
                 )
                 await ArrivalWatch.shared.answer(question, arrived: action == ArrivalNotification.arrived)
+                completionHandler()
+                return
+            }
+
+            // A reply typed on the lock screen goes out without the app opening.
+            if action == MessageIntents.Notification.reply, let threadId,
+               let typed = (response as? UNTextInputNotificationResponse)?.userText {
+                await MessageNotification.send(
+                    typed,
+                    toThread: threadId,
+                    senderName: info["senderName"] as? String
+                )
                 completionHandler()
                 return
             }

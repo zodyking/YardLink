@@ -224,7 +224,7 @@ final class ArrivalWatch: NSObject, ObservableObject {
         let content = UNMutableNotificationContent()
         content.title = "Arrived at \(arrival.locationName)?"
         content.body = "Yard Link will record the arrival in a few minutes unless you say otherwise."
-        content.categoryIdentifier = ArrivalNotification.category
+        content.categoryIdentifier = ArrivalNotification.identifier
         content.sound = .default
         content.userInfo = ["screen": "arrival", "arrivalId": arrival.id]
         try? await center.add(UNNotificationRequest(identifier: arrival.id, content: content, trigger: nil))
@@ -260,21 +260,20 @@ extension ArrivalWatch: CLLocationManagerDelegate {
 
 /// The two answers Apple shows under the notification.
 enum ArrivalNotification {
-    static let category = "YARDLINK_ARRIVAL"
+    static let identifier = "YARDLINK_ARRIVAL"
     static let arrived = "YARDLINK_ARRIVED"
     static let notYet = "YARDLINK_NOT_YET"
 
-    static func registerCategory() {
-        let center = UNUserNotificationCenter.current()
-        let yes = UNNotificationAction(identifier: arrived, title: "Yes, I'm here", options: [])
-        let no = UNNotificationAction(identifier: notYet, title: "Not yet", options: [])
-        let arrivalCategory = UNNotificationCategory(
-            identifier: category,
-            actions: [yes, no],
+    static var category: UNNotificationCategory {
+        UNNotificationCategory(
+            identifier: identifier,
+            actions: [
+                UNNotificationAction(identifier: arrived, title: "Yes, I'm here", options: []),
+                UNNotificationAction(identifier: notYet, title: "Not yet", options: []),
+            ],
             intentIdentifiers: [],
             options: []
         )
-        center.setNotificationCategories([arrivalCategory])
     }
 }
 
