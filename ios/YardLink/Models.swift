@@ -108,8 +108,8 @@ struct EmailPrefsResult: Decodable {
 
 struct HomePayload: Decodable {
     struct Driver: Decodable {
-        let firstName: String
-        let company: String
+        let firstName: String?
+        let company: String?
     }
 
     /// Today's counts shown at the top of Home.

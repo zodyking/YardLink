@@ -309,6 +309,12 @@ struct DocumentItem: Decodable, Identifiable, Hashable {
     let createdAt: Date?
 
     var isImage: Bool { (mimeType ?? "").hasPrefix("image/") }
+
+    /// The name without its extension, which is what the driver named it.
+    var title: String {
+        let name = (fileName as NSString).deletingPathExtension
+        return name.isEmpty ? fileName : name
+    }
 }
 
 struct DocumentList: Decodable {

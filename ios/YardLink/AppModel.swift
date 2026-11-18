@@ -112,6 +112,7 @@ final class AppModel: ObservableObject {
         FaceIDLogin.forget(for: serverURL)
         SharedStore.serverURL = nil
         WidgetSync.clear()
+        forgetHomeState()
         api?.clearCookies()
         defaults.removeObject(forKey: serverKey)
         defaults.removeObject(forKey: nameKey)
@@ -177,7 +178,13 @@ final class AppModel: ObservableObject {
         }
         unreadMessages = 0
         WidgetSync.clear()
+        forgetHomeState()
         stage = .signIn
+    }
+
+    /// Leave nothing of this driver's day behind for whoever signs in next.
+    private func forgetHomeState() {
+        defaults.removeObject(forKey: "home-cleared-trips")
     }
 
     /// Any screen that gets a 401 calls this so the app returns to sign-in.

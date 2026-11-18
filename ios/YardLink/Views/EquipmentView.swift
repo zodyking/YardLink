@@ -115,7 +115,7 @@ struct ContainerDetailView: View {
                 case .move:
                     MoveContainerView(containerId: containerId, currentLocationId: detail.currentLocation?.id) { Task { await load() } }
                 case .photos:
-                    DocumentsSheet(scope: .container(containerId), equipmentNumber: detail.container.number)
+                    DocumentsSheet(scope: .container(containerId), containerNumber: detail.container.number, chassisNumber: nil)
                 case .shipcsx:
                     ShipcsxCheckView(
                         containerId: containerId,

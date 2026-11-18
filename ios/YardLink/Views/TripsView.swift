@@ -294,7 +294,7 @@ struct TripDetailView: View {
             if let detail {
                 switch sheet {
                 case .arrive:
-                    ArriveView(detail: detail) { self.sheet = nil }
+                    ArriveView(detail: detail) { _ in self.sheet = nil }
                 case .destination:
                     DestinationPickerView(
                         tripId: detail.trip.id,
@@ -306,7 +306,7 @@ struct TripDetailView: View {
                 case .update:
                     SendUpdateSheet(trip: TripUpdateFields(detail))
                 case .documents:
-                    DocumentsSheet(scope: .trip(detail.trip.id), equipmentNumber: detail.container?.number ?? detail.chassis?.number)
+                    DocumentsSheet(scope: .trip(detail.trip.id), containerNumber: detail.container?.number, chassisNumber: detail.chassis?.number)
                 }
             }
         }
@@ -503,7 +503,8 @@ struct ArriveView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     let detail: TripDetail
-    let onDone: () -> Void
+    /// Called when the sheet is finished with: true when the arrival was recorded.
+    let onDone: (Bool) -> Void
 
     /// Same field the web app sends: for a container, true leaves the chassis
     /// under the box; for a bare chassis, true keeps it assigned to the driver.
@@ -646,7 +647,7 @@ struct ArriveView: View {
                     gps: await LocationFix.shared.current()
                 )
             )
-            onDone()
+            onDone(true)
         } catch {
             errorMessage = model.handle(error)
         }
@@ -657,7 +658,8 @@ struct ArriveView: View {
 struct ArriveSheet: View {
     @EnvironmentObject private var model: AppModel
     let tripId: String
-    let onDone: () -> Void
+    /// Called when the sheet is finished with: true when the arrival was recorded.
+    let onDone: (Bool) -> Void
 
     @State private var detail: TripDetail?
     @State private var errorMessage: String?
@@ -669,7 +671,7 @@ struct ArriveSheet: View {
             } else if let errorMessage {
                 VStack(spacing: 16) {
                     ErrorBanner(message: errorMessage)
-                    Button("Close", action: onDone).buttonStyle(SecondaryButtonStyle())
+                    Button("Close") { onDone(false) }.buttonStyle(SecondaryButtonStyle())
                 }
                 .padding(16)
             } else {

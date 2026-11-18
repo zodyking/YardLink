@@ -18,6 +18,86 @@ extension UIImage {
     }
 }
 
+/// What the driver is filing: it decides the name the file is saved under and
+/// how the list is sorted, so paperwork is findable months later.
+enum DocumentKind: String, CaseIterable, Identifiable {
+    case equipmentPhoto = "PHOTO"
+    case billOfLading = "BILL_OF_LADING"
+    case other = "OTHER"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .equipmentPhoto: return "Container / Chassis Image"
+        case .billOfLading: return "Bill of Lading"
+        case .other: return "Other"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .equipmentPhoto: return "shippingbox.fill"
+        case .billOfLading: return "doc.text.fill"
+        case .other: return "paperclip"
+        }
+    }
+
+    /// The order the list puts them in: the equipment first, then paperwork.
+    var rank: Int {
+        switch self {
+        case .equipmentPhoto: return 0
+        case .billOfLading: return 1
+        case .other: return 2
+        }
+    }
+
+    /// What a file of this kind is called. A container photo is simply
+    /// "Container BSIU 863881-1", which is what the yard calls it too.
+    func name(forContainer container: String?, chassis: String?) -> String {
+        let equipment = [container, chassis].compactMap { $0 }.first { !$0.isEmpty }
+        switch self {
+        case .equipmentPhoto:
+            guard let equipment else { return "Equipment photo" }
+            return "\(container?.isEmpty == false ? "Container" : "Chassis") \(equipment)"
+        case .billOfLading:
+            return equipment.map { "Bill of Lading \($0)" } ?? "Bill of Lading"
+        case .other:
+            return equipment.map { "Document \($0)" } ?? "Document"
+        }
+    }
+
+    /// How the server labels a file that was not filed by this list.
+    static func label(forCategory category: String?) -> String {
+        guard let category else { return "Document" }
+        if let known = DocumentKind(rawValue: category) { return known.label }
+        switch category {
+        case "EIR": return "EIR / interchange"
+        case "POD": return "Proof of delivery"
+        case "DELIVERY_ORDER": return "Delivery order"
+        case "GATE_TICKET": return "Gate ticket"
+        case "SCALE_TICKET": return "Scale ticket"
+        case "DAMAGE_REPORT": return "Damage report"
+        case "REPAIR_INVOICE": return "Repair invoice"
+        case "CUSTOMS": return "Customs"
+        default: return category.capitalized
+        }
+    }
+}
+
+/// A name no other file in the list has yet, so two bills of lading on one
+/// container do not arrive with the same name.
+func uniqueDocumentName(_ base: String, extension ext: String, taken: [String]) -> String {
+    let used = Set(taken.map { $0.lowercased() })
+    var candidate = "\(base).\(ext)"
+    var counter = 2
+    while used.contains(candidate.lowercased()) {
+        candidate = "\(base) \(counter).\(ext)"
+        counter += 1
+    }
+    return candidate
+}
+
 /// What a photo or document is filed against. A file on a trip is also
 /// filed on that trip's container and chassis by the server.
 enum FileScope {
@@ -45,7 +125,13 @@ enum TripFiles {
 
     /// Save a photo and answer the new document's id.
     @discardableResult
-    static func upload(_ image: UIImage, named fileName: String, to scope: FileScope, api: APIClient?) async throws -> String {
+    static func upload(
+        _ image: UIImage,
+        named fileName: String,
+        kind: DocumentKind = .equipmentPhoto,
+        to scope: FileScope,
+        api: APIClient?
+    ) async throws -> String {
         guard let api, let dataUrl = image.jpegDataUrl(maxDimension: 2000) else {
             throw APIError(status: 0, message: "The photo could not be prepared. Try taking it again.", flags: [:])
         }
@@ -54,7 +140,7 @@ enum TripFiles {
             body: UploadBody(
                 dataUrl: dataUrl,
                 fileName: fileName,
-                category: "PHOTO",
+                category: kind.rawValue,
                 tripId: scope.query["tripId"],
                 containerId: scope.query["containerId"]
             ),

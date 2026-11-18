@@ -138,8 +138,32 @@ final class APIClient {
         do {
             return try decoder.decode(T.self, from: data.isEmpty ? Data("{}".utf8) : data)
         } catch {
-            throw APIError(status: 0, message: "The server sent something this version of Yard Link does not understand. Update the app, or tell your dispatcher.", flags: [:])
+            throw APIError(
+                status: 0,
+                message: "The server sent something this version of Yard Link does not understand"
+                    + (Self.fieldAtFault(error).map { " (\($0))" } ?? "")
+                    + ". Update the app, or tell your dispatcher.",
+                flags: [:]
+            )
         }
+    }
+
+    /// The field the decoder tripped on, as a path like `active.destination.latitude`,
+    /// so a report from the road says what to fix instead of only that something broke.
+    static func fieldAtFault(_ error: Error) -> String? {
+        guard let decoding = error as? DecodingError else { return nil }
+        let context: DecodingError.Context
+        switch decoding {
+        case let .typeMismatch(_, inner), let .valueNotFound(_, inner),
+             let .keyNotFound(_, inner), let .dataCorrupted(inner):
+            context = inner
+        @unknown default:
+            return nil
+        }
+        var path = context.codingPath.map(\.stringValue)
+        if case let .keyNotFound(key, _) = decoding { path.append(key.stringValue) }
+        let joined = path.filter { !$0.isEmpty }.joined(separator: ".")
+        return joined.isEmpty ? nil : joined
     }
 
     private func perform(_ request: URLRequest, patient: Bool = false) async throws -> (Data, URLResponse) {

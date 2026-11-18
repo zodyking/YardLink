@@ -794,8 +794,17 @@ final class PickupFlow: ObservableObject {
     /// it on the container. A failure here does not undo the pickup.
     private func savePhoto(to tripId: String) async {
         guard let photo else { return }
-        let name = "\(number.isEmpty ? chassisNumber : number)-pickup.jpg"
-        _ = try? await TripFiles.upload(photo, named: name, to: .trip(tripId), api: model.api)
+        let name = DocumentKind.equipmentPhoto.name(
+            forContainer: number.isEmpty ? nil : number,
+            chassis: chassisNumber.isEmpty ? nil : chassisNumber
+        )
+        _ = try? await TripFiles.upload(
+            photo,
+            named: "\(name).jpg",
+            kind: .equipmentPhoto,
+            to: .trip(tripId),
+            api: model.api
+        )
     }
 
     private struct CancelBody: Encodable {

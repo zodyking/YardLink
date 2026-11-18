@@ -1,7 +1,8 @@
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { DOCUMENT_CATEGORIES } from '#shared/utils/domain'
 import { chassis, containers, documents, locations, trips } from '../../database/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { assertUploadAllowed, buildStorageKey, useObjectStorage } from '../../services/storage'
 import { requireAuth } from '../../utils/session'
 
@@ -15,6 +16,18 @@ const schema = z.object({
   chassisId: z.string().uuid().optional(),
   locationId: z.string().uuid().optional(),
 })
+
+/** The shape the driver app and the web console both read back. */
+const returnedColumns = {
+  id: documents.id,
+  category: documents.category,
+  fileName: documents.fileName,
+  mimeType: documents.mimeType,
+  sizeBytes: documents.sizeBytes,
+  tripId: documents.tripId,
+  containerId: documents.containerId,
+  createdAt: documents.createdAt,
+}
 
 const DATA_URL_RE = /^data:([\w.+-]+\/[\w.+-]+);base64,([A-Za-z0-9+/=\s]+)$/
 
@@ -55,6 +68,28 @@ export default defineEventHandler(async (event) => {
   await owned(chassis, chassisId)
   await owned(locations, body.locationId)
 
+  // The same picture saved twice — a double tap, a retried upload — is the
+  // same document. Hand back the one already on file instead of a copy.
+  const fingerprint = createHash('sha256').update(bytes).digest('hex')
+  const sameSubject = containerId
+    ? eq(documents.containerId, containerId)
+    : body.tripId
+      ? eq(documents.tripId, body.tripId)
+      : null
+  if (sameSubject) {
+    const [twin] = await db
+      .select(returnedColumns)
+      .from(documents)
+      .where(and(
+        eq(documents.companyId, auth.companyId),
+        eq(documents.checksum, fingerprint),
+        isNull(documents.deletedAt),
+        sameSubject,
+      ))
+      .limit(1)
+    if (twin) return { document: twin }
+  }
+
   const stored = await useObjectStorage().put(
     buildStorageKey(auth.companyId, body.category, body.fileName),
     bytes,
@@ -78,16 +113,7 @@ export default defineEventHandler(async (event) => {
       ocrStatus: 'NOT_IMPLEMENTED',
       uploadedByUserId: auth.userId,
     })
-    .returning({
-      id: documents.id,
-      category: documents.category,
-      fileName: documents.fileName,
-      mimeType: documents.mimeType,
-      sizeBytes: documents.sizeBytes,
-      tripId: documents.tripId,
-      containerId: documents.containerId,
-      createdAt: documents.createdAt,
-    })
+    .returning(returnedColumns)
 
   return { document: doc }
 })

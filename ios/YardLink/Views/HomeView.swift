@@ -18,7 +18,12 @@ struct HomeView: View {
     @State private var cancelling = false
     @ObservedObject private var push = PushCenter.shared
     @ObservedObject private var arrivals = ArrivalWatch.shared
-    @AppStorage("home-cleared-trip") private var clearedTripId = ""
+    /// Trips the driver has cleared off Home, newest last. A list rather than
+    /// one id, so an older trip cannot reappear when something touches it.
+    @AppStorage("home-cleared-trips") private var clearedTripIds = ""
+    /// The trip whose arrival was just recorded, so the button becomes Clear
+    /// Trip at once instead of after the next load.
+    @State private var arrivedTripId: String?
 
     /// A pickup to open: new, resumed, a swap, or a container for a bare chassis.
     private struct PickupLaunch: Identifiable {
@@ -108,7 +113,7 @@ struct HomeView: View {
 
     private func masthead(_ home: HomePayload) -> some View {
         VStack(spacing: 12) {
-            PageTitle(text: "Hello \(home.driver.firstName)", alignment: .center)
+            PageTitle(text: home.driver.firstName.map { "Hello \($0)" } ?? "Home", alignment: .center)
             HStack(spacing: 12) {
                 tally(label: "Bridge Crosses", value: home.stats?.bridgeCrosses ?? 0)
                 tally(label: "Swaps", value: home.stats?.swaps ?? 0)
@@ -208,23 +213,18 @@ struct HomeView: View {
     @ViewBuilder
     private func callsToAction(_ home: HomePayload) -> some View {
         VStack(spacing: 10) {
-            if home.active == nil, let recent = displayTrip(home) {
-                Button("Clear Trip") { clearedTripId = recent.trip.id }
-                    .buttonStyle(PrimaryButtonStyle())
-            } else {
-                let next = nextStep(home)
-                Button(next.label) { perform(next.action) }
-                    .buttonStyle(PrimaryButtonStyle())
-            }
+            let main = mainButton(home)
+            Button(main.label) { main.act() }
+                .buttonStyle(PrimaryButtonStyle())
 
-            if let active = home.active, canAttachContainer(home) {
+            if let active = home.active, canAttachContainer(home), arrivedTripId != active.trip.id {
                 Button("Add Container to Chassis") {
                     pickup = PickupLaunch(mode: .attach(tripId: active.trip.id, chassisNumber: active.chassis?.number ?? ""))
                 }
                 .buttonStyle(DarkButtonStyle())
             }
 
-            if home.active != nil {
+            if let active = home.active, arrivedTripId != active.trip.id {
                 Button(cancelling ? "Cancelling…" : "Cancel Trip") { confirmingCancel = true }
                     .buttonStyle(DangerTextButtonStyle())
                     .disabled(cancelling)
@@ -313,7 +313,10 @@ struct HomeView: View {
         case .messages:
             MessagesView(user: user)
         case .arrive(let tripId):
-            ArriveSheet(tripId: tripId) { self.sheet = nil }
+            ArriveSheet(tripId: tripId) { arrived in
+                if arrived { arrivedTripId = tripId }
+                self.sheet = nil
+            }
         case .destination(let tripId, let currentId, let originId):
             DestinationPickerView(tripId: tripId, currentId: currentId, originId: originId) {}
         case .seal(let tripId, let current):
@@ -332,8 +335,32 @@ struct HomeView: View {
     /// The live trip, or one finished in the last few hours until it is cleared.
     private func displayTrip(_ home: HomePayload) -> HomePayload.Active? {
         if let active = home.active { return active }
-        guard let recent = home.recentCompleted, recent.trip.id != clearedTripId else { return nil }
+        guard let recent = home.recentCompleted, !cleared.contains(recent.trip.id) else { return nil }
         return recent
+    }
+
+    private var cleared: [String] {
+        clearedTripIds.split(separator: ",").map(String.init)
+    }
+
+    /// Take the trip off Home and remember that, so it stays off.
+    private func clearFromHome(_ tripId: String) {
+        var kept = cleared.filter { $0 != tripId }
+        kept.append(tripId)
+        clearedTripIds = kept.suffix(20).joined(separator: ",")
+        arrivedTripId = nil
+    }
+
+    /// The one button at the foot of Home. It follows the trip the whole way:
+    /// continue the pickup, set the drop-off, arrive — and once the equipment
+    /// is down, the same button clears the finished trip away.
+    private func mainButton(_ home: HomePayload) -> (label: String, act: () -> Void) {
+        if let shown = displayTrip(home), home.active == nil || arrivedTripId == shown.trip.id {
+            let tripId = shown.trip.id
+            return ("Clear Trip", { clearFromHome(tripId) })
+        }
+        let next = nextStep(home)
+        return (next.label, { perform(next.action) })
     }
 
     private func loadTrip(_ home: HomePayload) -> HomePayload.Active? {
@@ -435,6 +462,9 @@ struct HomeView: View {
             let payload: HomePayload = try await api.get("/api/home")
             WidgetSync.update(home: payload)
             home = payload
+            // The server has caught up with the arrival; the button can go
+            // back to following the payload on its own.
+            if payload.active?.trip.id != arrivedTripId { arrivedTripId = nil }
             errorMessage = nil
             watchArrivalCircle(payload)
             await arrivals.refresh()

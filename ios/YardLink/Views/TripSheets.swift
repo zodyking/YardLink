@@ -527,28 +527,39 @@ struct DocumentsSheet: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     let scope: FileScope
-    let equipmentNumber: String?
+    let containerNumber: String?
+    let chassisNumber: String?
 
     @State private var files: [DocumentItem] = []
     @State private var loading = true
     @State private var working = false
     @State private var errorMessage: String?
-    @State private var showingCamera = false
+    @State private var choosingKind = false
+    @State private var capturing: DocumentKind?
+    @State private var viewing: DocumentItem?
     @State private var preview: URL?
     @State private var removing: DocumentItem?
 
-    private let columns = [GridItem(.adaptive(minimum: 104), spacing: 10)]
+    /// Equipment photos first, then paperwork, newest first inside each kind.
+    private var sorted: [DocumentItem] {
+        files.sorted { left, right in
+            let leftRank = DocumentKind(rawValue: left.category ?? "")?.rank ?? 3
+            let rightRank = DocumentKind(rawValue: right.category ?? "")?.rank ?? 3
+            if leftRank != rightRank { return leftRank < rightRank }
+            return (left.createdAt ?? .distantPast) > (right.createdAt ?? .distantPast)
+        }
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 12) {
                     if let errorMessage { ErrorBanner(message: errorMessage) }
 
                     Button {
-                        showingCamera = true
+                        choosingKind = true
                     } label: {
-                        Label(working ? "Saving…" : "Take a Photo", systemImage: "camera.fill")
+                        Label(working ? "Saving…" : "Add Document", systemImage: "plus.circle.fill")
                     }
                     .buttonStyle(DarkButtonStyle())
                     .disabled(working)
@@ -556,12 +567,13 @@ struct DocumentsSheet: View {
                     if loading {
                         ProgressView().frame(maxWidth: .infinity, minHeight: 120)
                     } else if files.isEmpty {
-                        EmptyNote(title: "Nothing saved yet", detail: "Photos of the container and its paperwork are kept here and can go to dispatch with your update.")
+                        EmptyNote(
+                            title: "Nothing saved yet",
+                            detail: "Photos of the equipment and its paperwork are kept here for the whole service cycle, and can go to dispatch with your update."
+                        )
                     } else {
-                        LazyVGrid(columns: columns, spacing: 10) {
-                            ForEach(files) { file in
-                                tile(file)
-                            }
+                        ForEach(sorted) { file in
+                            row(file)
                         }
                     }
                 }
@@ -576,11 +588,21 @@ struct DocumentsSheet: View {
                     Button("Close") { dismiss() }
                 }
             }
-            .fullScreenCover(isPresented: $showingCamera) {
+            .confirmationDialog("What are you adding?", isPresented: $choosingKind, titleVisibility: .visible) {
+                ForEach(DocumentKind.allCases) { kind in
+                    Button(kind.label) { capturing = kind }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .fullScreenCover(item: $capturing) { kind in
                 CameraCapture { image in
-                    Task { await add(image) }
+                    Task { await add(image, kind: kind) }
                 }
                 .ignoresSafeArea()
+            }
+            .fullScreenCover(item: $viewing) { file in
+                DocumentViewer(file: file)
+                    .environmentObject(model)
             }
             .quickLookPreview($preview)
             .confirmationDialog(
@@ -592,34 +614,49 @@ struct DocumentsSheet: View {
                 Button("Remove", role: .destructive) { Task { await remove(file) } }
                 Button("Keep", role: .cancel) {}
             } message: { file in
-                Text(file.fileName)
+                Text(file.title)
             }
             .task { await load() }
         }
     }
 
-    private func tile(_ file: DocumentItem) -> some View {
+    private func row(_ file: DocumentItem) -> some View {
         Button {
-            Task { await open(file) }
+            if file.isImage { viewing = file } else { Task { await openOutside(file) } }
         } label: {
-            VStack(spacing: 6) {
-                Group {
-                    if file.isImage {
-                        ServerImage(documentId: file.id)
-                    } else {
-                        ZStack {
-                            Brand.skyWash
-                            Image(systemName: "doc.text.fill").font(.title).foregroundColor(Brand.linkBlue)
+            Card {
+                HStack(spacing: 12) {
+                    Group {
+                        if file.isImage {
+                            ServerImage(documentId: file.id)
+                        } else {
+                            ZStack {
+                                Brand.skyWash
+                                Image(systemName: "doc.text.fill").foregroundColor(Brand.linkBlue)
+                            }
                         }
                     }
+                    .frame(width: 54, height: 54)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(file.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(Brand.ink)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Text(DocumentKind.label(forCategory: file.category))
+                            .font(.caption)
+                            .foregroundColor(Brand.linkBlue)
+                        if let taken = file.createdAt {
+                            Text(taken.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").font(.caption).foregroundColor(.secondary)
                 }
-                .frame(height: 104)
-                .frame(maxWidth: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                Text(file.fileName)
-                    .font(.caption)
-                    .foregroundColor(Brand.ink)
-                    .lineLimit(1)
             }
         }
         .buttonStyle(.plain)
@@ -630,8 +667,8 @@ struct DocumentsSheet: View {
                 Label("Remove", systemImage: "trash")
             }
         }
-        .accessibilityLabel(file.fileName)
-        .accessibilityHint("Opens the file. Touch and hold to remove it.")
+        .accessibilityLabel(file.title)
+        .accessibilityHint("Opens the file full screen. Touch and hold to remove it.")
     }
 
     private func load() async {
@@ -645,20 +682,24 @@ struct DocumentsSheet: View {
         loading = false
     }
 
-    private func add(_ image: UIImage) async {
+    private func add(_ image: UIImage, kind: DocumentKind) async {
         working = true
         defer { working = false }
-        let stamp = Int(Date().timeIntervalSince1970)
+        let name = uniqueDocumentName(
+            kind.name(forContainer: containerNumber, chassis: chassisNumber),
+            extension: "jpg",
+            taken: files.map(\.fileName)
+        )
         do {
-            try await TripFiles.upload(image, named: "\(equipmentNumber ?? "photo")-\(stamp).jpg", to: scope, api: model.api)
+            try await TripFiles.upload(image, named: name, kind: kind, to: scope, api: model.api)
             await load()
         } catch {
             errorMessage = model.handle(error)
         }
     }
 
-    /// Fetch the file with the signed-in session and show it full screen.
-    private func open(_ file: DocumentItem) async {
+    /// A file the phone cannot show itself — a PDF, say — opens in the viewer iOS brings.
+    private func openOutside(_ file: DocumentItem) async {
         guard let api = model.api else { return }
         do {
             let data = try await api.data("/api/documents/\(file.id)/file")
@@ -681,6 +722,70 @@ struct DocumentsSheet: View {
     }
 }
 
+/// One picture, full screen, pinch to zoom, with the system share sheet for
+/// sending it on.
+struct DocumentViewer: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    let file: DocumentItem
+
+    @State private var image: UIImage?
+    @State private var zoom: CGFloat = 1
+    @State private var committed: CGFloat = 1
+    @State private var failed = false
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .scaleEffect(zoom)
+                        .gesture(
+                            MagnificationGesture()
+                                .onChanged { value in zoom = min(6, max(1, committed * value)) }
+                                .onEnded { _ in committed = zoom }
+                        )
+                        .onTapGesture(count: 2) {
+                            zoom = zoom > 1 ? 1 : 2.5
+                            committed = zoom
+                        }
+                } else if failed {
+                    Text("This file could not be loaded.").foregroundColor(.white)
+                } else {
+                    ProgressView().tint(.white)
+                }
+            }
+            .navigationTitle(file.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    if let image {
+                        ShareLink(item: Image(uiImage: image), preview: SharePreview(file.title, image: Image(uiImage: image))) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                    }
+                }
+            }
+        }
+        .task {
+            guard image == nil, let api = model.api else { return }
+            if let data = try? await api.data("/api/documents/\(file.id)/file"), let loaded = UIImage(data: data) {
+                image = loaded
+            } else {
+                failed = true
+            }
+        }
+    }
+}
 
 /// Everything the driver has on file: the equipment still on the road and
 /// what was dropped off this week. Each entry opens that equipment's files,
@@ -722,7 +827,7 @@ struct DriverDocumentsSheet: View {
                 }
             }
             .sheet(item: $opened, onDismiss: { Task { await load() } }) { group in
-                DocumentsSheet(scope: .trip(group.tripId), equipmentNumber: group.containerNumber ?? group.chassisNumber)
+                DocumentsSheet(scope: .trip(group.tripId), containerNumber: group.containerNumber, chassisNumber: group.chassisNumber)
                     .environmentObject(model)
             }
             .task { await load() }
