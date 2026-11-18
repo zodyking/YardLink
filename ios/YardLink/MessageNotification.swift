@@ -32,6 +32,7 @@ enum MessageNotification {
 
     /// Send what the driver typed on the lock screen. A reply that cannot be
     /// sent says so on the lock screen rather than disappearing.
+    @MainActor
     static func send(_ text: String, toThread threadId: String, senderName: String?) async {
         let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
