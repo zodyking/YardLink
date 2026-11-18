@@ -4,23 +4,53 @@ import Foundation
 // Everything the server may leave out is optional, so a newer server does
 // not break an older app.
 
+/// A number the server may send as a number or, from an older build, as a
+/// string. Either way the phone reads a number, and a shape it cannot read
+/// leaves the field empty instead of breaking the whole answer.
+struct LooseNumber: Decodable, Hashable {
+    let value: Double?
+
+    init(from decoder: Decoder) throws {
+        let single = try decoder.singleValueContainer()
+        if let number = try? single.decode(Double.self) {
+            value = number
+        } else if let text = try? single.decode(String.self) {
+            value = Double(text)
+        } else {
+            value = nil
+        }
+    }
+}
+
 struct NamedPlace: Decodable, Hashable {
     let id: String?
     let name: String?
     let type: String?
     let city: String?
+    let state: String?
+    let postalCode: String?
+    let addressLine1: String?
     let mainPhone: String?
     let contactPhone: String?
     let contactName: String?
     /// The circle the phone watches to ask about arriving. Only the
     /// destination of a live trip carries one.
-    let latitude: Double?
-    let longitude: Double?
+    private let latitude: LooseNumber?
+    private let longitude: LooseNumber?
     let arrivalRadiusM: Int?
+
+    /// The street address, for finding a site the dispatcher never pinned.
+    var postalAddress: String? {
+        let line = [addressLine1, city, [state, postalCode].compactMap { $0 }.joined(separator: " ")]
+            .compactMap { $0?.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
+        return line.isEmpty ? nil : line
+    }
 
     /// Everything the watch needs, or nil when the site has no pin.
     var arrivalCircle: ArrivalWatch.WatchedSite? {
-        guard let id, let latitude, let longitude else { return nil }
+        guard let id, let latitude = latitude?.value, let longitude = longitude?.value else { return nil }
         return ArrivalWatch.WatchedSite(
             locationId: id,
             name: name ?? "this stop",

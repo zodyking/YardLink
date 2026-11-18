@@ -20,6 +20,12 @@ final class ArrivalWatch: NSObject, ObservableObject {
     private let manager = CLLocationManager()
     private var watching: WatchedSite?
     private var reporting = false
+    /// Sites found from their address because nobody pinned them, kept so the
+    /// phone asks the geocoder once per site and not once per fix.
+    private var found: [String: WatchedSite] = [:]
+    /// The site the phone has already told the server it is inside, so one
+    /// arrival is reported once.
+    private var reportedInside: String?
 
     struct WatchedSite: Equatable {
         let locationId: String
@@ -51,20 +57,61 @@ final class ArrivalWatch: NSObject, ObservableObject {
         }
     }
 
+    /// Watch where the live trip is headed. A site the dispatcher pinned is
+    /// used as it stands; one without a pin is looked up from its address, so
+    /// the driver still gets the arrival question and the distance home.
+    func watch(destination: NamedPlace?) {
+        guard let destination else {
+            watch(nil)
+            return
+        }
+        if let pinned = destination.arrivalCircle {
+            watch(pinned)
+            return
+        }
+        guard let id = destination.id, let address = destination.postalAddress else {
+            watch(nil)
+            return
+        }
+        if let already = found[id] {
+            watch(already)
+            return
+        }
+        Task { [weak self] in
+            guard let placemark = try? await CLGeocoder().geocodeAddressString(address).first,
+                  let point = placemark.location?.coordinate else { return }
+            let site = WatchedSite(
+                locationId: id,
+                name: destination.name ?? "this stop",
+                latitude: point.latitude,
+                longitude: point.longitude,
+                radiusMeters: Double(destination.arrivalRadiusM ?? 180)
+            )
+            await MainActor.run {
+                guard let self else { return }
+                self.found[id] = site
+                self.watch(site)
+            }
+        }
+    }
+
     /// Watch the circle around where the live trip is headed, or stop watching.
     func watch(_ site: WatchedSite?) {
-        guard CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self) else { return }
         if site == watching { return }
         for region in manager.monitoredRegions where region.identifier == regionIdentifier {
             manager.stopMonitoring(for: region)
         }
         watching = site
+        reportedInside = nil
         guard let site else {
             stopTracking()
             return
         }
         requestAlwaysIfNeeded()
         startTracking()
+        // Region monitoring is what wakes a closed app. Where the phone cannot
+        // do it, the fixes below still catch the arrival while the app runs.
+        guard CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self) else { return }
         let region = CLCircularRegion(
             center: CLLocationCoordinate2D(latitude: site.latitude, longitude: site.longitude),
             radius: max(80, min(site.radiusMeters, 2_000)),
@@ -82,12 +129,16 @@ final class ArrivalWatch: NSObject, ObservableObject {
     private func startTracking() {
         manager.activityType = .automotiveNavigation
         manager.distanceFilter = 100
+        // A paused feed never resumes on its own, which would freeze the
+        // distance on the Lock Screen at whatever it last read.
+        manager.pausesLocationUpdatesAutomatically = false
         manager.allowsBackgroundLocationUpdates = true
         manager.showsBackgroundLocationIndicator = true
         manager.startUpdatingLocation()
     }
 
     private func stopTracking() {
+        manager.pausesLocationUpdatesAutomatically = true
         manager.stopUpdatingLocation()
         manager.allowsBackgroundLocationUpdates = false
     }
@@ -95,6 +146,28 @@ final class ArrivalWatch: NSObject, ObservableObject {
     fileprivate func moved(latitude: Double, longitude: Double, speed: Double) {
         guard let site = watching else { return }
         TripActivityCenter.moved(latitude: latitude, longitude: longitude, speed: speed, site: site)
+
+        // Pulling in counts even where region monitoring never fires: no
+        // Always permission, a circle the phone declined to watch, or a driver
+        // who was already parked inside it.
+        let gap = CLLocation(latitude: latitude, longitude: longitude)
+            .distance(from: CLLocation(latitude: site.latitude, longitude: site.longitude))
+        if gap <= max(80, site.radiusMeters) {
+            guard reportedInside != site.locationId else { return }
+            reportedInside = site.locationId
+            Task { await reportCrossing(at: nil) }
+        } else if gap > max(80, site.radiusMeters) * 1.5 {
+            reportedInside = nil
+        }
+    }
+
+    /// The driver answered the permission card: ask for the rest, and arm the
+    /// watch that could not start without it.
+    fileprivate func authorizationChanged() {
+        requestAlwaysIfNeeded()
+        guard let site = watching else { return }
+        watching = nil
+        watch(site)
     }
 
     /// Tell the server the phone is inside the circle.
@@ -159,6 +232,10 @@ final class ArrivalWatch: NSObject, ObservableObject {
 }
 
 extension ArrivalWatch: CLLocationManagerDelegate {
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        Task { @MainActor in ArrivalWatch.shared.authorizationChanged() }
+    }
+
     nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
         Task { @MainActor in await ArrivalWatch.shared.reportCrossing(at: nil) }
     }

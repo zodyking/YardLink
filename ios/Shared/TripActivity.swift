@@ -55,15 +55,44 @@ extension TripActivityAttributes.ContentState {
         return min(1, max(0, 1 - distanceMeters / startMeters))
     }
 
-    /// "3.2 mi", "850 ft" — or kilometres and metres where the phone is set to metric.
+    /// "3.2 mi", "850 ft" — the distance as one piece of text.
     var distanceText: String? {
+        guard let parts = distanceParts else { return nil }
+        return "\(parts.value) \(parts.unit)"
+    }
+}
+
+@available(iOS 16.2, *)
+extension TripActivityAttributes.ContentState {
+    /// The distance split so the number can be set large and the unit small.
+    var distanceParts: (value: String, unit: String)? {
         guard let meters = distanceMeters else { return nil }
         if Locale.current.measurementSystem == .metric {
-            if meters < 1_000 { return "\(Int((meters / 50).rounded()) * 50) m" }
-            return String(format: meters < 10_000 ? "%.1f km" : "%.0f km", meters / 1_000)
+            if meters < 1_000 { return ("\(Int((meters / 50).rounded()) * 50)", "m") }
+            return (String(format: meters < 10_000 ? "%.1f" : "%.0f", meters / 1_000), "km")
         }
         let miles = meters / 1_609.344
-        if miles < 0.1 { return "\(max(50, Int((meters * 3.28084 / 50).rounded()) * 50)) ft" }
-        return String(format: miles < 10 ? "%.1f mi" : "%.0f mi", miles)
+        if miles < 0.1 { return ("\(max(50, Int((meters * 3.28084 / 50).rounded()) * 50))", "ft") }
+        return (String(format: miles < 10 ? "%.1f" : "%.0f", miles), "mi")
     }
+
+    var distanceValue: String? { distanceParts?.value }
+    var distanceUnit: String? { distanceParts?.unit }
+
+    private var arrivalParts: (clock: String, suffix: String)? {
+        guard let arriveBy else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("jmm")
+        let whole = formatter.string(from: arriveBy)
+        for marker in [formatter.amSymbol, formatter.pmSymbol] where !marker.isEmpty && whole.hasSuffix(marker) {
+            return (whole.dropLast(marker.count).trimmingCharacters(in: .whitespaces), marker)
+        }
+        return (whole, "")
+    }
+
+    /// "4:32" — the clock time the phone expects the driver to pull in.
+    var arrivalClock: String? { arrivalParts?.clock }
+    /// "PM", or nothing where the phone shows a 24-hour clock.
+    var arrivalSuffix: String? { arrivalParts?.suffix }
 }

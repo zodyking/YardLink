@@ -39,6 +39,11 @@ async function bundleTrip(db: Db, trip: Trip) {
         latitude: locations.latitude,
         longitude: locations.longitude,
         arrivalRadiusM: locations.arrivalRadiusM,
+        // The address, so a site with no pin can still be found by the phone.
+        addressLine1: locations.addressLine1,
+        city: locations.city,
+        state: locations.state,
+        postalCode: locations.postalCode,
       }).from(locations).where(eq(locations.id, trip.destinationLocationId)).limit(1)
     : []
 
@@ -50,7 +55,15 @@ async function bundleTrip(db: Db, trip: Trip) {
     trip,
     container: container ?? null,
     origin: origin ?? null,
-    destination: destination ?? null,
+    // Coordinates are numeric in the database, which the driver reads as
+    // plain numbers, not the strings the driver would choke on.
+    destination: destination
+      ? {
+          ...destination,
+          latitude: destination.latitude == null ? null : Number(destination.latitude),
+          longitude: destination.longitude == null ? null : Number(destination.longitude),
+        }
+      : null,
     chassis: chassisRow ?? null,
   }
 }

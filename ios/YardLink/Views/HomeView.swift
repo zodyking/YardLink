@@ -448,7 +448,7 @@ struct HomeView: View {
     /// trip is live — a finished day leaves nothing running in the background.
     private func watchArrivalCircle(_ payload: HomePayload) {
         let live = payload.active?.trip.isLive == true ? payload.active : nil
-        ArrivalWatch.shared.watch(live?.destination?.arrivalCircle)
+        ArrivalWatch.shared.watch(destination: live?.destination)
     }
 
     private func arrivalCard(_ question: ArrivalQuestion) -> some View {
