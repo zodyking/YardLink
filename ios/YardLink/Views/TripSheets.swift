@@ -608,12 +608,21 @@ struct DocumentsSheet: View {
     @State private var files: [DocumentItem] = []
     @State private var loading = true
     @State private var working = false
+    @State private var workingKind: DocumentKind?
     @State private var errorMessage: String?
     @State private var choosingKind = false
     @State private var capturing: DocumentKind?
     @State private var viewing: DocumentItem?
     @State private var preview: URL?
     @State private var removing: DocumentItem?
+
+    /// A paper form takes an extra moment on the server to flatten and
+    /// clean up, so the button says so rather than just sitting on "Saving…"
+    /// through what would otherwise look like a stall.
+    private var savingLabel: String {
+        guard working else { return "Add Document" }
+        return workingKind?.isPaperDocument == true ? "Cleaning Up…" : "Saving…"
+    }
 
     /// Equipment photos first, then paperwork, newest first inside each kind.
     private var sorted: [DocumentItem] {
@@ -634,7 +643,7 @@ struct DocumentsSheet: View {
                     Button {
                         choosingKind = true
                     } label: {
-                        Label(working ? "Saving…" : "Add Document", systemImage: "plus.circle.fill")
+                        Label(savingLabel, systemImage: "plus.circle.fill")
                     }
                     .buttonStyle(DarkButtonStyle())
                     .disabled(working)
@@ -759,7 +768,8 @@ struct DocumentsSheet: View {
 
     private func add(_ image: UIImage, kind: DocumentKind) async {
         working = true
-        defer { working = false }
+        workingKind = kind
+        defer { working = false; workingKind = nil }
         let name = uniqueDocumentName(
             kind.name(forContainer: containerNumber, chassis: chassisNumber),
             extension: "jpg",

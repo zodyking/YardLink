@@ -542,6 +542,14 @@ struct LocationDetail: Decodable {
     let notes: [LocationNote]?
 }
 
+/// Preformatted "Export list" text for a location — generated server-side
+/// by the same shared formatter the web app's Export sheet uses, so the
+/// phone never has to re-derive the masking and layout rules itself.
+struct LocationExportResult: Decodable {
+    let text: String
+    let noteCount: Int
+}
+
 // MARK: - Equipment history
 
 struct HistoryEvent: Decodable, Identifiable, Hashable {

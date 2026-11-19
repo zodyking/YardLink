@@ -9,6 +9,7 @@ import { loadSmtpConfig, summarizeSmtp } from '../../utils/smtp-settings'
 import { loadPushConfig, summarizePush } from '../../utils/push-settings'
 import { SHIPCSX_TERMINALS } from '#shared/utils/csx-lookup'
 import { useOcrService } from '../../services/ocr'
+import { useDocScanWorker } from '../../services/docscan'
 import { useObjectStorage } from '../../services/storage'
 import { shipcsxHealth } from '../../services/shipcsx-poll'
 import { requireAdmin } from '../../utils/session'
@@ -37,8 +38,9 @@ export default defineEventHandler(async (event) => {
     .where(eq(companies.id, auth.companyId))
     .limit(1)
 
-  const [ocr, storage, geocoder, shipcsx] = await Promise.all([
+  const [ocr, docscan, storage, geocoder, shipcsx] = await Promise.all([
     useOcrService().healthCheck(),
+    useDocScanWorker().health(),
     useObjectStorage().healthCheck(),
     useGeocoder().healthCheck(),
     shipcsxHealth(db, auth.companyId),
@@ -69,6 +71,7 @@ export default defineEventHandler(async (event) => {
     counts: { ...counts, admins: adminCount?.value ?? 0 },
     services: [
       { key: 'ocr', name: 'OpenOCR (RepViT DB + RepSVTR Mobile)', healthy: ocr.healthy, detail: ocr.message, phase: 'Phase 1' },
+      { key: 'docscan', name: 'Document scan cleanup', healthy: docscan.healthy, detail: docscan.message, phase: 'Built in' },
       { key: 'storage', name: 'Photos and documents', healthy: storage.healthy, detail: storage.message, phase: 'Built in' },
       { key: 'messages', name: 'Messages', healthy: true, detail: 'Drivers and dispatch talk inside Yard Link. No SMS service is used.', phase: 'Built in' },
       {

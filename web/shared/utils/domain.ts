@@ -513,6 +513,24 @@ export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
   OTHER: 'Other',
 }
 
+/**
+ * Categories that are a paper form photographed, not a photo of equipment —
+ * these are the ones worth running through document-scan cleanup (flatten,
+ * de-shadow, sharpen). A damage report must stay the untouched photo it was
+ * taken as: cleaning it up would mean editing evidence. A generic PHOTO or
+ * OTHER could be either, so it is left alone too.
+ */
+export const DOCUMENT_SCAN_CATEGORIES: readonly DocumentCategory[] = [
+  'EIR',
+  'POD',
+  'BILL_OF_LADING',
+  'DELIVERY_ORDER',
+  'GATE_TICKET',
+  'SCALE_TICKET',
+  'REPAIR_INVOICE',
+  'CUSTOMS',
+]
+
 export const EXCEPTION_TYPES = [
   'CONTAINER_NOT_FOUND',
   'WRONG_CONTAINER',

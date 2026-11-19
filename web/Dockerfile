@@ -42,6 +42,7 @@ ENV OPENOCR_WORKER=/app/ocr/openocr_worker.py
 ENV OPENOCR_DET_MODEL=/opt/openocr/openocr_det_model.onnx
 ENV OPENOCR_REC_MODEL=/opt/openocr/openocr_rec_model.onnx
 ENV OPENOCR_WORKDIR=/tmp/openocr
+ENV DOCSCAN_WORKER=/app/docscan/docscan_worker.py
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
 
 # uid 1001: the base image already has `node` at uid 1000.
@@ -60,6 +61,8 @@ RUN groupadd --system --gid 1001 nodejs \
   && pip3 install --break-system-packages --no-cache-dir \
     openocr-python==0.1.5 \
     onnxruntime \
+    opencv-python-headless \
+    numpy \
   && mkdir -p /opt/openocr \
   && wget -q -O /opt/openocr/openocr_det_model.onnx \
     https://github.com/Topdu/OpenOCR/releases/download/develop0.0.1/openocr_det_model.onnx \
@@ -75,12 +78,13 @@ COPY --chown=nuxt:nodejs drizzle ./migrator/drizzle
 COPY --chown=nuxt:nodejs docker/migrate.mjs ./migrator/migrate.mjs
 COPY --chown=nuxt:nodejs docker/entrypoint.sh ./entrypoint.sh
 COPY --chown=nuxt:nodejs server/ocr/openocr_worker.py /app/ocr/openocr_worker.py
+COPY --chown=nuxt:nodejs server/docscan/docscan_worker.py /app/docscan/docscan_worker.py
 
 # /data holds uploaded photos and documents; the compose file mounts a volume
 # there, which inherits this ownership the first time it is created.
 RUN chmod +x ./entrypoint.sh \
   && mkdir -p /data/files \
-  && chown -R nuxt:nodejs /opt/openocr /app/ocr /data
+  && chown -R nuxt:nodejs /opt/openocr /app/ocr /app/docscan /data
 
 # ShipCSX lookups need Chromium. Playwright is installed here (Debian)
 # because the Alpine builder never downloads browsers, and Nitro may omit the

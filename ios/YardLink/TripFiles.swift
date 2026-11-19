@@ -23,6 +23,10 @@ extension UIImage {
 enum DocumentKind: String, CaseIterable, Identifiable {
     case equipmentPhoto = "PHOTO"
     case billOfLading = "BILL_OF_LADING"
+    case eir = "EIR"
+    case pod = "POD"
+    case gateTicket = "GATE_TICKET"
+    case scaleTicket = "SCALE_TICKET"
     case other = "OTHER"
 
     var id: String { rawValue }
@@ -31,6 +35,10 @@ enum DocumentKind: String, CaseIterable, Identifiable {
         switch self {
         case .equipmentPhoto: return "Container / Chassis Image"
         case .billOfLading: return "Bill of Lading"
+        case .eir: return "EIR / Interchange"
+        case .pod: return "Proof of Delivery"
+        case .gateTicket: return "Gate Ticket"
+        case .scaleTicket: return "Scale Ticket"
         case .other: return "Other"
         }
     }
@@ -38,8 +46,19 @@ enum DocumentKind: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .equipmentPhoto: return "shippingbox.fill"
-        case .billOfLading: return "doc.text.fill"
+        case .billOfLading, .eir, .pod, .gateTicket, .scaleTicket: return "doc.text.fill"
         case .other: return "paperclip"
+        }
+    }
+
+    /// Paper forms photographed, as opposed to a photo of the equipment
+    /// itself — these are what the server cleans up into a flat, evenly
+    /// lit "scanned" look before storing. A container/chassis photo and an
+    /// "Other" catch-all both stay the literal photo that was taken.
+    var isPaperDocument: Bool {
+        switch self {
+        case .billOfLading, .eir, .pod, .gateTicket, .scaleTicket: return true
+        case .equipmentPhoto, .other: return false
         }
     }
 
@@ -48,7 +67,11 @@ enum DocumentKind: String, CaseIterable, Identifiable {
         switch self {
         case .equipmentPhoto: return 0
         case .billOfLading: return 1
-        case .other: return 2
+        case .eir: return 2
+        case .pod: return 3
+        case .gateTicket: return 4
+        case .scaleTicket: return 5
+        case .other: return 6
         }
     }
 
@@ -62,6 +85,14 @@ enum DocumentKind: String, CaseIterable, Identifiable {
             return "\(container?.isEmpty == false ? "Container" : "Chassis") \(equipment)"
         case .billOfLading:
             return equipment.map { "Bill of Lading \($0)" } ?? "Bill of Lading"
+        case .eir:
+            return equipment.map { "EIR \($0)" } ?? "EIR"
+        case .pod:
+            return equipment.map { "Proof of Delivery \($0)" } ?? "Proof of Delivery"
+        case .gateTicket:
+            return equipment.map { "Gate Ticket \($0)" } ?? "Gate Ticket"
+        case .scaleTicket:
+            return equipment.map { "Scale Ticket \($0)" } ?? "Scale Ticket"
         case .other:
             return equipment.map { "Document \($0)" } ?? "Document"
         }
@@ -72,11 +103,7 @@ enum DocumentKind: String, CaseIterable, Identifiable {
         guard let category else { return "Document" }
         if let known = DocumentKind(rawValue: category) { return known.label }
         switch category {
-        case "EIR": return "EIR / interchange"
-        case "POD": return "Proof of delivery"
         case "DELIVERY_ORDER": return "Delivery order"
-        case "GATE_TICKET": return "Gate ticket"
-        case "SCALE_TICKET": return "Scale ticket"
         case "DAMAGE_REPORT": return "Damage report"
         case "REPAIR_INVOICE": return "Repair invoice"
         case "CUSTOMS": return "Customs"

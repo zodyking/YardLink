@@ -205,6 +205,7 @@ struct LocationDetailView: View {
     @State private var savingNote = false
     @State private var addingEquipment = false
     @State private var editingLocation = false
+    @State private var exportingList = false
 
     var body: some View {
         ScrollView {
@@ -225,6 +226,13 @@ struct LocationDetailView: View {
                         editingLocation = true
                     } label: {
                         Label("Edit This Location", systemImage: "pencil")
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+
+                    Button {
+                        exportingList = true
+                    } label: {
+                        Label("Export List", systemImage: "square.and.arrow.up")
                     }
                     .buttonStyle(SecondaryButtonStyle())
 
@@ -273,6 +281,9 @@ struct LocationDetailView: View {
             AddEquipmentView(locationId: locationId, locationName: detail?.location.name ?? title) {
                 Task { await load() }
             }
+        }
+        .sheet(isPresented: $exportingList) {
+            LocationExportSheet(locationId: locationId)
         }
         .refreshable { await load() }
         .task { await load() }

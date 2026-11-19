@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
-import { DOCUMENT_CATEGORIES } from '#shared/utils/domain'
+import { DOCUMENT_CATEGORIES, DOCUMENT_SCAN_CATEGORIES } from '#shared/utils/domain'
 import { chassis, containers, documents, locations, trips } from '../../database/schema'
 import { and, eq, isNull } from 'drizzle-orm'
+import { useDocScanWorker } from '../../services/docscan'
 import { assertUploadAllowed, buildStorageKey, useObjectStorage } from '../../services/storage'
 import { requireAuth } from '../../utils/session'
 
@@ -43,9 +44,24 @@ export default defineEventHandler(async (event) => {
 
   const match = DATA_URL_RE.exec(body.dataUrl)
   if (!match) throw createError({ statusCode: 422, statusMessage: 'The file could not be read.' })
-  const mimeType = match[1]!.toLowerCase()
-  const bytes = Buffer.from(match[2]!, 'base64')
+  let mimeType = match[1]!.toLowerCase()
+  let bytes = Buffer.from(match[2]!, 'base64')
   assertUploadAllowed(mimeType, bytes.byteLength)
+
+  // A paper form photographed (not a photo of equipment) gets cleaned up
+  // once, here, before it is ever stored — flattened, de-shadowed and
+  // sharpened so it reads like a scan rather than a snapshot. Still just a
+  // JPEG afterward: it goes out over SMS/MMS the same as any other photo.
+  // Best-effort: if the worker is unavailable or the photo is unusual
+  // enough to trip it up, the original photo is stored untouched rather
+  // than losing the capture over a cleanup failure.
+  if (mimeType.startsWith('image/') && (DOCUMENT_SCAN_CATEGORIES as readonly string[]).includes(body.category)) {
+    const scanned = await useDocScanWorker().restore(bytes)
+    if (scanned.ok && scanned.image) {
+      bytes = scanned.image
+      mimeType = 'image/jpeg'
+    }
+  }
 
   let { containerId, chassisId } = body
   if (body.tripId) {
@@ -90,8 +106,15 @@ export default defineEventHandler(async (event) => {
     if (twin) return { document: twin }
   }
 
+  // Keep the stored name's extension honest when scan cleanup re-encoded
+  // the photo as a JPEG — the bytes behind a ".png"/".heic" name would
+  // otherwise no longer match what the name claims.
+  const fileName = mimeType === 'image/jpeg' && !/\.jpe?g$/i.test(body.fileName)
+    ? `${body.fileName.replace(/\.[^.]+$/, '')}.jpg`
+    : body.fileName
+
   const stored = await useObjectStorage().put(
-    buildStorageKey(auth.companyId, body.category, body.fileName),
+    buildStorageKey(auth.companyId, body.category, fileName),
     bytes,
     mimeType,
   )
@@ -101,7 +124,7 @@ export default defineEventHandler(async (event) => {
     .values({
       companyId: auth.companyId,
       category: body.category,
-      fileName: body.fileName,
+      fileName,
       mimeType,
       sizeBytes: stored.size,
       storageKey: stored.key,
