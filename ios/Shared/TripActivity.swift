@@ -96,4 +96,19 @@ extension TripActivityAttributes.ContentState {
     var arrivalClock: String? { arrivalParts?.clock }
     /// "PM", or nothing where the phone shows a 24-hour clock.
     var arrivalSuffix: String? { arrivalParts?.suffix }
+
+    /// Minutes left on the drive, floored at one so it never reads "0 min" a
+    /// moment before the clock time does.
+    private var ettMinutes: Int? {
+        guard let arriveBy else { return nil }
+        return max(0, Int(arriveBy.timeIntervalSinceNow / 60))
+    }
+
+    /// "18 min" or "1h 05m" — how long is left, spelled out.
+    var ettText: String? {
+        guard let ettMinutes else { return nil }
+        if ettMinutes < 1 { return "<1 min" }
+        if ettMinutes < 60 { return "\(ettMinutes) min" }
+        return "\(ettMinutes / 60)h \(String(format: "%02d", ettMinutes % 60))m"
+    }
 }

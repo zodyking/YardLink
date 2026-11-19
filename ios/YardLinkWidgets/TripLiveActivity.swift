@@ -4,81 +4,55 @@ import WidgetKit
 
 /// The Lock Screen banner and Dynamic Island for a live trip.
 ///
-/// The driver glances at this at 60 mph, so the two numbers that matter — how
-/// far to the drop-off and when they get there — are the biggest things on it,
-/// and everything else sits quietly around a rail that shows the run.
+/// The driver glances at this at 60 mph, so the three numbers that matter —
+/// how long it will take, when they'll pull in, and how far it still is —
+/// sit in one row everyone can read in a glance, with a rail underneath that
+/// shows the run as a whole. Nothing in here is ever placed by raw pixel
+/// offsets near an edge: every piece is either flowed by SwiftUI's own
+/// layout or clamped to the space `GeometryReader` actually reports, so nothing
+/// can land under the sensor housing or past the rounded corners.
 struct TripLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TripActivityAttributes.self) { context in
             LockScreenTrip(state: context.state)
-                .activityBackgroundTint(.clear)
+                .activityBackgroundTint(WidgetBrand.navy)
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             let state = context.state
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    IslandMetric(
-                        value: state.distanceValue ?? "—",
-                        unit: state.distanceUnit ?? "",
-                        caption: "to go",
-                        alignment: .leading
-                    )
+                    BrandMark(compact: true)
+                        .padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    IslandMetric(
-                        value: state.arrivalClock ?? "—",
-                        unit: state.arrivalSuffix ?? "",
-                        caption: "arrive",
-                        alignment: .trailing
-                    )
+                    StatusPill(state: state)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    VStack(spacing: 1) {
-                        StatusFlag(state: state)
-                        Text(state.destination ?? state.equipment)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.white.opacity(0.75))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
+                    Text(state.destination ?? state.equipment)
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 2)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 10) {
-                        RouteRail(state: state, height: 8)
-                        HStack(spacing: 8) {
-                            if !state.equipment.isEmpty {
-                                Chip(text: state.equipment, symbol: "shippingbox.fill")
-                            }
-                            Spacer(minLength: 0)
-                            if let countdown = state.arriveBy, countdown > .now {
-                                Text(countdown, style: .relative)
-                                    .font(.caption2.weight(.semibold))
-                                    .monospacedDigit()
-                                    .foregroundStyle(WidgetBrand.sky)
-                                    .lineLimit(1)
-                                    .frame(maxWidth: 92, alignment: .trailing)
-                            }
-                            if let next = state.next {
-                                Chip(text: next, symbol: "arrow.forward", filled: true)
-                            }
-                        }
+                        StatRow(state: state)
+                        RouteRail(state: state, height: 7)
                     }
                     .padding(.top, 2)
                 }
             } compactLeading: {
-                ZStack {
-                    Circle().fill(WidgetBrand.linkBlue.opacity(0.22))
-                    Image(systemName: stageSymbol(state.stage))
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(WidgetBrand.sky)
-                }
-                .frame(width: 22, height: 22)
+                TruckBadge(stage: state.stage, diameter: 22)
             } compactTrailing: {
-                Text(state.distanceText ?? shortStatus(state.stage))
+                Text(state.ettText ?? state.distanceText ?? shortStatus(state.stage))
                     .font(.caption2.weight(.bold))
                     .monospacedDigit()
                     .contentTransition(.numericText())
                     .foregroundStyle(WidgetBrand.sky)
+                    .lineLimit(1)
+                    .frame(maxWidth: 68)
             } minimal: {
                 ProgressRing(progress: state.progress, stage: state.stage)
             }
@@ -96,9 +70,24 @@ private struct LockScreenTrip: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
-            numbers
-            RouteRail(state: state, height: 10)
-            footer
+            VStack(alignment: .leading, spacing: 2) {
+                Text(state.destination ?? "Drop-off")
+                    .font(.system(size: 19, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                if !state.equipment.isEmpty {
+                    Text(state.equipment)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(1)
+                }
+            }
+            StatRow(state: state)
+            RouteRail(state: state, height: 9)
+            if let next = state.next {
+                Chip(text: next, symbol: "arrow.forward", filled: true)
+            }
         }
         .padding(16)
         .background(Backdrop())
@@ -106,61 +95,10 @@ private struct LockScreenTrip: View {
     }
 
     private var header: some View {
-        HStack(spacing: 7) {
-            Circle()
-                .fill(state.stage >= 3 ? WidgetBrand.ok : WidgetBrand.sky)
-                .frame(width: 7, height: 7)
-                .shadow(color: WidgetBrand.sky.opacity(0.8), radius: 4)
-            Text(state.statusText.uppercased())
-                .font(.caption2.weight(.heavy))
-                .kerning(1.1)
-                .foregroundStyle(WidgetBrand.sky)
-            Spacer()
-            Text("YARD LINK")
-                .font(.system(size: 9, weight: .black))
-                .kerning(1.6)
-                .foregroundStyle(.white.opacity(0.35))
-        }
-    }
-
-    private var numbers: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 14) {
-            Metric(
-                value: state.distanceValue ?? "—",
-                unit: state.distanceUnit ?? "",
-                caption: state.distanceMeters == nil ? "finding you" : "to drop-off"
-            )
-            Spacer(minLength: 0)
-            Metric(
-                value: state.arrivalClock ?? "—",
-                unit: state.arrivalSuffix ?? "",
-                caption: countdownText,
-                alignment: .trailing
-            )
-        }
-    }
-
-    private var countdownText: String {
-        guard let arriveBy = state.arriveBy, arriveBy > .now else { return "arrival" }
-        let minutes = max(1, Int(arriveBy.timeIntervalSinceNow / 60))
-        return minutes < 60 ? "in \(minutes) min" : "in \(minutes / 60)h \(minutes % 60)m"
-    }
-
-    private var footer: some View {
         HStack(spacing: 8) {
-            Image(systemName: "mappin.and.ellipse")
-                .font(.caption2)
-                .foregroundStyle(WidgetBrand.sky)
-            Text(state.destination ?? "Drop-off")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-            if let next = state.next {
-                Chip(text: next, symbol: "arrow.forward", filled: true)
-            } else if !state.equipment.isEmpty {
-                Chip(text: state.equipment, symbol: "shippingbox.fill")
-            }
+            BrandMark(compact: false)
+            Spacer(minLength: 8)
+            StatusPill(state: state)
         }
     }
 }
@@ -187,65 +125,99 @@ private struct Backdrop: View {
 
 // MARK: - Pieces
 
-/// A number the size of a headline with its unit tucked beside it.
-private struct Metric: View {
-    let value: String
-    let unit: String
-    let caption: String
-    var alignment: HorizontalAlignment = .leading
+/// The Yard Link mark, drawn from the real logo — a small transparent-
+/// background image, never typed-out text standing in for it.
+private struct BrandMark: View {
+    var compact: Bool
 
     var body: some View {
-        VStack(alignment: alignment, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value)
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                Text(unit)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.65))
-            }
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            Text(caption)
-                .font(.system(size: 10, weight: .semibold))
-                .kerning(0.4)
-                .foregroundStyle(WidgetBrand.sky.opacity(0.9))
-        }
+        Image("Logo")
+            .resizable()
+            .scaledToFit()
+            .frame(height: compact ? 15 : 17)
+            .accessibilityLabel("Yard Link")
     }
 }
 
-/// The same metric, sized for the island's corners.
-private struct IslandMetric: View {
-    let value: String
-    let unit: String
-    let caption: String
-    var alignment: HorizontalAlignment = .leading
+/// The three numbers that matter, in one row: how long, what clock time,
+/// how far — each a fixed-width column so the dividers between them never
+/// drift, and none of them can grow past the space this row is given.
+private struct StatRow: View {
+    let state: TripActivityAttributes.ContentState
 
     var body: some View {
-        VStack(alignment: alignment, spacing: -1) {
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(value)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .foregroundStyle(.white)
-                Text(unit)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
+        HStack(spacing: 0) {
+            StatCell(value: state.ettText ?? "—", caption: "ETT")
+            RailDivider()
+            StatCell(value: arrival, caption: "ETA")
+            RailDivider()
+            StatCell(value: distance, caption: "MILES AWAY")
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var arrival: String {
+        guard let clock = state.arrivalClock else { return "—" }
+        guard let suffix = state.arrivalSuffix, !suffix.isEmpty else { return clock }
+        return "\(clock) \(suffix)"
+    }
+
+    private var distance: String {
+        guard let value = state.distanceValue, let unit = state.distanceUnit else { return "—" }
+        return "\(value) \(unit)"
+    }
+}
+
+private struct StatCell: View {
+    let value: String
+    let caption: String
+
+    var body: some View {
+        VStack(spacing: 1) {
+            Text(value)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             Text(caption)
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 9, weight: .bold))
+                .kerning(0.4)
                 .foregroundStyle(WidgetBrand.sky.opacity(0.85))
         }
-        .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : .trailing)
+        .frame(maxWidth: .infinity)
     }
 }
 
-private struct StatusFlag: View {
+/// A hairline that only ever draws between two `StatCell`s, never at an edge.
+private struct RailDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.14))
+            .frame(width: 1, height: 22)
+    }
+}
+
+/// A round badge with the stage's icon, pulsing gently while the trip is
+/// moving so the Dynamic Island never looks frozen even between fixes.
+private struct TruckBadge: View {
+    let stage: Int
+    let diameter: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle().fill(WidgetBrand.linkBlue.opacity(0.22))
+            Image(systemName: stageSymbol(stage))
+                .font(.system(size: diameter * 0.5, weight: .bold))
+                .foregroundStyle(WidgetBrand.sky)
+                .symbolEffect(.pulse, options: .repeating, isActive: stage < 3)
+        }
+        .frame(width: diameter, height: diameter)
+    }
+}
+
+private struct StatusPill: View {
     let state: TripActivityAttributes.ContentState
 
     var body: some View {
@@ -254,9 +226,16 @@ private struct StatusFlag: View {
                 .font(.system(size: 9, weight: .bold))
             Text(state.statusText.uppercased())
                 .font(.system(size: 9, weight: .heavy))
-                .kerning(0.8)
+                .kerning(0.6)
+                .lineLimit(1)
         }
-        .foregroundStyle(WidgetBrand.sky)
+        .foregroundStyle(state.stage >= 3 ? WidgetBrand.ok : WidgetBrand.sky)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule().fill((state.stage >= 3 ? WidgetBrand.ok : WidgetBrand.linkBlue).opacity(0.18))
+        )
+        .fixedSize()
     }
 }
 
@@ -279,8 +258,18 @@ private struct Chip: View {
     }
 }
 
-/// Origin dot, a trail that fills as the miles fall away, the truck sitting
-/// where the driver is, and the flag at the drop-off.
+/// The run as a bar: a dot at pickup, a flag at the drop-off, and the truck
+/// riding the fraction between them — pulsing like the badge above so the
+/// rail reads as live even on a fix that hasn't changed the number yet.
+///
+/// Every marker is placed with `.position(...)` inside the exact size
+/// `GeometryReader` reports, clamped so a marker's own width can never push
+/// it past the capsule's edges. The old version placed markers with
+/// `.offset(x:)` measured from each icon's natural (unsized) position without
+/// allowing for how wide the icon itself was — on a narrow Dynamic Island or
+/// a large Dynamic Type setting, the flag at the end could render partly off
+/// the right edge. This version cannot do that: `x` is always kept inside
+/// `[half, width - half]`.
 private struct RouteRail: View {
     let state: TripActivityAttributes.ContentState
     var height: CGFloat
@@ -298,13 +287,20 @@ private struct RouteRail: View {
 
     var body: some View {
         GeometryReader { box in
-            let inset = height * 1.6
-            let span = max(box.size.width - inset * 2, 1)
-            let x = inset + span * min(max(fraction, 0), 1)
-            ZStack(alignment: .leading) {
+            let markerSize = max(height * 1.9, 16)
+            let half = markerSize / 2
+            let width = box.size.width
+            let midY = box.size.height / 2
+            let span = max(width - markerSize, 1)
+            let truckX = clamp(half + span * min(max(fraction, 0), 1), half, width - half)
+
+            ZStack {
                 Capsule()
                     .fill(Color.white.opacity(0.14))
-                    .frame(height: height * 0.5)
+                    .frame(width: width, height: height * 0.5)
+                    .position(x: width / 2, y: midY)
+
+                let filledWidth = max(truckX - half, 0)
                 Capsule()
                     .fill(
                         LinearGradient(
@@ -313,25 +309,33 @@ private struct RouteRail: View {
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: x, height: height * 0.5)
+                    .frame(width: filledWidth, height: height * 0.5)
+                    .position(x: half + filledWidth / 2, y: midY)
+
                 Circle()
-                    .fill(.white.opacity(0.5))
-                    .frame(width: height * 0.5, height: height * 0.5)
-                    .offset(x: inset - height * 0.25)
+                    .fill(.white.opacity(0.55))
+                    .frame(width: height * 0.6, height: height * 0.6)
+                    .position(x: half, y: midY)
+
                 Image(systemName: "flag.checkered")
-                    .font(.system(size: height * 0.95, weight: .bold))
+                    .font(.system(size: markerSize * 0.6, weight: .bold))
                     .foregroundStyle(state.stage >= 2 ? WidgetBrand.ok : .white.opacity(0.55))
-                    .offset(x: box.size.width - inset - height * 0.5)
+                    .position(x: width - half, y: midY)
+
                 Image(systemName: stageSymbol(state.stage))
-                    .font(.system(size: height * 1.15, weight: .black))
+                    .font(.system(size: markerSize * 0.68, weight: .black))
                     .foregroundStyle(.white)
                     .shadow(color: WidgetBrand.linkBlue.opacity(0.9), radius: 5)
-                    .offset(x: x - height * 0.9)
+                    .symbolEffect(.pulse, options: .repeating, isActive: state.stage < 3)
+                    .position(x: truckX, y: midY)
             }
-            .frame(height: box.size.height, alignment: .center)
             .animation(.smooth, value: fraction)
         }
-        .frame(height: height * 1.6)
+        .frame(height: max(height * 1.9, 16))
+    }
+
+    private func clamp(_ value: CGFloat, _ low: CGFloat, _ high: CGFloat) -> CGFloat {
+        min(max(value, low), high)
     }
 }
 

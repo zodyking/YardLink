@@ -125,10 +125,13 @@ final class ArrivalWatch: NSObject, ObservableObject {
     }
 
     /// Follow the phone along the drive, so the Lock Screen and Dynamic Island can
-    /// show the distance left. Only while a trip is live, and a fix every 100 m.
+    /// show the distance left. A fix every 20 m — tight enough that the last
+    /// stretch into a yard, where the distance left is smallest and matters
+    /// most, still gets updates instead of going quiet.
     private func startTracking() {
         manager.activityType = .automotiveNavigation
-        manager.distanceFilter = 100
+        manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        manager.distanceFilter = 20
         // A paused feed never resumes on its own, which would freeze the
         // distance on the Lock Screen at whatever it last read.
         manager.pausesLocationUpdatesAutomatically = false
@@ -138,6 +141,7 @@ final class ArrivalWatch: NSObject, ObservableObject {
     }
 
     private func stopTracking() {
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         manager.pausesLocationUpdatesAutomatically = true
         manager.stopUpdatingLocation()
         manager.allowsBackgroundLocationUpdates = false

@@ -64,29 +64,49 @@ enum TripActivityCenter {
             guard tripId != nil else { return }
             speed = TripEstimate.smoothed(speed, with: reading)
             let straight = TripEstimate.straightMeters(fromLatitude: latitude, longitude: longitude, to: site)
+            let arrivalRadius = max(80, site.radiusMeters)
+            // Once the phone is near the circle a road-route answer from a
+            // minute ago is more likely to be wrong than the straight line is:
+            // yard roads are not in Apple Maps, and the drive is nearly over
+            // anyway. Switch to the phone's own position and stop asking.
+            let arriving = straight <= arrivalRadius * 1.5
 
-            // Ask Apple Maps once a minute, or after a good stretch of driving;
-            // in between, scale its last answer by how much closer the phone is.
-            if !asking, needsRoute(latitude: latitude, longitude: longitude) {
-                asking = true
-                let id = tripId
-                let answer = await TripEstimate.route(fromLatitude: latitude, longitude: longitude, to: site)
-                asking = false
-                if let answer, id == tripId {
-                    route = (answer, max(straight, 1), Date(), latitude, longitude)
+            if arriving {
+                route = nil
+                meters = straight
+                seconds = TripEstimate.seconds(forMeters: straight, speed: speed)
+            } else {
+                // Ask Apple Maps once a minute, or after a good stretch of
+                // driving; in between, scale its last answer by how much
+                // closer the phone is.
+                if !asking, needsRoute(latitude: latitude, longitude: longitude) {
+                    asking = true
+                    let id = tripId
+                    let answer = await TripEstimate.route(fromLatitude: latitude, longitude: longitude, to: site)
+                    asking = false
+                    if let answer, id == tripId {
+                        route = (answer, max(straight, 1), Date(), latitude, longitude)
+                    }
+                }
+                if let route {
+                    let ratio = min(1, straight / route.straight)
+                    meters = route.answer.meters * ratio
+                    seconds = route.answer.seconds * ratio
+                } else {
+                    meters = straight * TripEstimate.roadFactor
+                    seconds = TripEstimate.seconds(forMeters: meters ?? 0, speed: self.speed)
                 }
             }
-            if let route {
-                let ratio = min(1, straight / route.straight)
-                meters = route.answer.meters * ratio
-                seconds = route.answer.seconds * ratio
-            } else {
-                meters = straight * TripEstimate.roadFactor
-                seconds = TripEstimate.seconds(forMeters: meters ?? 0, speed: self.speed)
-            }
             if startMeters == nil { startMeters = meters }
-            // A fix every hundred metres is plenty; the countdown ticks on its own.
-            if let sent, let meters, abs(sent.meters - meters) < 100, Date().timeIntervalSince(sent.at) < 60 { return }
+            // Close to the drop-off every fix goes straight to the Lock
+            // Screen — that is exactly where the number matters most and
+            // where it used to go stale. Further out, a fix every 50 m or 20
+            // seconds is plenty; the countdown ticks on its own in between.
+            let closeRange = (meters ?? .greatestFiniteMagnitude) <= arrivalRadius * 2
+            if !closeRange, let sent, let meters,
+               abs(sent.meters - meters) < 50, Date().timeIntervalSince(sent.at) < 20 {
+                return
+            }
             await push(forceStart: false)
         }
 
@@ -120,7 +140,15 @@ enum TripActivityCenter {
 
         private func push(forceStart: Bool) async {
             guard let tripId, let state = current() else { return }
-            let content = ActivityContent(state: state, staleDate: nil)
+            // If nothing pushes a fresher number within three minutes — the
+            // app got killed and region monitoring cannot wake it, the phone
+            // lost signal, whatever the reason — iOS dims the Dynamic Island
+            // and Lock Screen on its own rather than let them sit there
+            // looking current when they are not. That is the one part of
+            // this that cannot be done from inside the app: nothing Yard
+            // Link runs gets a chance to act at the instant the app is
+            // swiped away, by design, on every iPhone.
+            let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(180))
             let running = Activity<TripActivityAttributes>.activities
             if let same = running.first(where: { $0.attributes.tripId == tripId }) {
                 await same.update(content)

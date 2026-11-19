@@ -60,6 +60,7 @@
 		A1B2C3D400000000000000AA /* WidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000087 /* WidgetTheme.swift */; };
 		A1B2C3D400000000000000AB /* WidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000088 /* WidgetData.swift */; };
 		A1B2C3D400000000000000AC /* YardLinkWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000008B /* YardLinkWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A1B2C3D400000000000001A1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000001A0 /* Assets.xcassets */; };
 		A1B2C3D400000000000000AD /* TripActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000008D /* TripActivity.swift */; };
 		A1B2C3D400000000000000AE /* TripActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000008D /* TripActivity.swift */; };
 		A1B2C3D400000000000000AF /* TripActivityCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000008E /* TripActivityCenter.swift */; };
@@ -173,6 +174,7 @@
 		A1B2C3D40000000000000088 /* WidgetData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetData.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000089 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1B2C3D4000000000000008A /* YardLinkWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = YardLinkWidgets.entitlements; sourceTree = "<group>"; };
+		A1B2C3D400000000000001A0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1B2C3D4000000000000008B /* YardLinkWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = YardLinkWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1B2C3D4000000000000008C /* WidgetSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSync.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000008D /* TripActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripActivity.swift; sourceTree = "<group>"; };
@@ -319,6 +321,7 @@
 				A1B2C3D40000000000000086 /* ToggleTaskIntent.swift */,
 				A1B2C3D40000000000000088 /* WidgetData.swift */,
 				A1B2C3D4000000000000008F /* TripLiveActivity.swift */,
+				A1B2C3D400000000000001A0 /* Assets.xcassets */,
 				A1B2C3D40000000000000089 /* Info.plist */,
 				A1B2C3D4000000000000008A /* YardLinkWidgets.entitlements */,
 			);
@@ -508,6 +511,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D400000000000001A1 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
