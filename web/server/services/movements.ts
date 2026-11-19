@@ -1078,11 +1078,12 @@ async function completeBareChassisDropoff(
   auth: AuthContext & { driverId: string },
   trip: Trip,
   input: CompleteDropoffInput,
-): Promise<{ trip: Trip, container: null, replayed: boolean }> {
+): Promise<{ trip: Trip, container: null, replayed: boolean, followOnTrip?: Trip | null }> {
   const now = new Date()
   const detachChassis = Boolean(trip.chassisId) && !input.retainChassis
   const destination = await loadLocation(tx, auth.companyId, input.destinationLocationId)
   const isFinalRelease = dropoffCompletesServiceLife(destination.type)
+  let followOnTrip: Trip | null = null
 
   await recordEvent(tx, {
     id: input.eventId,
@@ -1134,12 +1135,25 @@ async function completeBareChassisDropoff(
     .where(eq(trips.id, trip.id))
     .returning()
 
+  // "Keep with you": this chassis-only trip ends here on paper, but the
+  // driver is still holding the same chassis, so a fresh trip opens right
+  // away — same shape as dropping a container but keeping its chassis.
+  // Without this, the driver was left with no live trip at all and no way
+  // to attach a container from Home until dispatch intervened.
+  if (input.retainChassis && trip.chassisId) {
+    followOnTrip = await continueChassisOnlyTrip(tx, auth, {
+      chassisId: trip.chassisId,
+      originLocationId: input.destinationLocationId,
+      now,
+    })
+  }
+
   await tx
     .update(drivers)
-    .set({ status: 'AVAILABLE', updatedAt: now })
+    .set({ status: followOnTrip ? 'ON_TRIP' : 'AVAILABLE', updatedAt: now })
     .where(eq(drivers.id, auth.driverId))
 
-  return { trip: updatedTrip!, container: null, replayed: false }
+  return { trip: updatedTrip!, container: null, replayed: false, followOnTrip }
 }
 
 export interface CorrectTripSealInput {
@@ -1161,8 +1175,8 @@ export async function correctTripSeal(
     }
 
     const trip = await loadOwnedTrip(tx, auth, input.tripId)
-    if (!(LIVE_TRIP_STATUSES as readonly string[]).includes(trip.status)) {
-      throw createError({ statusCode: 409, statusMessage: 'Seal can only be edited on an active trip.' })
+    if (!(['IN_TRANSIT', 'DROPOFF_IN_PROGRESS', 'COMPLETED'] as string[]).includes(trip.status)) {
+      throw createError({ statusCode: 409, statusMessage: 'Seal can only be edited once the container is loaded.' })
     }
     if (trip.kind === 'BARE_CHASSIS' || !trip.containerId) {
       throw createError({ statusCode: 422, statusMessage: 'Seal is only for a loaded container.' })
@@ -1208,6 +1222,131 @@ export async function correctTripSeal(
 
     const [container] = await tx.select().from(containers).where(eq(containers.id, trip.containerId)).limit(1)
     return { trip: updatedTrip!, container: container ?? null, replayed: false }
+  })
+}
+
+export interface CorrectTripDetailsInput {
+  tripId: string
+  notes?: string | null
+  originLocationId?: string | null
+  destinationLocationId?: string | null
+}
+
+/**
+ * Fix up a trip's own record after the fact — the notes, or which locations
+ * it ran between. Unlike the live-only edits above (the seal, the intended
+ * drop-off), this works on a trip of any status except a cancelled one, so
+ * an old, finished trip — or one just reconstructed to fill a missing-trip
+ * gap — is never stuck showing the wrong thing with no way to fix it.
+ * It never touches equipment, pool state or driver status, so it can't
+ * corrupt anything live.
+ */
+export async function correctTripDetails(
+  db: Database,
+  auth: AuthContext & { driverId: string },
+  input: CorrectTripDetailsInput,
+): Promise<{ trip: Trip }> {
+  return db.transaction(async (tx) => {
+    const trip = await loadOwnedTrip(tx, auth, input.tripId)
+    if (trip.status === 'CANCELLED') {
+      throw createError({ statusCode: 409, statusMessage: 'A cancelled trip cannot be edited.' })
+    }
+
+    const set: Partial<typeof trips.$inferInsert> = { updatedAt: new Date(), version: sql`${trips.version} + 1` }
+    if (input.notes !== undefined) set.driverNotes = input.notes
+    if (input.originLocationId !== undefined) {
+      if (input.originLocationId) await loadLocation(tx, auth.companyId, input.originLocationId)
+      set.originLocationId = input.originLocationId
+    }
+    if (input.destinationLocationId !== undefined) {
+      if (input.destinationLocationId) await loadLocation(tx, auth.companyId, input.destinationLocationId)
+      set.destinationLocationId = input.destinationLocationId
+    }
+
+    const [updatedTrip] = await tx
+      .update(trips)
+      .set(set)
+      .where(eq(trips.id, trip.id))
+      .returning()
+
+    return { trip: updatedTrip! }
+  })
+}
+
+export interface RecordMissingTripInput {
+  priorTripId: string
+  nextTripId: string
+}
+
+/**
+ * A gap between two trips where the driver confirms a trip is genuinely
+ * missing — not a bobtail — used to just discard the gap with nothing to
+ * show for it. Now it gets a real trip row of its own, bridging the same
+ * two locations, so it shows up in history and can be filled in (via
+ * correctTripDetails) with what actually moved.
+ */
+export async function recordMissingTrip(
+  db: Database,
+  auth: AuthContext,
+  input: RecordMissingTripInput,
+): Promise<Trip> {
+  return db.transaction(async (tx) => {
+    const [prior] = await tx.select().from(trips)
+      .where(and(eq(trips.id, input.priorTripId), eq(trips.companyId, auth.companyId)))
+      .limit(1)
+    const [next] = await tx.select().from(trips)
+      .where(and(eq(trips.id, input.nextTripId), eq(trips.companyId, auth.companyId)))
+      .limit(1)
+
+    if (!prior || !next || !prior.driverId || prior.driverId !== next.driverId) {
+      throw createError({ statusCode: 404, statusMessage: 'Those trips were not found.' })
+    }
+    const driverId: string = prior.driverId
+
+    const reference = await nextTripReference(tx, auth.companyId)
+    const priorEnd = prior.droppedOffAt ?? prior.completedAt ?? prior.updatedAt
+    const nextStart = next.pickedUpAt ?? next.createdAt
+    const pickedUpAt = priorEnd ?? nextStart ?? new Date()
+    const droppedOffAt = nextStart ?? pickedUpAt
+
+    const [trip] = await tx
+      .insert(trips)
+      .values({
+        companyId: auth.companyId,
+        reference,
+        driverId,
+        containerId: null,
+        chassisId: null,
+        originLocationId: prior.destinationLocationId,
+        destinationLocationId: next.originLocationId,
+        kind: 'BARE_CHASSIS',
+        status: 'COMPLETED',
+        isLoaded: false,
+        pickedUpAt,
+        droppedOffAt,
+        completedAt: droppedOffAt,
+        driverNotes: 'Recorded to fill a gap in trip history. Edit this trip to add what actually moved.',
+      })
+      .returning()
+
+    if (!trip) {
+      throw createError({ statusCode: 500, statusMessage: 'Could not record the missing trip.' })
+    }
+
+    await recordEvent(tx, {
+      id: crypto.randomUUID(),
+      companyId: auth.companyId,
+      containerId: null,
+      eventType: 'CORRECTION',
+      occurredAt: pickedUpAt,
+      actorUserId: auth.userId,
+      actorDriverId: driverId,
+      tripId: trip.id,
+      locationId: prior.destinationLocationId,
+      notes: 'Driver confirmed a trip is missing between these two stops.',
+    })
+
+    return trip
   })
 }
 

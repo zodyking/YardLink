@@ -292,6 +292,81 @@ struct SealSheet: View {
     }
 }
 
+// MARK: - Trip notes
+
+/// Correct a trip's notes after the fact. Works on a trip of any status —
+/// old, finished trips and ones recorded to fill a missing-trip gap are
+/// editable here too, not just live ones.
+struct EditTripNotesSheet: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    let tripId: String
+    let onSaved: () -> Void
+
+    @State private var notes: String
+    @State private var saving = false
+    @State private var errorMessage: String?
+
+    init(tripId: String, current: String?, onSaved: @escaping () -> Void) {
+        self.tripId = tripId
+        self.onSaved = onSaved
+        _notes = State(initialValue: current ?? "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 14) {
+                if let errorMessage { ErrorBanner(message: errorMessage) }
+                FieldLabel(text: "Notes")
+                FieldBox {
+                    TextField("Anything dispatch should know", text: $notes, axis: .vertical)
+                        .lineLimit(4...8)
+                }
+                Text("This is saved on the trip, whatever its status.")
+                    .font(.footnote)
+                    .foregroundColor(Brand.muted)
+                Button(saving ? "Saving…" : "Save Notes") { Task { await save() } }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(saving)
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .screenBackground()
+            .navigationTitle("Edit Notes")
+            .navigationBarTitleDisplayMode(.inline)
+            .lightBar()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private struct Payload: Encodable {
+        let notes: String?
+    }
+
+    private func save() async {
+        guard let api = model.api else { return }
+        saving = true
+        errorMessage = nil
+        defer { saving = false }
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            let _: OkResult = try await api.patch(
+                "/api/trips/\(tripId)",
+                body: Payload(notes: trimmed.isEmpty ? nil : trimmed)
+            )
+            onSaved()
+            dismiss()
+        } catch {
+            errorMessage = model.handle(error)
+        }
+    }
+}
+
 // MARK: - Contacts
 
 /// Phone lines at the pickup and the drop-off. Tap to call.

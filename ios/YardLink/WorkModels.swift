@@ -115,6 +115,15 @@ struct TripList: Decodable {
     let gapResolutions: [TripGapAnswer]?
 }
 
+/// What answering a gap sends back: the resolution, and — only for a
+/// freshly recorded missing trip — the id of the trip row it created.
+struct GapResolutionResult: Decodable {
+    let priorTripId: String
+    let nextTripId: String
+    let resolution: String
+    let createdTripId: String?
+}
+
 /// A break in the chain of trips: the earlier one ended somewhere other than
 /// where the later one started. Either a trip was not recorded, or the
 /// driver moved the tractor alone (a bobtail).

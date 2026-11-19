@@ -1,6 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { tripGaps, trips } from '../../database/schema'
+import { recordMissingTrip } from '../../services/movements'
 import { requireAuth } from '../../utils/session'
 import { GAP_RESOLUTIONS } from '#shared/utils/trip-gaps'
 
@@ -51,12 +52,23 @@ export default defineEventHandler(async (event) => {
   }
 
   if (body.resolution === 'MISSING') {
+    // A trip genuinely missing from history gets a real, editable trip row
+    // of its own — not just a cleared flag with nothing to show for it.
+    const created = await recordMissingTrip(db, auth, {
+      priorTripId: body.priorTripId,
+      nextTripId: body.nextTripId,
+    })
     await db.delete(tripGaps).where(and(
       eq(tripGaps.companyId, auth.companyId),
       eq(tripGaps.priorTripId, body.priorTripId),
       eq(tripGaps.nextTripId, body.nextTripId),
     ))
-    return { priorTripId: body.priorTripId, nextTripId: body.nextTripId, resolution: 'MISSING' as const }
+    return {
+      priorTripId: body.priorTripId,
+      nextTripId: body.nextTripId,
+      resolution: 'MISSING' as const,
+      createdTripId: created.id,
+    }
   }
 
   const now = new Date()

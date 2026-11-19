@@ -10,6 +10,7 @@ struct TripsView: View {
     @State private var errorMessage: String?
     @State private var showingCalendar = false
     @State private var pickedDay: Date?
+    @State private var openedTrip: OpenedTrip?
 
     /// Gaps by the later trip, which is the row they are shown above.
     private var gapsByNextTrip: [String: TripGap] {
@@ -107,6 +108,16 @@ struct TripsView: View {
             .navigationDestination(for: TripListItem.self) { trip in
                 TripDetailView(tripId: trip.id, onChanged: { Task { await load() } })
             }
+            .sheet(item: $openedTrip) { opened in
+                NavigationStack {
+                    TripDetailView(tripId: opened.id, onChanged: { Task { await load() } })
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") { openedTrip = nil }
+                            }
+                        }
+                }
+            }
             .refreshable { await load() }
             .task { await load() }
         }
@@ -134,15 +145,23 @@ struct TripsView: View {
         let resolution: String
     }
 
+    /// A trip just opened from a gap resolution, so it can be shown right
+    /// away for editing — identified separately from the main trip list's
+    /// own navigation so it works whether or not the trip is in `trips` yet.
+    private struct OpenedTrip: Identifiable { let id: String }
+
     private func answer(_ gap: TripGap, _ resolution: String) async {
         guard let api = model.api else { return }
         do {
-            let _: OkResult = try await api.post("/api/trips/gaps", body: GapPayload(
+            let result: GapResolutionResult = try await api.post("/api/trips/gaps", body: GapPayload(
                 priorTripId: gap.priorTripId,
                 nextTripId: gap.nextTripId,
                 resolution: resolution
             ))
             await load()
+            if let createdTripId = result.createdTripId {
+                openedTrip = OpenedTrip(id: createdTripId)
+            }
         } catch {
             errorMessage = model.handle(error)
         }
@@ -185,8 +204,12 @@ private struct GapCard: View {
                 Text("The trip before this ended somewhere else. Record the trip that is missing, or confirm you drove there without a chassis.")
                     .font(.footnote)
                     .foregroundColor(Brand.muted)
-                Button("Yes, I Made a Bobtail Move") { onAnswer("BOBTAIL") }
-                    .buttonStyle(DarkButtonStyle())
+                HStack(spacing: 10) {
+                    Button("Record Missing Trip") { onAnswer("MISSING") }
+                        .buttonStyle(DarkButtonStyle())
+                    Button("It Was a Bobtail Move") { onAnswer("BOBTAIL") }
+                        .buttonStyle(SecondaryButtonStyle())
+                }
             }
         }
         .padding(14)
@@ -263,7 +286,7 @@ struct TripDetailView: View {
     @State private var working = false
 
     private enum TripSheet: String, Identifiable {
-        case arrive, destination, seal, update, documents
+        case arrive, destination, seal, update, documents, editNotes
 
         var id: String { rawValue }
     }
@@ -307,6 +330,8 @@ struct TripDetailView: View {
                     SendUpdateSheet(trip: TripUpdateFields(detail))
                 case .documents:
                     DocumentsSheet(scope: .trip(detail.trip.id), containerNumber: detail.container?.number, chassisNumber: detail.chassis?.number)
+                case .editNotes:
+                    EditTripNotesSheet(tripId: detail.trip.id, current: detail.trip.driverNotes ?? detail.trip.notes) {}
                 }
             }
         }
@@ -393,6 +418,17 @@ struct TripDetailView: View {
             .buttonStyle(SecondaryButtonStyle())
             .disabled(TripUpdate.action(for: trip.status) == nil)
         }
+
+        // Old trips and ones reconstructed from a missing-trip gap are
+        // editable too, not just live ones — there is otherwise no way to
+        // fix a note after the fact once a trip is finished.
+        Button {
+            sheet = .editNotes
+        } label: {
+            Label(trip.driverNotes?.isEmpty == false || trip.notes?.isEmpty == false ? "Edit Notes" : "Add Notes", systemImage: "pencil")
+        }
+        .buttonStyle(SecondaryButtonStyle())
+        .disabled(trip.status == "CANCELLED")
 
         if trip.isLive {
             Button("Cancel Trip") { confirmingCancel = true }
