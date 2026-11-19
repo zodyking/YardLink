@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm'
 import type { Database, DbExecutor } from '../utils/db'
 import {
   chassis as chassisTable,
@@ -1285,6 +1285,25 @@ export async function correctTripDetails(
 
     return { trip: updatedTrip! }
   })
+}
+
+/**
+ * Clear every swap pairing on the driver's own trips in one pass — for when
+ * "Swap" was used as the default way to start the next load rather than to
+ * mark an actual same-visit hookup, and most of history ended up tagged
+ * for it. Admins may clear it company-wide instead.
+ */
+export async function clearAllSwapTags(
+  db: Database,
+  auth: AuthContext & { driverId: string },
+  input: { companyWide?: boolean },
+): Promise<{ cleared: number }> {
+  const scoped = input.companyWide && auth.role === 'ADMIN'
+    ? and(eq(trips.companyId, auth.companyId), isNotNull(trips.swapPairTripId))
+    : and(eq(trips.companyId, auth.companyId), eq(trips.driverId, auth.driverId), isNotNull(trips.swapPairTripId))
+
+  const rows = await db.update(trips).set({ swapPairTripId: null, updatedAt: new Date() }).where(scoped).returning({ id: trips.id })
+  return { cleared: rows.length }
 }
 
 export interface RecordMissingTripInput {
