@@ -2,6 +2,7 @@ import { aliasedTable, and, desc, eq, inArray, ne } from 'drizzle-orm'
 import { z } from 'zod'
 import { chassis, containers, locations, tripGaps, trips } from '../../database/schema'
 import { requireAuth } from '../../utils/session'
+import { reconcileSwapPairings } from '../../services/movements'
 import { chassisNumbersFromEvents } from '../../utils/trip-chassis'
 import { TRIP_STATUSES } from '#shared/utils/domain'
 import type { GapResolution } from '#shared/utils/trip-gaps'
@@ -34,6 +35,14 @@ export default defineEventHandler(async (event) => {
   else {
     filters.push(ne(trips.status, 'CANCELLED'))
   }
+
+  // Self-heal before listing: a swap tag that was only ever based on which
+  // button got tapped, not on whether the two halves actually happened at
+  // the same visit, gets cleared here the moment both sides are done and
+  // the timing shows they weren't together. This runs on every list load so
+  // existing mislabeled history corrects itself without a manual fix.
+  const reconcileScope = query.scope === 'mine' || auth.role !== 'ADMIN' ? (auth.driverId ?? null) : null
+  await reconcileSwapPairings(db, auth.companyId, reconcileScope)
 
   const items = await db
     .select({

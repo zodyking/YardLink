@@ -11,16 +11,6 @@ struct TripsView: View {
     @State private var showingCalendar = false
     @State private var pickedDay: Date?
     @State private var openedTrip: OpenedTrip?
-    @State private var confirmingClearSwaps = false
-    @State private var clearingSwaps = false
-
-    /// How many of the loaded trips still carry a swap pairing — "Swap"
-    /// tends to get tapped as the fast way to grab a container already
-    /// parked at a customer, far more often than there are real same-visit
-    /// hookups, so this can run well past what's actually a swap.
-    private var swapTaggedCount: Int {
-        trips.filter { $0.swapPairTripId != nil }.count
-    }
 
     /// Gaps by the later trip, which is the row they are shown above.
     private var gapsByNextTrip: [String: TripGap] {
@@ -47,19 +37,6 @@ struct TripsView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     PageHeader("Trips") {
-                        if swapTaggedCount > 0 {
-                            Menu {
-                                Button(role: .destructive) {
-                                    confirmingClearSwaps = true
-                                } label: {
-                                    Label("Clear All Swap Tags (\(swapTaggedCount))", systemImage: "arrow.left.arrow.right.circle")
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
-                            }
-                            .buttonStyle(IconButtonStyle())
-                            .accessibilityLabel("Trip list actions")
-                        }
                         Button {
                             showingCalendar.toggle()
                             if !showingCalendar { pickedDay = nil }
@@ -141,33 +118,8 @@ struct TripsView: View {
                         }
                 }
             }
-            .confirmationDialog(
-                "Clear all swap tags?",
-                isPresented: $confirmingClearSwaps,
-                titleVisibility: .visible
-            ) {
-                Button("Clear \(swapTaggedCount) Swap Tags", role: .destructive) { Task { await clearAllSwapTags() } }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This removes the swap pairing from every one of your trips that has it. It only relabels history — nothing about the equipment or its locations changes.")
-            }
             .refreshable { await load() }
             .task { await load() }
-        }
-    }
-
-    private struct UnswapAllResult: Decodable { let cleared: Int }
-
-    private func clearAllSwapTags() async {
-        guard let api = model.api, !clearingSwaps else { return }
-        clearingSwaps = true
-        defer { clearingSwaps = false }
-        do {
-            let result: UnswapAllResult = try await api.post("/api/trips/unswap-all")
-            await load()
-            CopyToast.show(result.cleared == 1 ? "Cleared 1 swap tag" : "Cleared \(result.cleared) swap tags")
-        } catch {
-            errorMessage = model.handle(error)
         }
     }
 

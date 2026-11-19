@@ -33,6 +33,66 @@ import {
 /** Trip statuses in which a driver still owns the movement. */
 export const LIVE_TRIP_STATUSES = ['PICKUP_IN_PROGRESS', 'IN_TRANSIT', 'DROPOFF_IN_PROGRESS'] as const
 
+/**
+ * A real customer swap is one continuous visit: the driver drops the empty
+ * and hooks the load (or the reverse) within minutes of each other, not a
+ * pickup and a drop-off that merely share a `swapOfTripId` button tap from
+ * sometime earlier. Generous enough to cover paperwork/traffic at the same
+ * stop, tight enough to catch two trips that were never actually together.
+ */
+const SWAP_SAME_VISIT_MS = 3 * 60 * 60 * 1000
+
+/**
+ * Sweeps a driver's (or, for an admin, the whole company's) completed trips
+ * for swap pairings where both halves finished, but far enough apart that
+ * they were never actually the same visit -- and clears the stale tag. Safe
+ * to call on any read path that shows trip history; it only ever removes a
+ * pairing, never adds one, so it's idempotent and side-effect-free besides.
+ */
+export async function reconcileSwapPairings(
+  db: Database,
+  companyId: string,
+  driverId: string | null,
+): Promise<void> {
+  const scope = driverId
+    ? and(eq(trips.companyId, companyId), eq(trips.driverId, driverId), isNotNull(trips.swapPairTripId), eq(trips.status, 'COMPLETED'))
+    : and(eq(trips.companyId, companyId), isNotNull(trips.swapPairTripId), eq(trips.status, 'COMPLETED'))
+
+  const candidates = await db
+    .select({ id: trips.id, swapPairTripId: trips.swapPairTripId, droppedOffAt: trips.droppedOffAt })
+    .from(trips)
+    .where(scope)
+
+  if (!candidates.length) return
+
+  const pairIds = candidates.map(c => c.swapPairTripId).filter((id): id is string => Boolean(id))
+  if (!pairIds.length) return
+
+  const pairs = await db
+    .select({ id: trips.id, droppedOffAt: trips.droppedOffAt, status: trips.status })
+    .from(trips)
+    .where(inArray(trips.id, pairIds))
+  const pairById = new Map(pairs.map(p => [p.id, p]))
+
+  const staleIds = new Set<string>()
+  for (const candidate of candidates) {
+    if (!candidate.swapPairTripId || !candidate.droppedOffAt) continue
+    const pair = pairById.get(candidate.swapPairTripId)
+    if (!pair || pair.status !== 'COMPLETED' || !pair.droppedOffAt) continue
+    if (Math.abs(candidate.droppedOffAt.getTime() - pair.droppedOffAt.getTime()) > SWAP_SAME_VISIT_MS) {
+      staleIds.add(candidate.id)
+      staleIds.add(candidate.swapPairTripId)
+    }
+  }
+
+  if (staleIds.size) {
+    await db
+      .update(trips)
+      .set({ swapPairTripId: null, updatedAt: new Date() })
+      .where(inArray(trips.id, [...staleIds]))
+  }
+}
+
 export interface StartPickupInput {
   eventId: string
   kind?: TripKind
@@ -1285,25 +1345,6 @@ export async function correctTripDetails(
 
     return { trip: updatedTrip! }
   })
-}
-
-/**
- * Clear every swap pairing on the driver's own trips in one pass — for when
- * "Swap" was used as the default way to start the next load rather than to
- * mark an actual same-visit hookup, and most of history ended up tagged
- * for it. Admins may clear it company-wide instead.
- */
-export async function clearAllSwapTags(
-  db: Database,
-  auth: AuthContext & { driverId: string },
-  input: { companyWide?: boolean },
-): Promise<{ cleared: number }> {
-  const scoped = input.companyWide && auth.role === 'ADMIN'
-    ? and(eq(trips.companyId, auth.companyId), isNotNull(trips.swapPairTripId))
-    : and(eq(trips.companyId, auth.companyId), eq(trips.driverId, auth.driverId), isNotNull(trips.swapPairTripId))
-
-  const rows = await db.update(trips).set({ swapPairTripId: null, updatedAt: new Date() }).where(scoped).returning({ id: trips.id })
-  return { cleared: rows.length }
 }
 
 export interface RecordMissingTripInput {
