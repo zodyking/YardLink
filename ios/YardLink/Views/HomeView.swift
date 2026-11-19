@@ -13,6 +13,8 @@ struct HomeView: View {
     @State private var loading = true
     @State private var errorMessage: String?
     @State private var pickup: PickupLaunch?
+    /// A fresh swap pairing waiting on a yes before it's actually started.
+    @State private var pendingSwap: PickupFlow.Mode?
     @State private var sheet: HomeSheet?
     @State private var confirmingCancel = false
     @State private var cancelling = false
@@ -97,6 +99,19 @@ struct HomeView: View {
                 Button("Keep Trip", role: .cancel) {}
             } message: {
                 Text(cancelCopy)
+            }
+            .confirmationDialog(
+                "Start this as a swap?",
+                isPresented: Binding(get: { pendingSwap != nil }, set: { if !$0 { pendingSwap = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Yes, Pair With This Drop-off") {
+                    if let pendingSwap { pickup = PickupLaunch(mode: pendingSwap) }
+                    pendingSwap = nil
+                }
+                Button("Just a New Pickup", role: .cancel) { pendingSwap = nil }
+            } message: {
+                Text("This links the next load to the empty you're dropping here, and marks both trips as a swap in history. If you're not hooking up and driving off right now, start a plain new pickup instead once you've arrived.")
             }
             .refreshable { await load() }
             .task { await load() }
@@ -205,7 +220,15 @@ struct HomeView: View {
                 sheet = .contacts(origin: shown?.origin, destination: shown?.destination)
             }
             HomeAction(symbol: "arrow.left.arrow.right", title: "Swap", enabled: swap != nil) {
-                if let swap { pickup = PickupLaunch(mode: swap) }
+                guard let swap else { return }
+                // Resuming one already in progress needs no fresh say-so;
+                // only pairing a brand new load asks first, since tapping
+                // this used to be the only "determination" a swap ever got.
+                if case .swap = swap {
+                    pendingSwap = swap
+                } else {
+                    pickup = PickupLaunch(mode: swap)
+                }
             }
         }
     }

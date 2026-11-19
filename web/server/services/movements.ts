@@ -1230,16 +1230,23 @@ export interface CorrectTripDetailsInput {
   notes?: string | null
   originLocationId?: string | null
   destinationLocationId?: string | null
+  /**
+   * Clear the swap pairing on this trip and its mate. For when "Swap" got
+   * tapped as a shortcut to start the next pickup rather than because this
+   * was actually a same-visit hookup, and history should not keep calling
+   * it one.
+   */
+  unswap?: boolean
 }
 
 /**
- * Fix up a trip's own record after the fact — the notes, or which locations
- * it ran between. Unlike the live-only edits above (the seal, the intended
- * drop-off), this works on a trip of any status except a cancelled one, so
- * an old, finished trip — or one just reconstructed to fill a missing-trip
- * gap — is never stuck showing the wrong thing with no way to fix it.
- * It never touches equipment, pool state or driver status, so it can't
- * corrupt anything live.
+ * Fix up a trip's own record after the fact — the notes, which locations it
+ * ran between, or whether it should still be paired as a swap. Unlike the
+ * live-only edits above (the seal, the intended drop-off), this works on a
+ * trip of any status except a cancelled one, so an old, finished trip — or
+ * one just reconstructed to fill a missing-trip gap — is never stuck
+ * showing the wrong thing with no way to fix it. It never touches
+ * equipment, pool state or driver status, so it can't corrupt anything live.
  */
 export async function correctTripDetails(
   db: Database,
@@ -1261,6 +1268,13 @@ export async function correctTripDetails(
     if (input.destinationLocationId !== undefined) {
       if (input.destinationLocationId) await loadLocation(tx, auth.companyId, input.destinationLocationId)
       set.destinationLocationId = input.destinationLocationId
+    }
+    if (input.unswap && trip.swapPairTripId) {
+      set.swapPairTripId = null
+      await tx
+        .update(trips)
+        .set({ swapPairTripId: null, updatedAt: new Date() })
+        .where(and(eq(trips.id, trip.swapPairTripId), eq(trips.companyId, auth.companyId)))
     }
 
     const [updatedTrip] = await tx

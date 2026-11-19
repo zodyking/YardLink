@@ -283,6 +283,7 @@ struct TripDetailView: View {
     @State private var resuming = false
     @State private var confirmingCancel = false
     @State private var confirmingDelete = false
+    @State private var confirmingUnswap = false
     @State private var working = false
 
     private enum TripSheet: String, Identifiable {
@@ -349,6 +350,12 @@ struct TripDetailView: View {
             Button("Keep Trip", role: .cancel) {}
         } message: {
             Text("This trip will be removed from history. This cannot be undone.")
+        }
+        .confirmationDialog("Remove the swap tag?", isPresented: $confirmingUnswap, titleVisibility: .visible) {
+            Button("Not a Swap", role: .destructive) { Task { await unswapTrip() } }
+            Button("Keep as Swap", role: .cancel) {}
+        } message: {
+            Text("This clears the swap pairing on both this trip and the one it was linked to.")
         }
     }
 
@@ -429,6 +436,20 @@ struct TripDetailView: View {
         }
         .buttonStyle(SecondaryButtonStyle())
         .disabled(trip.status == "CANCELLED")
+
+        // "Swap" is set the moment that button is tapped to start the next
+        // pickup — a shortcut to grab the container already sitting there,
+        // not necessarily a same-visit hookup the driver meant to call a
+        // swap. This is how to take the tag back off, on either half of it.
+        if trip.swapPairTripId != nil {
+            Button {
+                confirmingUnswap = true
+            } label: {
+                Label("Not a Swap", systemImage: "arrow.left.arrow.right.circle")
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .disabled(working)
+        }
 
         if trip.isLive {
             Button("Cancel Trip") { confirmingCancel = true }
@@ -526,6 +547,23 @@ struct TripDetailView: View {
             let _: OkResult = try await api.delete("/api/trips/\(tripId)")
             onChanged()
             dismiss()
+        } catch {
+            errorMessage = model.handle(error)
+        }
+    }
+
+    private struct UnswapBody: Encodable {
+        let unswap = true
+    }
+
+    private func unswapTrip() async {
+        guard let api = model.api else { return }
+        working = true
+        defer { working = false }
+        do {
+            let _: OkResult = try await api.patch("/api/trips/\(tripId)", body: UnswapBody())
+            await load()
+            onChanged()
         } catch {
             errorMessage = model.handle(error)
         }

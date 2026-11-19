@@ -6,13 +6,14 @@ const schema = z.object({
   notes: z.string().trim().max(2000).nullish(),
   originLocationId: z.string().uuid().nullish(),
   destinationLocationId: z.string().uuid().nullish(),
+  unswap: z.boolean().optional(),
 })
 
 /**
- * Correct a trip's own record: its notes, or which locations it ran
- * between. Works on a trip of any status except a cancelled one — old
- * finished trips, and ones reconstructed to fill a missing-trip gap, are
- * editable here, not just live ones.
+ * Correct a trip's own record: its notes, which locations it ran between,
+ * or whether it's still paired as a swap. Works on a trip of any status
+ * except a cancelled one — old finished trips, and ones reconstructed to
+ * fill a missing-trip gap, are editable here, not just live ones.
  */
 export default defineEventHandler(async (event) => {
   const auth = await requireDriver(event)
