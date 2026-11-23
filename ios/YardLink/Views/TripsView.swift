@@ -144,6 +144,7 @@ struct TripsView: View {
                             }
                         }
                 }
+                .sheetChrome()
             }
             .sheet(item: $recordingTrip) { context in
                 ManualTripEntrySheet(gap: context.gap) { tripId in
@@ -151,6 +152,7 @@ struct TripsView: View {
                     openedTrip = OpenedTrip(id: tripId)
                     Task { await load() }
                 }
+                .sheetChrome()
             }
             .refreshable { await load() }
             .task { await load() }
@@ -400,28 +402,31 @@ struct TripDetailView: View {
         .refreshable { await load() }
         .task { await load() }
         .sheet(item: $sheet, onDismiss: { changed() }) { sheet in
-            if let detail {
-                switch sheet {
-                case .arrive:
-                    ArriveView(detail: detail) { _ in self.sheet = nil }
-                case .destination:
-                    DestinationPickerView(
-                        tripId: detail.trip.id,
-                        currentId: detail.destination?.id,
-                        originId: detail.origin?.id
-                    ) {}
-                case .seal:
-                    SealSheet(tripId: detail.trip.id, current: detail.trip.sealNumber) {}
-                case .update:
-                    SendUpdateSheet(trip: TripUpdateFields(detail))
-                case .documents:
-                    DocumentsSheet(scope: .trip(detail.trip.id), containerNumber: detail.container?.number, chassisNumber: detail.chassis?.number)
-                case .editNotes:
-                    EditTripNotesSheet(tripId: detail.trip.id, current: detail.trip.driverNotes ?? detail.trip.notes) {}
-                case .editCustomer:
-                    EditCustomerSheet(tripId: detail.trip.id, current: detail.trip.customer) {}
+            Group {
+                if let detail {
+                    switch sheet {
+                    case .arrive:
+                        ArriveView(detail: detail) { _ in self.sheet = nil }
+                    case .destination:
+                        DestinationPickerView(
+                            tripId: detail.trip.id,
+                            currentId: detail.destination?.id,
+                            originId: detail.origin?.id
+                        ) {}
+                    case .seal:
+                        SealSheet(tripId: detail.trip.id, current: detail.trip.sealNumber) {}
+                    case .update:
+                        SendUpdateSheet(trip: TripUpdateFields(detail))
+                    case .documents:
+                        DocumentsSheet(scope: .trip(detail.trip.id), containerNumber: detail.container?.number, chassisNumber: detail.chassis?.number)
+                    case .editNotes:
+                        EditTripNotesSheet(tripId: detail.trip.id, current: detail.trip.driverNotes ?? detail.trip.notes) {}
+                    case .editCustomer:
+                        EditCustomerSheet(tripId: detail.trip.id, current: detail.trip.customer) {}
+                    }
                 }
             }
+            .sheetChrome()
         }
         .fullScreenCover(isPresented: $resuming) {
             PickupWizardView(mode: .resume(tripId: tripId), model: model) { changed() }

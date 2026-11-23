@@ -126,6 +126,7 @@ struct LocationAuditView: View {
                 note = "Moved to \(location.name)."
                 await load()
             }
+            .sheetChrome()
         }
         .confirmPrompt(
             "Remove from \(locationName)?",

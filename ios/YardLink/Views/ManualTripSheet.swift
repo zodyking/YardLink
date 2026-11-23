@@ -141,12 +141,14 @@ struct ManualTripEntrySheet: View {
                     originId = location.id
                     originName = location.name
                 }
+                .sheetChrome()
             }
             .sheet(isPresented: $pickingDestination) {
                 LocationPickerSheet(title: "Destination", selectedId: destinationId, excludeId: originId) { location, _ in
                     destinationId = location.id
                     destinationName = location.name
                 }
+                .sheetChrome()
             }
             .onAppear(perform: prefillFromGap)
         }

@@ -51,6 +51,7 @@ struct FuelReceiptsView: View {
         }
         .sheet(isPresented: $capturing) {
             FuelReceiptCaptureSheet(onSaved: { Task { await load() } })
+                .sheetChrome()
         }
         .task { await load() }
         .refreshable { await load() }
@@ -176,6 +177,7 @@ private struct FuelReceiptWeekCard: View {
                 receipt: receipt,
                 onChanged: { Task { await onChanged() } }
             )
+            .sheetChrome()
         }
         .sheet(isPresented: $texting) {
             MessageComposer(body: FuelReceiptMessage.weekly(week), attachments: textAttachments)

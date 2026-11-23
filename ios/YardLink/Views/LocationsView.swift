@@ -103,6 +103,7 @@ struct LocationsView: View {
             .brandScreen()
             .sheet(isPresented: $addingLocation) {
                 LocationFormView { Task { await load() } }
+                    .sheetChrome()
             }
             .navigationDestination(for: LocationListItem.self) { item in
                 LocationDetailView(locationId: item.id, title: item.name)
@@ -284,15 +285,18 @@ struct LocationDetailView: View {
         .sheet(isPresented: $editingLocation) {
             if let detail {
                 LocationFormView(record: detail.location) { Task { await load() } }
+                    .sheetChrome()
             }
         }
         .sheet(isPresented: $addingEquipment) {
             AddEquipmentView(locationId: locationId, locationName: detail?.location.name ?? title) {
                 Task { await load() }
             }
+            .sheetChrome()
         }
         .sheet(isPresented: $exportingList) {
             LocationExportSheet(locationId: locationId)
+                .sheetChrome()
         }
         .refreshable { await load() }
         .task { await load() }

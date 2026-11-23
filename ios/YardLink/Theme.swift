@@ -702,4 +702,16 @@ extension View {
             dismissable: dismissable
         ))
     }
+
+    /// The one consistent shell for every bottom sheet in the app: a visible
+    /// drag indicator, the brand's own corner radius instead of the system
+    /// default, and the page's own mist behind it rather than system white
+    /// showing through at the rounded corners. Call on the view returned
+    /// from a `.sheet { }` closure.
+    func sheetChrome() -> some View {
+        self
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(Brand.radius)
+            .presentationBackground(Brand.mist)
+    }
 }

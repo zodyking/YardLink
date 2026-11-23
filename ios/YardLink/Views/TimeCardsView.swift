@@ -373,6 +373,7 @@ private struct StopEditor: View {
                 stop.location = location.name
                 stop.locationId = location.id
             }
+            .sheetChrome()
         }
     }
 

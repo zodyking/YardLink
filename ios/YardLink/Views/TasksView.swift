@@ -73,6 +73,7 @@ struct TasksView: View {
                     addingNote = false
                     tasks.insert(task, at: 0)
                 }
+                .sheetChrome()
             }
             .fullScreenCover(isPresented: $startingPickup) {
                 PickupWizardView(mode: .new, model: model) {
@@ -205,6 +206,7 @@ private struct TaskCardView: View {
 
     private func stepsSheet() -> some View {
         TaskStepsView(task: task, onSaved: onSaved)
+            .sheetChrome()
     }
 
     private var statusLabel: String {

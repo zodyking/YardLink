@@ -108,22 +108,25 @@ struct ContainerDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .lightBar()
         .sheet(item: $sheet) { sheet in
-            if let detail {
-                switch sheet {
-                case .edit:
-                    ContainerEditView(detail: detail) { Task { await load() } }
-                case .move:
-                    MoveContainerView(containerId: containerId, currentLocationId: detail.currentLocation?.id) { Task { await load() } }
-                case .photos:
-                    DocumentsSheet(scope: .container(containerId), containerNumber: detail.container.number, chassisNumber: nil)
-                case .shipcsx:
-                    ShipcsxCheckView(
-                        containerId: containerId,
-                        containerNumber: detail.container.number,
-                        suggestedTerminal: detail.suggestedTerminal
-                    ) { Task { await load() } }
+            Group {
+                if let detail {
+                    switch sheet {
+                    case .edit:
+                        ContainerEditView(detail: detail) { Task { await load() } }
+                    case .move:
+                        MoveContainerView(containerId: containerId, currentLocationId: detail.currentLocation?.id) { Task { await load() } }
+                    case .photos:
+                        DocumentsSheet(scope: .container(containerId), containerNumber: detail.container.number, chassisNumber: nil)
+                    case .shipcsx:
+                        ShipcsxCheckView(
+                            containerId: containerId,
+                            containerNumber: detail.container.number,
+                            suggestedTerminal: detail.suggestedTerminal
+                        ) { Task { await load() } }
+                    }
                 }
             }
+            .sheetChrome()
         }
         .confirmPrompt(
             "Delete this container?",
@@ -339,6 +342,7 @@ struct ChassisDetailView: View {
         .sheet(isPresented: $editing) {
             if let detail {
                 ChassisEditView(chassis: detail.chassis) { Task { await load() } }
+                    .sheetChrome()
             }
         }
         .confirmPrompt(

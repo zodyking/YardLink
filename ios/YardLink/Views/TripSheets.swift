@@ -987,6 +987,7 @@ struct DriverDocumentsSheet: View {
             .sheet(item: $opened, onDismiss: { Task { await load() } }) { group in
                 DocumentsSheet(scope: .trip(group.tripId), containerNumber: group.containerNumber, chassisNumber: group.chassisNumber)
                     .environmentObject(model)
+                    .sheetChrome()
             }
             .task { await load() }
         }

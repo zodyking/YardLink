@@ -337,25 +337,28 @@ struct HomeView: View {
 
     @ViewBuilder
     private func sheetContent(_ sheet: HomeSheet) -> some View {
-        switch sheet {
-        case .messages:
-            MessagesView(user: user)
-        case .arrive(let tripId):
-            ArriveSheet(tripId: tripId) { arrived in
-                if arrived { arrivedTripId = tripId }
-                self.sheet = nil
+        Group {
+            switch sheet {
+            case .messages:
+                MessagesView(user: user)
+            case .arrive(let tripId):
+                ArriveSheet(tripId: tripId) { arrived in
+                    if arrived { arrivedTripId = tripId }
+                    self.sheet = nil
+                }
+            case .destination(let tripId, let currentId, let originId):
+                DestinationPickerView(tripId: tripId, currentId: currentId, originId: originId) {}
+            case .seal(let tripId, let current):
+                SealSheet(tripId: tripId, current: current) {}
+            case .update(let trip, let dropped):
+                SendUpdateSheet(trip: trip, swapDropped: dropped)
+            case .contacts(let origin, let destination):
+                ContactsSheet(origin: origin, destination: destination)
+            case .documents:
+                DriverDocumentsSheet()
             }
-        case .destination(let tripId, let currentId, let originId):
-            DestinationPickerView(tripId: tripId, currentId: currentId, originId: originId) {}
-        case .seal(let tripId, let current):
-            SealSheet(tripId: tripId, current: current) {}
-        case .update(let trip, let dropped):
-            SendUpdateSheet(trip: trip, swapDropped: dropped)
-        case .contacts(let origin, let destination):
-            ContactsSheet(origin: origin, destination: destination)
-        case .documents:
-            DriverDocumentsSheet()
         }
+        .sheetChrome()
     }
 
     // MARK: What Home shows

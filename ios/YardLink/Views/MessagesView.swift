@@ -65,6 +65,7 @@ struct MessagesView: View {
                     pickingContact = false
                     Task { await start(with: contact) }
                 }
+                .sheetChrome()
             }
             .onChange(of: rootTap.event) { event in
                 // Tapping Messages again while already there pops back to it.
