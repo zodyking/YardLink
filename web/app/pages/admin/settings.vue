@@ -10,7 +10,7 @@ useHead({ title: 'Settings' })
 
 interface SettingsPayload {
   company: { id: string, name: string, legalName: string | null, usdotNumber: string | null, timezone: string, inviteCode: string }
-  settings: { publicUrl: string, shipcsxDefaultTerminal: string, shipcsxPoll: boolean, approveNewAccounts: boolean }
+  settings: { publicUrl: string, shipcsxDefaultTerminal: string, shipcsxPoll: boolean, approveNewAccounts: boolean, timeCardOfficePhone: string, timeCardDispatchPhone: string, timeCardReportingLocation: string }
   email: { configured: boolean, host: string, port: number, user: string, fromName: string, fromEmail: string, hasPassword: boolean }
   push: { configured: boolean, keyId: string, teamId: string, bundleId: string, sandbox: boolean, hasKey: boolean }
   database: { source: 'builtin' | 'wizard' | 'env', external: boolean, label: string }
@@ -43,6 +43,9 @@ const form = reactive({
   shipcsxDefaultTerminal: '',
   shipcsxPoll: false,
   approveNewAccounts: true,
+  timeCardOfficePhone: '',
+  timeCardDispatchPhone: '',
+  timeCardReportingLocation: '',
 })
 
 /* Outgoing email has its own form: it is checked against the mail server
@@ -166,6 +169,9 @@ function fill() {
   form.shipcsxDefaultTerminal = data.value.settings.shipcsxDefaultTerminal
   form.shipcsxPoll = data.value.settings.shipcsxPoll
   form.approveNewAccounts = data.value.settings.approveNewAccounts
+  form.timeCardOfficePhone = data.value.settings.timeCardOfficePhone
+  form.timeCardDispatchPhone = data.value.settings.timeCardDispatchPhone
+  form.timeCardReportingLocation = data.value.settings.timeCardReportingLocation
 }
 watch(data, fill, { immediate: true })
 
@@ -212,6 +218,11 @@ const saveAccounts = () => save('accounts', { approveNewAccounts: form.approveNe
 const saveShipcsx = () => save('shipcsx', {
   shipcsxDefaultTerminal: form.shipcsxDefaultTerminal,
   shipcsxPoll: form.shipcsxPoll,
+})
+const saveTimeCard = () => save('timeCard', {
+  timeCardOfficePhone: form.timeCardOfficePhone,
+  timeCardDispatchPhone: form.timeCardDispatchPhone,
+  timeCardReportingLocation: form.timeCardReportingLocation,
 })
 
 const confirmNewCode = ref(false)
@@ -473,6 +484,60 @@ const countCards = computed(() => {
           :disabled="saving === 'profile'"
         >
           {{ saving === 'profile' ? 'Saving…' : saved === 'profile' ? 'Saved' : 'Save profile' }}
+        </button>
+      </form>
+
+      <!-- ── Time card branding ──────────────────────────────────── -->
+      <div class="section-label">
+        <span>Time card</span>
+      </div>
+      <form
+        class="card p-5 settings-form"
+        @submit.prevent="saveTimeCard"
+      >
+        <p class="field-hint">
+          Printed on the time card PDF. Company name comes from the profile above. Leave a field empty to leave it off the printed card.
+        </p>
+        <div class="settings-grid">
+          <label class="field">
+            <span>Office phone</span>
+            <input
+              v-model="form.timeCardOfficePhone"
+              class="input mono"
+              type="tel"
+              maxlength="40"
+              placeholder="(555) 555-5555"
+            >
+          </label>
+          <label class="field">
+            <span>Dispatch phone</span>
+            <input
+              v-model="form.timeCardDispatchPhone"
+              class="input mono"
+              type="tel"
+              maxlength="40"
+              placeholder="(555) 555-5555"
+            >
+          </label>
+          <label class="field settings-wide">
+            <span>Normal reporting location</span>
+            <input
+              v-model="form.timeCardReportingLocation"
+              class="input"
+              maxlength="160"
+              placeholder="Address or intersection drivers report to"
+            >
+          </label>
+        </div>
+        <p class="field-hint">
+          The second page lists your own saved locations and their phone numbers automatically — add or edit them under Locations.
+        </p>
+        <button
+          class="btn-primary-action settings-save"
+          type="submit"
+          :disabled="saving === 'timeCard'"
+        >
+          {{ saving === 'timeCard' ? 'Saving…' : saved === 'timeCard' ? 'Saved' : 'Save time card' }}
         </button>
       </form>
 

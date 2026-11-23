@@ -11,6 +11,36 @@ export type TimeCardDrawOp = {
   topY: number
   size: number
   text: string
+  bold?: boolean
+}
+
+/**
+ * Employer-supplied values that replace the predecessor company's real
+ * name, phone numbers, and "normal reporting location" baked into the
+ * template — see `TIME_CARD_BRANDING_COVERS`. All blank unless the employer
+ * has set them in Settings; a blank value is simply left off the printed
+ * card rather than guessed.
+ */
+export interface TimeCardBranding {
+  companyName: string
+  officePhone: string
+  dispatchPhone: string
+  reportingLocation: string
+}
+
+/** One row of the page-2 location directory. */
+export interface TimeCardDirectoryEntry {
+  name: string
+  address: string
+  phone: string
+}
+
+export interface TimeCardCoverRect {
+  x: number
+  /** Distance from the top of the page, same system as the template PDF. */
+  topY: number
+  width: number
+  height: number
 }
 
 const HEADER: Record<string, { x: number, topY: number, size?: number, max?: number }> = {
@@ -42,6 +72,26 @@ const SIGN = {
 /** The driver signs the printed card by hand, so only the shift totals are filled. */
 export const TIME_CARD_FILL_FOOTER = true
 
+/**
+ * Regions on page 1 that name the predecessor company ("Sensible Logistics
+ * Solutions LLC") in the baked-in template image — covered in white and
+ * redrawn with this employer's own branding. Measured directly off the
+ * template with `pdftotext -bbox`; margins are generous enough to fully
+ * clear the baked text without touching a neighboring label.
+ */
+export const TIME_CARD_BRANDING_COVERS: TimeCardCoverRect[] = [
+  { x: 120, topY: 14, width: 340, height: 38 }, // company name
+  { x: 464, topY: 28, width: 84, height: 12 }, // office phone
+  { x: 464, topY: 54, width: 84, height: 14 }, // dispatch phone
+  { x: 185, topY: 171, width: 365, height: 13 }, // normal reporting location
+]
+
+/** Page-2 location directory: columns and paging for the replacement page. */
+export const TIME_CARD_DIRECTORY_ROWS_PER_PAGE = 36
+export const TIME_CARD_DIRECTORY_ROW_H = 16.5
+export const TIME_CARD_DIRECTORY_TOP = 112
+export const TIME_CARD_DIRECTORY_COLS = { name: 40, address: 210, phone: 470 }
+
 const ROW0_TOP = 220
 const ROW_H = 15.85
 const COL = {
@@ -56,6 +106,16 @@ export function timeCardPdfY(topY: number): number {
   return TIME_CARD_PAGE_HEIGHT - topY + 2
 }
 
+/**
+ * Bottom-left y for a rectangle whose top edge sits `topY` from the page
+ * top and is `height` tall — the exact conversion, unlike `timeCardPdfY`,
+ * which nudges a text baseline and would throw a cover rectangle's edges
+ * off by that same couple of points.
+ */
+export function timeCardPdfRectY(topY: number, height: number): number {
+  return TIME_CARD_PAGE_HEIGHT - topY - height
+}
+
 export function clipTimeCardText(value: string, maxChars: number): string {
   const text = value.replace(/\s+/g, ' ').trim()
   if (text.length <= maxChars) return text
@@ -67,10 +127,24 @@ export function timeCardRowTopY(index: number): number {
   return ROW0_TOP + (index + 1) * ROW_H - 4
 }
 
-function op(x: number, topY: number, text: string, max: number, size = 9): TimeCardDrawOp | null {
+function op(x: number, topY: number, text: string, max: number, size = 9, bold = false): TimeCardDrawOp | null {
   const clipped = clipTimeCardText(text, max)
   if (!clipped) return null
-  return { x, topY, size, text: clipped }
+  return { x, topY, size, text: clipped, bold }
+}
+
+/** Overlay positions for the employer branding that replaces the baked-in regions on page 1. */
+export function timeCardBrandingPlan(branding: TimeCardBranding): TimeCardDrawOp[] {
+  const ops: TimeCardDrawOp[] = []
+  const name = op(126, 40, branding.companyName, 40, 15, true)
+  if (name) ops.push(name)
+  const officePhone = op(468, 36, branding.officePhone, 18, 9)
+  if (officePhone) ops.push(officePhone)
+  const dispatchPhone = op(468, 63, branding.dispatchPhone, 18, 9)
+  if (dispatchPhone) ops.push(dispatchPhone)
+  const reportingLocation = op(190, 179, branding.reportingLocation, 78, 9)
+  if (reportingLocation) ops.push(reportingLocation)
+  return ops
 }
 
 /** Overlay positions for every filled field on page 1 of the printed card. */

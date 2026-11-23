@@ -1,7 +1,9 @@
-import { getDriverTimeCard } from '../../../services/time-cards'
+import { getDriverTimeCard, loadTimeCardDirectory } from '../../../services/time-cards'
 import { fillTimeCardPdf } from '../../../services/time-card-pdf'
+import { loadCompanySettings } from '../../../utils/settings'
 import { requireDriver } from '../../../utils/session'
 import { timeCardPdfFileName } from '#shared/utils/time-card'
+import type { TimeCardBranding } from '#shared/utils/time-card-layout'
 
 /** Exact two-page short-haul PDF, filled from the day's card. */
 export default defineEventHandler(async (event) => {
@@ -12,8 +14,19 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const card = await getDriverTimeCard(useDb(), auth, workDate)
-    const bytes = await fillTimeCardPdf(card.header, card.stops)
+    const db = useDb()
+    const [card, settings, directory] = await Promise.all([
+      getDriverTimeCard(db, auth, workDate),
+      loadCompanySettings(db),
+      loadTimeCardDirectory(db, auth.companyId),
+    ])
+    const branding: TimeCardBranding = {
+      companyName: auth.companyName,
+      officePhone: settings.timeCardOfficePhone,
+      dispatchPhone: settings.timeCardDispatchPhone,
+      reportingLocation: settings.timeCardReportingLocation,
+    }
+    const bytes = await fillTimeCardPdf(card.header, card.stops, branding, directory)
     const fileName = timeCardPdfFileName(card.workDate)
     const download = getQuery(event).download === '1'
     const body = Buffer.from(bytes)

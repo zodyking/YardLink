@@ -25,6 +25,9 @@ const schema = z.object({
   shipcsxDefaultTerminal: z.string().trim().max(80).optional(),
   shipcsxPoll: z.boolean().optional(),
   approveNewAccounts: z.boolean().optional(),
+  timeCardOfficePhone: z.string().trim().max(40).optional(),
+  timeCardDispatchPhone: z.string().trim().max(40).optional(),
+  timeCardReportingLocation: z.string().trim().max(160).optional(),
   /** Replace the join code; people who already have accounts are unaffected. */
   newJoinCode: z.literal(true).optional(),
 })
@@ -58,6 +61,9 @@ export default defineEventHandler(async (event) => {
     shipcsxDefaultTerminal: body.shipcsxDefaultTerminal,
     shipcsxPoll: body.shipcsxPoll,
     approveNewAccounts: body.approveNewAccounts,
+    timeCardOfficePhone: body.timeCardOfficePhone,
+    timeCardDispatchPhone: body.timeCardDispatchPhone,
+    timeCardReportingLocation: body.timeCardReportingLocation,
   })
 
   const [company] = await db.select().from(companies).where(eq(companies.id, auth.companyId)).limit(1)

@@ -268,9 +268,17 @@ struct TimeCardView: View {
         defer { openingPdf = false }
         do {
             let data = try await api.data("/api/time-cards/\(workDate)/pdf")
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("time-card-\(workDate).pdf")
+            // A fixed filename reused across edit/save/view cycles risks
+            // QuickLook showing the stale, previously-cached PDF instead of
+            // this freshly regenerated one, so each fetch gets its own name.
+            let previous = pdf
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("time-card-\(workDate)-\(UUID().uuidString).pdf")
             try data.write(to: url, options: .atomic)
             pdf = url
+            if let previous, previous != url {
+                try? FileManager.default.removeItem(at: previous)
+            }
         } catch {
             errorMessage = model.handle(error)
         }

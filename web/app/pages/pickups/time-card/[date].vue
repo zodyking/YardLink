@@ -103,6 +103,11 @@ async function openPdf(download = false) {
   pdfBusy.value = download ? 'download' : 'view'
   pdfError.value = ''
   try {
+    // Unsaved edits on screen must land in the PDF too, so save first —
+    // otherwise the card the driver just edited and the PDF they open can
+    // silently disagree.
+    await save()
+    if (saveError.value) return
     const bytes = await fetchBinaryFile(
       `/api/time-cards/${workDate.value}/pdf`,
       'application/pdf',

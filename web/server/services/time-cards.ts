@@ -1,4 +1,4 @@
-import { aliasedTable, and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or } from 'drizzle-orm'
+import { aliasedTable, and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or } from 'drizzle-orm'
 import {
   chassis,
   containers,
@@ -45,6 +45,7 @@ import {
   type TimeCardStop,
   type TimeCardTripInput,
 } from '#shared/utils/time-card'
+import type { TimeCardDirectoryEntry } from '#shared/utils/time-card-layout'
 
 export type TimeCardView = {
   id: string
@@ -149,6 +150,38 @@ async function loadSites(db: DbExecutor, companyId: string): Promise<TimeCardSit
     state: row.state,
     latitude: parseCoord(row.latitude),
     longitude: parseCoord(row.longitude),
+  }))
+}
+
+/** This company's own active yards/terminals, for the time card PDF's page-2 directory. */
+export async function loadTimeCardDirectory(db: DbExecutor, companyId: string): Promise<TimeCardDirectoryEntry[]> {
+  const rows = await db
+    .select({
+      name: locations.name,
+      addressLine1: locations.addressLine1,
+      addressLine2: locations.addressLine2,
+      city: locations.city,
+      state: locations.state,
+      postalCode: locations.postalCode,
+      mainPhone: locations.mainPhone,
+    })
+    .from(locations)
+    .where(and(
+      eq(locations.companyId, companyId),
+      eq(locations.status, 'ACTIVE'),
+      isNull(locations.deletedAt),
+    ))
+    .orderBy(asc(locations.name))
+
+  return rows.map((row): TimeCardDirectoryEntry => ({
+    name: row.name,
+    address: [
+      row.addressLine1,
+      row.addressLine2,
+      [row.city, row.state].filter(Boolean).join(', '),
+      row.postalCode,
+    ].filter(part => part && part.trim()).join(', '),
+    phone: row.mainPhone ?? '',
   }))
 }
 
