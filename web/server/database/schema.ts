@@ -960,6 +960,34 @@ export const csxPollState = pgTable('csx_poll_state', {
 }, t => [uniqueIndex('csx_poll_state_company_key').on(t.companyId)])
 
 /* ============================================================
+   Bridge crossing times (Port Authority of NY & NJ live feed)
+   Not company-scoped: the six Hudson River crossings are the same for
+   every company, so this is one shared, append-only history that the
+   poller writes to on a timer. The "Bridge crossing times" company
+   setting only decides whether a company's Tools page shows it.
+   ============================================================ */
+
+/** The feed's own direction labels, kept verbatim rather than translated. */
+export const bridgeCrossingDirectionEnum = pgEnum('bridge_crossing_direction', ['ToNY', 'ToNJ'])
+
+export const bridgeCrossingSnapshots = pgTable('bridge_crossing_snapshots', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: integer('facility_id').notNull(),
+  crossingName: text('crossing_name').notNull(),
+  direction: bridgeCrossingDirectionEnum('direction').notNull(),
+  travelTimeMinutes: integer('travel_time_minutes').notNull(),
+  /** The feed's own typical/historical baseline for this lane, if it sent one. */
+  typicalTimeMinutes: integer('typical_time_minutes'),
+  isClosed: boolean('is_closed').notNull().default(false),
+  /** The feed gives a clock time only (no date), kept as-is for display. */
+  sourceTimestamp: text('source_timestamp'),
+  recordedAt: utc('recorded_at').notNull().defaultNow(),
+}, t => [
+  index('bridge_crossing_snapshots_lane_idx').on(t.facilityId, t.direction, t.recordedAt),
+  index('bridge_crossing_snapshots_recorded_idx').on(t.recordedAt),
+])
+
+/* ============================================================
    Inferred types
    ============================================================ */
 
@@ -981,6 +1009,7 @@ export type SmsInboundEndpoint = typeof smsInboundEndpoints.$inferSelect
 export type DispatchTask = typeof dispatchTasks.$inferSelect
 export type DriverTimeCard = typeof driverTimeCards.$inferSelect
 export type TripArrival = typeof tripArrivals.$inferSelect
+export type BridgeCrossingSnapshot = typeof bridgeCrossingSnapshots.$inferSelect
 
 export type NewContainer = typeof containers.$inferInsert
 export type NewContainerEvent = typeof containerEvents.$inferInsert
