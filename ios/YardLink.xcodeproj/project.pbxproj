@@ -39,6 +39,8 @@
 		A1B2C3D40000000000000057 /* PickupWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000056 /* PickupWizardView.swift */; };
 		A1B2C3D40000000000000059 /* TripSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000058 /* TripSheets.swift */; };
 		A1B2C3D400000000000001A3 /* ManualTripSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000001A2 /* ManualTripSheet.swift */; };
+		A1B2C3D400000000000001A5 /* LocationExportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000001A4 /* LocationExportSheet.swift */; };
+		A1B2C3D400000000000001A7 /* FuelReceiptsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000001A6 /* FuelReceiptsView.swift */; };
 		A1B2C3D4000000000000005B /* TimeCardsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000005A /* TimeCardsView.swift */; };
 		A1B2C3D4000000000000005D /* EquipmentForms.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000005C /* EquipmentForms.swift */; };
 		A1B2C3D4000000000000005F /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000005E /* AccountSettingsView.swift */; };
@@ -156,6 +158,8 @@
 		A1B2C3D40000000000000056 /* PickupWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickupWizardView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000058 /* TripSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripSheets.swift; sourceTree = "<group>"; };
 		A1B2C3D400000000000001A2 /* ManualTripSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualTripSheet.swift; sourceTree = "<group>"; };
+		A1B2C3D400000000000001A4 /* LocationExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationExportSheet.swift; sourceTree = "<group>"; };
+		A1B2C3D400000000000001A6 /* FuelReceiptsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelReceiptsView.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000005A /* TimeCardsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeCardsView.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000005C /* EquipmentForms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentForms.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000005E /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
@@ -298,6 +302,8 @@
 				A1B2C3D4000000000000005A /* TimeCardsView.swift */,
 				A1B2C3D4000000000000005C /* EquipmentForms.swift */,
 				A1B2C3D4000000000000005E /* AccountSettingsView.swift */,
+				A1B2C3D400000000000001A4 /* LocationExportSheet.swift */,
+				A1B2C3D400000000000001A6 /* FuelReceiptsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -588,6 +594,8 @@
 				A1B2C3D4000000000000005B /* TimeCardsView.swift in Sources */,
 				A1B2C3D4000000000000005D /* EquipmentForms.swift in Sources */,
 				A1B2C3D4000000000000005F /* AccountSettingsView.swift in Sources */,
+				A1B2C3D400000000000001A5 /* LocationExportSheet.swift in Sources */,
+				A1B2C3D400000000000001A7 /* FuelReceiptsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
