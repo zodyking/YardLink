@@ -125,12 +125,13 @@ struct ContainerDetailView: View {
                 }
             }
         }
-        .confirmationDialog("Delete this container?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-            Button("Delete Container", role: .destructive) { Task { await deleteContainer() } }
-            Button("Keep", role: .cancel) {}
-        } message: {
-            Text("The container is removed from the lists. Its history is kept.")
-        }
+        .confirmPrompt(
+            "Delete this container?",
+            message: "The container is removed from the lists. Its history is kept.",
+            isPresented: $confirmingDelete,
+            cancelLabel: "Keep",
+            actions: [.destructive("Delete Container") { Task { await deleteContainer() } }]
+        )
         .refreshable { await load() }
         .task { await load() }
     }
@@ -340,18 +341,20 @@ struct ChassisDetailView: View {
                 ChassisEditView(chassis: detail.chassis) { Task { await load() } }
             }
         }
-        .confirmationDialog("Release this chassis?", isPresented: $confirmingRelease, titleVisibility: .visible) {
-            Button("Release", role: .destructive) { Task { await act(release: true) } }
-            Button("Keep", role: .cancel) {}
-        } message: {
-            Text("The container comes off this chassis and the chassis becomes available.")
-        }
-        .confirmationDialog("Delete this chassis?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-            Button("Delete Chassis", role: .destructive) { Task { await act(release: false) } }
-            Button("Keep", role: .cancel) {}
-        } message: {
-            Text("The chassis is removed from the lists. Its history is kept.")
-        }
+        .confirmPrompt(
+            "Release this chassis?",
+            message: "The container comes off this chassis and the chassis becomes available.",
+            isPresented: $confirmingRelease,
+            cancelLabel: "Keep",
+            actions: [.destructive("Release") { Task { await act(release: true) } }]
+        )
+        .confirmPrompt(
+            "Delete this chassis?",
+            message: "The chassis is removed from the lists. Its history is kept.",
+            isPresented: $confirmingDelete,
+            cancelLabel: "Keep",
+            actions: [.destructive("Delete Chassis") { Task { await act(release: false) } }]
+        )
         .refreshable { await load() }
         .task { await load() }
     }

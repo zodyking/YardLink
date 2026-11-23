@@ -96,25 +96,23 @@ struct HomeView: View {
             .sheet(item: $sheet, onDismiss: { Task { await reloadAfterSheet() } }) { sheet in
                 sheetContent(sheet)
             }
-            .confirmationDialog("Cancel Trip", isPresented: $confirmingCancel, titleVisibility: .visible) {
-                Button("Cancel Trip", role: .destructive) { Task { await cancelTrip() } }
-                Button("Keep Trip", role: .cancel) {}
-            } message: {
-                Text(cancelCopy)
-            }
-            .confirmationDialog(
+            .confirmPrompt(
+                "Cancel Trip",
+                message: cancelCopy,
+                isPresented: $confirmingCancel,
+                cancelLabel: "Keep Trip",
+                actions: [.destructive("Cancel Trip") { Task { await cancelTrip() } }]
+            )
+            .confirmPrompt(
                 "Start this as a swap?",
+                message: "This links the next load to the empty you're dropping here, and marks both trips as a swap in history. If you're not hooking up and driving off right now, start a plain new pickup instead once you've arrived.",
                 isPresented: Binding(get: { pendingSwap != nil }, set: { if !$0 { pendingSwap = nil } }),
-                titleVisibility: .visible
-            ) {
-                Button("Yes, Pair With This Drop-off") {
+                cancelLabel: "Just a New Pickup",
+                actions: [.primary("Yes, Pair With This Drop-off") {
                     if let pendingSwap { pickup = PickupLaunch(mode: pendingSwap) }
                     pendingSwap = nil
-                }
-                Button("Just a New Pickup", role: .cancel) { pendingSwap = nil }
-            } message: {
-                Text("This links the next load to the empty you're dropping here, and marks both trips as a swap in history. If you're not hooking up and driving off right now, start a plain new pickup instead once you've arrived.")
-            }
+                }]
+            )
             .refreshable { await load() }
             .task { await load() }
             .onChange(of: push.openScreen) { screen in

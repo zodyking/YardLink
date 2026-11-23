@@ -121,26 +121,21 @@ struct SignInView: View {
             faceIDSaved = FaceIDLogin.isSaved(for: model.serverURL)
             if faceIDSaved { signInWithFaceID() }
         }
-        .alert(
+        .confirmPrompt(
             "Use \(FaceIDLogin.biometryName ?? "Face ID") next time?",
+            message: "Sign in with a glance instead of typing your password.",
             isPresented: Binding(get: { offerFaceID != nil }, set: { if !$0 { offerFaceID = nil } }),
-            presenting: offerFaceID
-        ) { saved in
-            Button("Use \(FaceIDLogin.biometryName ?? "Face ID")") { finish(keeping: saved) }
-            Button("Not Now", role: .cancel) { finish(keeping: nil) }
-        } message: { _ in
-            Text("Sign in with a glance instead of typing your password.")
-        }
-        .confirmationDialog(
+            cancelLabel: "Not Now",
+            actions: [.primary("Use \(FaceIDLogin.biometryName ?? "Face ID")") { finish(keeping: offerFaceID) }],
+            onCancel: { finish(keeping: nil) }
+        )
+        .confirmPrompt(
             "Disconnect from \(model.employerName.isEmpty ? "this employer" : model.employerName)?",
+            message: "You will need to scan an employer code again.",
             isPresented: $confirmingChange,
-            titleVisibility: .visible
-        ) {
-            Button("Disconnect", role: .destructive) { model.disconnect() }
-            Button("Stay Connected", role: .cancel) {}
-        } message: {
-            Text("You will need to scan an employer code again.")
-        }
+            cancelLabel: "Stay Connected",
+            actions: [.destructive("Disconnect") { model.disconnect() }]
+        )
     }
 
     private func submit() {

@@ -745,12 +745,13 @@ struct DocumentsSheet: View {
                     Button("Close") { dismiss() }
                 }
             }
-            .confirmationDialog("What are you adding?", isPresented: $choosingKind, titleVisibility: .visible) {
-                ForEach(DocumentKind.allCases) { kind in
-                    Button(kind.label) { capturing = kind }
+            .confirmPrompt(
+                "What are you adding?",
+                isPresented: $choosingKind,
+                actions: DocumentKind.allCases.map { kind in
+                    .secondary(kind.label) { capturing = kind }
                 }
-                Button("Cancel", role: .cancel) {}
-            }
+            )
             .fullScreenCover(item: $capturing) { kind in
                 CameraCapture { image in
                     Task { await add(image, kind: kind) }
@@ -762,17 +763,15 @@ struct DocumentsSheet: View {
                     .environmentObject(model)
             }
             .quickLookPreview($preview)
-            .confirmationDialog(
+            .confirmPrompt(
                 "Remove this file?",
+                message: removing?.title,
                 isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
-                titleVisibility: .visible,
-                presenting: removing
-            ) { file in
-                Button("Remove", role: .destructive) { Task { await remove(file) } }
-                Button("Keep", role: .cancel) {}
-            } message: { file in
-                Text(file.title)
-            }
+                cancelLabel: "Keep",
+                actions: [.destructive("Remove") {
+                    if let file = removing { Task { await remove(file) } }
+                }]
+            )
             .task { await load() }
         }
     }

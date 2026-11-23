@@ -62,22 +62,22 @@ struct PickupWizardView: View {
                 }
                 .ignoresSafeArea()
             }
-            .alert(
+            .confirmPrompt(
                 flow.question?.title ?? "",
+                message: flow.question?.message,
                 isPresented: Binding(get: { flow.question != nil }, set: { _ in }),
-                presenting: flow.question
-            ) { question in
-                Button(question.confirmLabel, role: .destructive) { flow.answerQuestion(true) }
-                Button("No", role: .cancel) { flow.answerQuestion(false) }
-            } message: { question in
-                Text(question.message)
-            }
-            .confirmationDialog("Cancel this pickup?", isPresented: $confirmingCancel, titleVisibility: .visible) {
-                Button("Cancel Pickup", role: .destructive) { Task { await flow.abandon() } }
-                Button("Keep Going", role: .cancel) {}
-            } message: {
-                Text("The equipment goes back to where it was and no trip is recorded.")
-            }
+                cancelLabel: "No",
+                actions: [.destructive(flow.question?.confirmLabel ?? "Yes") { flow.answerQuestion(true) }],
+                onCancel: { flow.answerQuestion(false) },
+                dismissable: false
+            )
+            .confirmPrompt(
+                "Cancel this pickup?",
+                message: "The equipment goes back to where it was and no trip is recorded.",
+                isPresented: $confirmingCancel,
+                cancelLabel: "Keep Going",
+                actions: [.destructive("Cancel Pickup") { Task { await flow.abandon() } }]
+            )
             .task { await flow.start() }
             .onChange(of: flow.finished) { finished in
                 if finished { close() }

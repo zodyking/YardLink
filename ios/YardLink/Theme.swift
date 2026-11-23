@@ -225,9 +225,25 @@ struct DangerTextButtonStyle: ButtonStyle {
     }
 }
 
+/// Solid destructive action, for the main choice on a confirm prompt — bolder
+/// than text-only, so a "Delete" reads as deliberate rather than incidental.
+struct DangerButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .foregroundColor(.white)
+            .background(Brand.danger.opacity(configuration.isPressed ? 0.85 : 1))
+            .clipShape(RoundedRectangle(cornerRadius: Brand.controlRadius, style: .continuous))
+    }
+}
+
 // MARK: - Messages and status
 
 /// A notice across the page: something went wrong, needs care, or went well.
+/// A colored left rule plus a badged icon reads faster at a glance than a
+/// flat tinted box, and the spring-in gives it the same "this just
+/// appeared" weight the rest of the app's pop-ups now share.
 struct Banner: View {
     enum Kind {
         case error, warning, info, success
@@ -255,11 +271,16 @@ struct Banner: View {
     var title: String?
     let message: String
 
+    @State private var appeared = false
+
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: kind.symbol)
-                .foregroundColor(kind.color)
-                .padding(.top, 1)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 28, height: 28)
+                .background(kind.color)
+                .clipShape(Circle())
             VStack(alignment: .leading, spacing: 2) {
                 if let title {
                     Text(title).font(.subheadline.weight(.bold))
@@ -270,9 +291,24 @@ struct Banner: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(kind.color.opacity(0.1))
-        .overlay(RoundedRectangle(cornerRadius: Brand.controlRadius, style: .continuous).stroke(kind.color.opacity(0.35)))
+        .background(Brand.paper)
         .clipShape(RoundedRectangle(cornerRadius: Brand.controlRadius, style: .continuous))
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(kind.color)
+                .frame(width: 4)
+                .padding(.vertical, 6)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: Brand.controlRadius, style: .continuous)
+                .stroke(kind.color.opacity(0.25))
+        )
+        .shadow(color: kind.color.opacity(0.15), radius: 10, x: 0, y: 4)
+        .scaleEffect(appeared ? 1 : 0.94)
+        .opacity(appeared ? 1 : 0)
+        .onAppear {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { appeared = true }
+        }
         .accessibilityElement(children: .combine)
     }
 }
@@ -491,5 +527,179 @@ struct BottomBar<Content: View>: View {
             .frame(maxWidth: .infinity)
             .background(.ultraThinMaterial)
             .overlay(alignment: .top) { Divider() }
+    }
+}
+
+// MARK: - Confirm prompts
+
+/// One choice on a confirm prompt, besides the always-present Cancel.
+struct ConfirmAction: Identifiable {
+    enum Role {
+        /// The one dominant, non-destructive action — solid blue.
+        case primary
+        /// Removes or undoes something — solid red.
+        case destructive
+        /// An equal-weight option among several, e.g. "which kind of file".
+        case secondary
+    }
+
+    let id = UUID()
+    let label: String
+    var role: Role = .secondary
+    let action: () -> Void
+
+    static func primary(_ label: String, action: @escaping () -> Void) -> ConfirmAction {
+        ConfirmAction(label: label, role: .primary, action: action)
+    }
+
+    static func destructive(_ label: String, action: @escaping () -> Void) -> ConfirmAction {
+        ConfirmAction(label: label, role: .destructive, action: action)
+    }
+
+    static func secondary(_ label: String, action: @escaping () -> Void) -> ConfirmAction {
+        ConfirmAction(label: label, role: .secondary, action: action)
+    }
+}
+
+/// Brand-styled stand-in for `.confirmationDialog`/`.alert`: the system
+/// versions are fixed white system sheets with no real way to match the rest
+/// of the app, so a quick question ("Cancel this trip?") looked jarring next
+/// to screens drawn in Yard Link's own style. Drawn as a small bottom sheet
+/// instead, with the same shape every system dialog in the app already had —
+/// a title, an optional message, one or more choices, then Cancel — so every
+/// call site below swaps in with no change to its own logic.
+private struct ConfirmPromptModifier: ViewModifier {
+    let title: String
+    var message: String?
+    @Binding var isPresented: Bool
+    let actions: [ConfirmAction]
+    var cancelLabel: String
+    var onCancel: () -> Void
+    /// False for the handful of prompts that must be answered, not swiped
+    /// away — a stand-in for a native `.alert`, which never allowed that.
+    var dismissable: Bool
+
+    private var isDestructive: Bool { actions.contains { $0.role == .destructive } }
+
+    func body(content: Content) -> some View {
+        content.sheet(isPresented: $isPresented) {
+            ConfirmPromptCard(
+                title: title,
+                message: message,
+                tint: isDestructive ? Brand.danger : Brand.linkBlue,
+                symbol: isDestructive ? "exclamationmark.triangle.fill" : "questionmark.circle.fill",
+                actions: actions,
+                cancelLabel: cancelLabel,
+                onCancel: onCancel,
+                dismiss: { isPresented = false }
+            )
+            .interactiveDismissDisabled(!dismissable)
+            .presentationDetents([.medium])
+            .presentationDragIndicator(dismissable ? .visible : .hidden)
+            .presentationCornerRadius(Brand.radius)
+            .presentationBackground(Brand.mist)
+        }
+    }
+}
+
+private struct ConfirmPromptCard: View {
+    let title: String
+    let message: String?
+    let tint: Color
+    let symbol: String
+    let actions: [ConfirmAction]
+    let cancelLabel: String
+    let onCancel: () -> Void
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Image(systemName: symbol)
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 56, height: 56)
+                .background(tint)
+                .clipShape(Circle())
+                .shadow(color: tint.opacity(0.3), radius: 10, x: 0, y: 4)
+                .padding(.top, 20)
+
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.title3.weight(.bold))
+                    .foregroundColor(Brand.navy)
+                    .multilineTextAlignment(.center)
+                if let message, !message.isEmpty {
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundColor(Brand.muted)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, 28)
+
+            Spacer(minLength: 0)
+
+            VStack(spacing: 10) {
+                ForEach(actions) { action in
+                    Button {
+                        // Some call sites key the prompt off an optional that
+                        // dismissal itself clears (e.g. "the item pending
+                        // removal") — run the action while that's still set,
+                        // then close.
+                        action.action()
+                        dismiss()
+                    } label: {
+                        Text(action.label)
+                    }
+                    .modifier(ConfirmActionStyle(role: action.role))
+                }
+                Button(cancelLabel) {
+                    onCancel()
+                    dismiss()
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct ConfirmActionStyle: ViewModifier {
+    let role: ConfirmAction.Role
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        switch role {
+        case .destructive: content.buttonStyle(DangerButtonStyle())
+        case .primary: content.buttonStyle(PrimaryButtonStyle())
+        case .secondary: content.buttonStyle(SecondaryButtonStyle())
+        }
+    }
+}
+
+extension View {
+    /// Replaces `.confirmationDialog`/`.alert` with the Brand-styled sheet
+    /// above. Same shape as those: a title, an optional message, the
+    /// choices, then an always-present Cancel.
+    func confirmPrompt(
+        _ title: String,
+        message: String? = nil,
+        isPresented: Binding<Bool>,
+        cancelLabel: String = "Cancel",
+        actions: [ConfirmAction],
+        onCancel: @escaping () -> Void = {},
+        dismissable: Bool = true
+    ) -> some View {
+        modifier(ConfirmPromptModifier(
+            title: title,
+            message: message,
+            isPresented: isPresented,
+            actions: actions,
+            cancelLabel: cancelLabel,
+            onCancel: onCancel,
+            dismissable: dismissable
+        ))
     }
 }

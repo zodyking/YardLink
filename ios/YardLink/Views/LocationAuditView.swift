@@ -127,14 +127,15 @@ struct LocationAuditView: View {
                 await load()
             }
         }
-        .confirmationDialog("Remove from \(locationName)?", isPresented: $confirmingRemove, titleVisibility: .visible) {
-            Button("Remove \(chosenContainers.count)", role: .destructive) {
+        .confirmPrompt(
+            "Remove from \(locationName)?",
+            message: "They move to Uncategorized, where a dispatcher can place them.",
+            isPresented: $confirmingRemove,
+            cancelLabel: "Keep",
+            actions: [.destructive("Remove \(chosenContainers.count)") {
                 Task { await send(Request(action: "delete", containerIds: chosenContainers, chassisIds: nil, destinationLocationId: nil), done: "Removed from this location.") }
-            }
-            Button("Keep", role: .cancel) {}
-        } message: {
-            Text("They move to Uncategorized, where a dispatcher can place them.")
-        }
+            }]
+        )
         .refreshable { await load() }
         .task { await load() }
     }

@@ -426,24 +426,27 @@ struct TripDetailView: View {
         .fullScreenCover(isPresented: $resuming) {
             PickupWizardView(mode: .resume(tripId: tripId), model: model) { changed() }
         }
-        .confirmationDialog("Cancel this trip?", isPresented: $confirmingCancel, titleVisibility: .visible) {
-            Button("Cancel Trip", role: .destructive) { Task { await cancelTrip() } }
-            Button("Keep Trip", role: .cancel) {}
-        } message: {
-            Text("The equipment goes back to where it was picked up.")
-        }
-        .confirmationDialog("Delete this trip?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-            Button("Delete Trip", role: .destructive) { Task { await deleteTrip() } }
-            Button("Keep Trip", role: .cancel) {}
-        } message: {
-            Text("This trip will be removed from history. This cannot be undone.")
-        }
-        .confirmationDialog("Remove the swap tag?", isPresented: $confirmingUnswap, titleVisibility: .visible) {
-            Button("Not a Swap", role: .destructive) { Task { await unswapTrip() } }
-            Button("Keep as Swap", role: .cancel) {}
-        } message: {
-            Text("This clears the swap pairing on both this trip and the one it was linked to.")
-        }
+        .confirmPrompt(
+            "Cancel this trip?",
+            message: "The equipment goes back to where it was picked up.",
+            isPresented: $confirmingCancel,
+            cancelLabel: "Keep Trip",
+            actions: [.destructive("Cancel Trip") { Task { await cancelTrip() } }]
+        )
+        .confirmPrompt(
+            "Delete this trip?",
+            message: "This trip will be removed from history. This cannot be undone.",
+            isPresented: $confirmingDelete,
+            cancelLabel: "Keep Trip",
+            actions: [.destructive("Delete Trip") { Task { await deleteTrip() } }]
+        )
+        .confirmPrompt(
+            "Remove the swap tag?",
+            message: "This clears the swap pairing on both this trip and the one it was linked to.",
+            isPresented: $confirmingUnswap,
+            cancelLabel: "Keep as Swap",
+            actions: [.destructive("Not a Swap") { Task { await unswapTrip() } }]
+        )
     }
 
     @ViewBuilder

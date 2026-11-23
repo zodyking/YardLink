@@ -110,16 +110,13 @@ struct MoreView: View {
             .brandScreen()
             .quickLookPreview($exportedFile)
             .task { await loadEmailPrefs() }
-            .confirmationDialog(
+            .confirmPrompt(
                 "Disconnect from \(user.companyName)?",
+                message: "You will be signed out and will need to scan an employer code again.",
                 isPresented: $confirmingDisconnect,
-                titleVisibility: .visible
-            ) {
-                Button("Disconnect", role: .destructive) { model.disconnect() }
-                Button("Stay Connected", role: .cancel) {}
-            } message: {
-                Text("You will be signed out and will need to scan an employer code again.")
-            }
+                cancelLabel: "Stay Connected",
+                actions: [.destructive("Disconnect") { model.disconnect() }]
+            )
             .onChange(of: rootTap.event) { event in
                 // Tapping More again while already on More pops back to it.
                 guard event?.screen == AnyHashable(MainTabs.Screen.more) else { return }

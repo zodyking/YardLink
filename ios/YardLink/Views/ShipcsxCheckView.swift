@@ -196,17 +196,15 @@ struct ClearRecordsView: View {
         .navigationTitle("Clear Records")
         .navigationBarTitleDisplayMode(.inline)
         .lightBar()
-        .confirmationDialog(
+        .confirmPrompt(
             confirming.map { "Clear \($0.label.lowercased())?" } ?? "",
+            message: confirming.map { "\($0.count) \($0.label.lowercased()) will be deleted for everyone at your company. This cannot be undone." },
             isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
-            titleVisibility: .visible,
-            presenting: confirming
-        ) { target in
-            Button("Delete \(target.count)", role: .destructive) { Task { await clear(target.id, target.label) } }
-            Button("Keep", role: .cancel) {}
-        } message: { target in
-            Text("\(target.count) \(target.label.lowercased()) will be deleted for everyone at your company. This cannot be undone.")
-        }
+            cancelLabel: "Keep",
+            actions: [.destructive(confirming.map { "Delete \($0.count)" } ?? "Delete") {
+                if let target = confirming { Task { await clear(target.id, target.label) } }
+            }]
+        )
         .refreshable { await load() }
         .task { await load() }
     }

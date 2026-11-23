@@ -590,16 +590,13 @@ private struct FuelReceiptDetailSheet: View {
                 MessageComposer(body: FuelReceiptMessage.single(receipt), attachments: textAttachment.map { [$0] } ?? [])
                     .ignoresSafeArea()
             }
-            .confirmationDialog(
+            .confirmPrompt(
                 "Remove this receipt?",
+                message: "This takes it out of the week's total. It cannot be undone.",
                 isPresented: $confirmingDelete,
-                titleVisibility: .visible
-            ) {
-                Button("Remove", role: .destructive) { Task { await delete() } }
-                Button("Keep", role: .cancel) {}
-            } message: {
-                Text("This takes it out of the week's total. It cannot be undone.")
-            }
+                cancelLabel: "Keep",
+                actions: [.destructive("Remove") { Task { await delete() } }]
+            )
         }
     }
 
