@@ -1291,6 +1291,7 @@ export interface CorrectTripDetailsInput {
   notes?: string | null
   originLocationId?: string | null
   destinationLocationId?: string | null
+  customer?: string | null
   /**
    * Adjust an already-recorded pickup or drop-off instant — e.g. the driver
    * fixed the clock time on their time card and that should flow back to
@@ -1333,6 +1334,7 @@ export async function correctTripDetails(
 
     const set: Partial<typeof trips.$inferInsert> = { updatedAt: new Date(), version: sql`${trips.version} + 1` }
     if (input.notes !== undefined) set.driverNotes = input.notes
+    if (input.customer !== undefined) set.customer = input.customer?.trim() || null
     if (input.originLocationId !== undefined) {
       if (input.originLocationId) await loadLocation(tx, auth.companyId, input.originLocationId)
       set.originLocationId = input.originLocationId

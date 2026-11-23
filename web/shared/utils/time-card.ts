@@ -36,6 +36,8 @@ export type TimeCardStop = {
   source: TimeCardStopSource
   tripId?: string | null
   locationId?: string | null
+  /** The trip's customer, mirrored on both its pickup and drop-off stop. */
+  customer?: string | null
   corrected?: boolean
 }
 
@@ -197,6 +199,7 @@ export function stopsFromTrips(trips: readonly TimeCardTripInput[], timeZone: st
         source: 'TRIP',
         tripId: trip.id,
         locationId: trip.originLocationId ?? null,
+        customer: trip.customer ?? null,
       })
     }
     const dropped = asDate(trip.droppedOffAt)
@@ -211,6 +214,7 @@ export function stopsFromTrips(trips: readonly TimeCardTripInput[], timeZone: st
         source: 'TRIP',
         tripId: trip.id,
         locationId: trip.destinationLocationId ?? null,
+        customer: trip.customer ?? null,
       })
     }
   }
@@ -491,6 +495,7 @@ export function sanitizeTimeCardStop(input: Partial<TimeCardStop> | null | undef
     source,
     tripId: input.tripId ? String(input.tripId).slice(0, 80) : null,
     locationId: input.locationId ? String(input.locationId).slice(0, 80) : null,
+    customer: input.customer ? String(input.customer).trim().slice(0, 120) : null,
     corrected: Boolean(input.corrected) || source === 'MANUAL',
   }
 }
@@ -554,12 +559,20 @@ export function markStopCorrections(
       || row.timeOut !== base.timeOut
       || row.location !== base.location
       || row.activity !== base.activity
+      || (row.customer ?? null) !== (base.customer ?? null)
     return {
       ...base,
       timeIn: row.timeIn,
       timeOut: row.timeOut,
       location: row.location,
       activity: row.activity,
+      customer: row.customer ?? null,
+      // The auto baseline already carries whatever `locationId` the trip
+      // correction (if any) just settled on; a submitted id is only ever
+      // trusted here when the correction was rejected and `base` still
+      // reflects the un-corrected trip, so the display and the id it
+      // would resubmit next time stay in step with each other.
+      locationId: row.locationId ?? base.locationId,
       corrected: changed || Boolean(row.corrected),
     }
   })

@@ -861,6 +861,8 @@ struct TimeCardStop: Codable, Identifiable, Hashable {
     var source: String?
     var tripId: String?
     var locationId: String?
+    /// The trip's customer, mirrored on both its pickup and drop-off stop.
+    var customer: String?
     var corrected: Bool?
 
     var id: String { key }

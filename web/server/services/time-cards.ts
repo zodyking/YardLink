@@ -637,7 +637,18 @@ async function applyTripStopCorrections(
       if (stop.locationId && stop.locationId !== base.locationId) correction.destinationLocationId = stop.locationId
     }
 
-    if (!correction.pickedUpAt && !correction.droppedOffAt && !correction.originLocationId && !correction.destinationLocationId) continue
+    // The customer is the trip's own, mirrored on both its stops, so an
+    // edit on either row corrects the one underlying trip.
+    const submittedCustomer = stop.customer?.trim() || null
+    const baseCustomer = base.customer?.trim() || null
+    if (submittedCustomer !== baseCustomer) correction.customer = submittedCustomer
+
+    const hasCorrection = correction.pickedUpAt != null
+      || correction.droppedOffAt != null
+      || correction.originLocationId != null
+      || correction.destinationLocationId != null
+      || correction.customer !== undefined
+    if (!hasCorrection) continue
 
     try {
       await correctTripDetails(db, auth, correction)

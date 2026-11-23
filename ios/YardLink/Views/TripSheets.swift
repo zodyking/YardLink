@@ -367,6 +367,79 @@ struct EditTripNotesSheet: View {
     }
 }
 
+/// Correct a trip's customer after the fact. Works on a trip of any status
+/// — old, finished trips and ones recorded to fill a missing-trip gap are
+/// editable here too, not just live ones. A time card stop for this trip
+/// carries the same correction back if it's edited there instead.
+struct EditCustomerSheet: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    let tripId: String
+    let onSaved: () -> Void
+
+    @State private var customer: String
+    @State private var saving = false
+    @State private var errorMessage: String?
+
+    init(tripId: String, current: String?, onSaved: @escaping () -> Void) {
+        self.tripId = tripId
+        self.onSaved = onSaved
+        _customer = State(initialValue: current ?? "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 14) {
+                if let errorMessage { ErrorBanner(message: errorMessage) }
+                FieldLabel(text: "Customer")
+                FieldBox {
+                    TextField("Customer", text: $customer)
+                }
+                Text("This is saved on the trip, whatever its status, and on its time card stops too.")
+                    .font(.footnote)
+                    .foregroundColor(Brand.muted)
+                Button(saving ? "Saving…" : "Save Customer") { Task { await save() } }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(saving)
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .screenBackground()
+            .navigationTitle("Edit Customer")
+            .navigationBarTitleDisplayMode(.inline)
+            .lightBar()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private struct Payload: Encodable {
+        let customer: String?
+    }
+
+    private func save() async {
+        guard let api = model.api else { return }
+        saving = true
+        errorMessage = nil
+        defer { saving = false }
+        let trimmed = customer.trimmingCharacters(in: .whitespaces)
+        do {
+            let _: OkResult = try await api.patch(
+                "/api/trips/\(tripId)",
+                body: Payload(customer: trimmed.isEmpty ? nil : trimmed)
+            )
+            onSaved()
+            dismiss()
+        } catch {
+            errorMessage = model.handle(error)
+        }
+    }
+}
+
 // MARK: - Contacts
 
 /// Phone lines at the pickup and the drop-off. Tap to call.

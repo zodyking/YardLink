@@ -218,7 +218,7 @@ struct TimeCardView: View {
 
     private func addStop() {
         let key = "MANUAL:\(Int(Date().timeIntervalSince1970)):\(UUID().uuidString.prefix(6).lowercased())"
-        stops.append(TimeCardStop(key: key, timeIn: "", timeOut: "", location: "", activity: "", source: "MANUAL", tripId: nil, locationId: nil, corrected: true))
+        stops.append(TimeCardStop(key: key, timeIn: "", timeOut: "", location: "", activity: "", source: "MANUAL", tripId: nil, locationId: nil, customer: nil, corrected: true))
     }
 
     private func show(_ card: TimeCard) {
@@ -306,6 +306,14 @@ private struct StopEditor: View {
     /// real place was meant.
     private var locationIsPicked: Bool { stop.source == "TRIP" }
 
+    /// Customer is a trip's own field, not this card's — a manual or
+    /// GPS-sourced stop has no trip to carry the edit back to.
+    private var hasCustomer: Bool { stop.source == "TRIP" }
+
+    private var customerText: Binding<String> {
+        Binding(get: { stop.customer ?? "" }, set: { stop.customer = $0.isEmpty ? nil : $0 })
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -347,6 +355,11 @@ private struct StopEditor: View {
             }
             FieldBox {
                 TextField("What you did there", text: $stop.activity)
+            }
+            if hasCustomer {
+                FieldBox {
+                    TextField("Customer", text: customerText)
+                }
             }
         }
         .padding(14)

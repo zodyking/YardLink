@@ -364,7 +364,7 @@ struct TripDetailView: View {
     @State private var working = false
 
     private enum TripSheet: String, Identifiable {
-        case arrive, destination, seal, update, documents, editNotes
+        case arrive, destination, seal, update, documents, editNotes, editCustomer
 
         var id: String { rawValue }
     }
@@ -410,6 +410,8 @@ struct TripDetailView: View {
                     DocumentsSheet(scope: .trip(detail.trip.id), containerNumber: detail.container?.number, chassisNumber: detail.chassis?.number)
                 case .editNotes:
                     EditTripNotesSheet(tripId: detail.trip.id, current: detail.trip.driverNotes ?? detail.trip.notes) {}
+                case .editCustomer:
+                    EditCustomerSheet(tripId: detail.trip.id, current: detail.trip.customer) {}
                 }
             }
         }
@@ -500,6 +502,15 @@ struct TripDetailView: View {
                 title: trip.driverNotes?.isEmpty == false || trip.notes?.isEmpty == false ? "Edit Notes" : "Add Notes",
                 disabled: trip.status == "CANCELLED"
             ) { sheet = .editNotes }
+            Divider()
+            // The time card carries this same correction back to the trip
+            // if a stop's customer is edited there instead — either side
+            // updates the one real value.
+            ActionRow(
+                icon: "building.2.fill",
+                title: trip.customer?.isEmpty == false ? "Edit Customer" : "Add Customer",
+                disabled: trip.status == "CANCELLED"
+            ) { sheet = .editCustomer }
             Divider()
             ActionRow(
                 icon: "paperplane.fill",
