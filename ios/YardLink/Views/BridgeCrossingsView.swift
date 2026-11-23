@@ -71,23 +71,31 @@ struct BridgeCrossingsListView: View {
 
     private func crossingCard(name: String, lanes: [BridgeCrossingLane]) -> some View {
         Card {
-            HStack(spacing: 10) {
-                CrossingIcon()
-                Text(name).font(.body.weight(.bold)).foregroundColor(Brand.navy)
-                Spacer(minLength: 0)
-            }
-            VStack(spacing: 0) {
-                ForEach(Array(lanes.enumerated()), id: \.element.id) { index, lane in
-                    if index > 0 {
-                        Rectangle().fill(Brand.line).frame(height: 1)
+            // The whole card is one tap target into a single page for this
+            // crossing with both directions on it — not a separate page per
+            // lane, so there's one chevron for the card, not one per row.
+            if let facilityId = lanes.first?.facilityId {
+                NavigationLink {
+                    BridgeCrossingDetailView(facilityId: facilityId, crossingName: name)
+                } label: {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 10) {
+                            CrossingIcon()
+                            Text(name).font(.body.weight(.bold)).foregroundColor(Brand.navy)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundColor(Brand.muted.opacity(0.5))
+                        }
+                        ForEach(Array(lanes.enumerated()), id: \.element.id) { index, lane in
+                            if index > 0 {
+                                Rectangle().fill(Brand.line).frame(height: 1)
+                            } else {
+                                Rectangle().fill(Color.clear).frame(height: 4)
+                            }
+                            laneRow(lane)
+                        }
                     }
-                    NavigationLink {
-                        BridgeCrossingDetailView(facilityId: lane.facilityId, direction: lane.direction, crossingName: name)
-                    } label: {
-                        laneRow(lane)
-                    }
-                    .buttonStyle(.plain)
                 }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -126,7 +134,6 @@ struct BridgeCrossingsListView: View {
             }
 
             TrendBadge(trend: lane.trend)
-            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundColor(Brand.muted.opacity(0.5))
         }
         .padding(.vertical, 10)
     }
@@ -202,36 +209,46 @@ private struct CrossingIcon: View {
     }
 }
 
-/// One crossing's last 24 hours: the current reading, its trend, and a graph
-/// against the feed's own typical time for that lane.
+/// One crossing's last 24 hours, both directions on the same page — this
+/// used to be two separate pages (one per direction) reached from two
+/// separate rows; now the whole crossing is one destination, like the list
+/// card above it that links here once instead of once per lane.
 struct BridgeCrossingDetailView: View {
     @EnvironmentObject private var model: AppModel
     let facilityId: Int
-    let direction: BridgeCrossingDirection
     let crossingName: String
 
-    @State private var detail: BridgeCrossingDetail?
+    @State private var toNY: BridgeCrossingDetail?
+    @State private var toNJ: BridgeCrossingDetail?
     @State private var loading = true
     @State private var errorMessage: String?
+
+    private var lastUpdated: Date? {
+        [toNY?.lastUpdated, toNJ?.lastUpdated].compactMap { $0 }.max()
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let errorMessage { ErrorBanner(message: errorMessage) }
-                if let lastUpdated = detail?.lastUpdated { LastUpdatedLabel(date: lastUpdated) }
+                if let lastUpdated { LastUpdatedLabel(date: lastUpdated) }
 
-                if let detail {
-                    header(detail.lane)
-                    if detail.history.count > 1 {
-                        graph(detail.history)
+                if let toNY {
+                    directionSection(toNY)
+                }
+                if let toNJ {
+                    directionSection(toNJ)
+                }
+
+                if toNY == nil && toNJ == nil {
+                    if loading {
+                        ProgressView().frame(maxWidth: .infinity, minHeight: 200)
                     } else {
                         EmptyNote(
-                            title: "Not enough history yet",
-                            detail: "Check back in a bit — the graph fills in as readings come in."
+                            title: "No readings yet",
+                            detail: "Crossing times appear here once the server has checked in with the Port Authority."
                         )
                     }
-                } else if loading {
-                    ProgressView().frame(maxWidth: .infinity, minHeight: 200)
                 }
             }
             .padding(16)
@@ -243,6 +260,20 @@ struct BridgeCrossingDetailView: View {
         .task { await load() }
         .task { await silentRefreshLoop() }
         .refreshable { await load() }
+    }
+
+    private func directionSection(_ detail: BridgeCrossingDetail) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            header(detail.lane)
+            if detail.history.count > 1 {
+                graph(detail.history)
+            } else {
+                EmptyNote(
+                    title: "Not enough history yet",
+                    detail: "Check back in a bit — the graph fills in as readings come in."
+                )
+            }
+        }
     }
 
     private func silentRefreshLoop() async {
@@ -338,15 +369,21 @@ struct BridgeCrossingDetailView: View {
         }
     }
 
+    /// Both directions load side by side rather than one after the other, so
+    /// this page is no slower than either of the two pages it replaced.
     private func load(silent: Bool = false) async {
         guard let api = model.api else { return }
         if !silent { loading = true }
-        do {
-            let result: BridgeCrossingDetail = try await api.get("/api/bridge-crossings/\(facilityId)/\(direction.rawValue)")
-            detail = result
+        async let nyRequest: BridgeCrossingDetail = try api.get("/api/bridge-crossings/\(facilityId)/\(BridgeCrossingDirection.towardNY.rawValue)")
+        async let njRequest: BridgeCrossingDetail = try api.get("/api/bridge-crossings/\(facilityId)/\(BridgeCrossingDirection.towardNJ.rawValue)")
+        let ny = try? await nyRequest
+        let nj = try? await njRequest
+        if ny == nil && nj == nil {
+            if !silent { errorMessage = "Couldn't load crossing times. Pull to refresh to try again." }
+        } else {
+            toNY = ny
+            toNJ = nj
             errorMessage = nil
-        } catch {
-            if !silent { errorMessage = model.handle(error) }
         }
         loading = false
     }
