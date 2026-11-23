@@ -254,7 +254,9 @@ struct LocationDetailView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if ["MARINE_TERMINAL", "RAIL_TERMINAL"].contains(detail.location.type ?? "") {
+                    // The CSX list only makes sense for a location that's actually
+                    // mapped to a ShipCSX terminal — not every marine/rail site is.
+                    if let terminal = detail.location.shipcsxTerminal, !terminal.isEmpty {
                         NavigationLink {
                             CsxListView(locationId: locationId)
                         } label: {
