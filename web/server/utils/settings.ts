@@ -15,6 +15,8 @@ export interface CompanySettings {
   shipcsxPoll: boolean
   /** New accounts wait for a dispatcher to approve them. */
   approveNewAccounts: boolean
+  /** Shows Bridge Crossing Times under Tools, for the Hudson River crossings. */
+  bridgeCrossingTimesEnabled: boolean
   /**
    * Printed on the time card PDF in place of the baked-in placeholder
    * numbers/address that shipped with the template. All blank by default —
@@ -31,6 +33,7 @@ const DEFAULTS: CompanySettings = {
   shipcsxDefaultTerminal: '',
   shipcsxPoll: false,
   approveNewAccounts: true,
+  bridgeCrossingTimesEnabled: false,
   timeCardOfficePhone: '',
   timeCardDispatchPhone: '',
   timeCardReportingLocation: '',
@@ -66,6 +69,9 @@ export function settingsFromRow(raw: Record<string, unknown> | null | undefined)
       ? row.shipcsxPoll
       : text(process.env.NUXT_SHIPCSX_POLL).toLowerCase() === 'true',
     approveNewAccounts: typeof row.approveNewAccounts === 'boolean' ? row.approveNewAccounts : DEFAULTS.approveNewAccounts,
+    bridgeCrossingTimesEnabled: typeof row.bridgeCrossingTimesEnabled === 'boolean'
+      ? row.bridgeCrossingTimesEnabled
+      : DEFAULTS.bridgeCrossingTimesEnabled,
     timeCardOfficePhone: text(row.timeCardOfficePhone),
     timeCardDispatchPhone: text(row.timeCardDispatchPhone),
     timeCardReportingLocation: text(row.timeCardReportingLocation),
@@ -96,6 +102,7 @@ export async function saveCompanySettings(
   if (patch.shipcsxDefaultTerminal !== undefined) next.shipcsxDefaultTerminal = text(patch.shipcsxDefaultTerminal)
   if (patch.shipcsxPoll !== undefined) next.shipcsxPoll = patch.shipcsxPoll
   if (patch.approveNewAccounts !== undefined) next.approveNewAccounts = patch.approveNewAccounts
+  if (patch.bridgeCrossingTimesEnabled !== undefined) next.bridgeCrossingTimesEnabled = patch.bridgeCrossingTimesEnabled
   if (patch.timeCardOfficePhone !== undefined) next.timeCardOfficePhone = text(patch.timeCardOfficePhone)
   if (patch.timeCardDispatchPhone !== undefined) next.timeCardDispatchPhone = text(patch.timeCardDispatchPhone)
   if (patch.timeCardReportingLocation !== undefined) next.timeCardReportingLocation = text(patch.timeCardReportingLocation)

@@ -10,7 +10,7 @@ useHead({ title: 'Settings' })
 
 interface SettingsPayload {
   company: { id: string, name: string, legalName: string | null, usdotNumber: string | null, timezone: string, inviteCode: string }
-  settings: { publicUrl: string, shipcsxDefaultTerminal: string, shipcsxPoll: boolean, approveNewAccounts: boolean, timeCardOfficePhone: string, timeCardDispatchPhone: string, timeCardReportingLocation: string }
+  settings: { publicUrl: string, shipcsxDefaultTerminal: string, shipcsxPoll: boolean, approveNewAccounts: boolean, bridgeCrossingTimesEnabled: boolean, timeCardOfficePhone: string, timeCardDispatchPhone: string, timeCardReportingLocation: string }
   email: { configured: boolean, host: string, port: number, user: string, fromName: string, fromEmail: string, hasPassword: boolean }
   push: { configured: boolean, keyId: string, teamId: string, bundleId: string, sandbox: boolean, hasKey: boolean }
   database: { source: 'builtin' | 'wizard' | 'env', external: boolean, label: string }
@@ -43,6 +43,7 @@ const form = reactive({
   shipcsxDefaultTerminal: '',
   shipcsxPoll: false,
   approveNewAccounts: true,
+  bridgeCrossingTimesEnabled: false,
   timeCardOfficePhone: '',
   timeCardDispatchPhone: '',
   timeCardReportingLocation: '',
@@ -169,6 +170,7 @@ function fill() {
   form.shipcsxDefaultTerminal = data.value.settings.shipcsxDefaultTerminal
   form.shipcsxPoll = data.value.settings.shipcsxPoll
   form.approveNewAccounts = data.value.settings.approveNewAccounts
+  form.bridgeCrossingTimesEnabled = data.value.settings.bridgeCrossingTimesEnabled
   form.timeCardOfficePhone = data.value.settings.timeCardOfficePhone
   form.timeCardDispatchPhone = data.value.settings.timeCardDispatchPhone
   form.timeCardReportingLocation = data.value.settings.timeCardReportingLocation
@@ -215,6 +217,7 @@ const saveProfile = () => save('profile', {
 })
 const saveAddress = () => save('address', { publicUrl: form.publicUrl })
 const saveAccounts = () => save('accounts', { approveNewAccounts: form.approveNewAccounts })
+const saveTools = () => save('tools', { bridgeCrossingTimesEnabled: form.bridgeCrossingTimesEnabled })
 const saveShipcsx = () => save('shipcsx', {
   shipcsxDefaultTerminal: form.shipcsxDefaultTerminal,
   shipcsxPoll: form.shipcsxPoll,
@@ -556,6 +559,25 @@ const countCards = computed(() => {
             class="yl-switch"
             type="checkbox"
             @change="saveAccounts"
+          >
+        </label>
+      </section>
+
+      <!-- ── Tools ───────────────────────────────────────────────── -->
+      <div class="section-label">
+        <span>Tools</span>
+      </div>
+      <section class="card p-5 settings-form">
+        <label class="yl-switch-row">
+          <span>
+            <b>Bridge crossing times</b>
+            <small>Adds a Bridge Crossing Times page under Tools, with live NY/NJ crossing times from the Port Authority and a trend for each one.</small>
+          </span>
+          <input
+            v-model="form.bridgeCrossingTimesEnabled"
+            class="yl-switch"
+            type="checkbox"
+            @change="saveTools"
           >
         </label>
       </section>
