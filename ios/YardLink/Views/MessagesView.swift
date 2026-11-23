@@ -11,6 +11,7 @@ struct MessagesView: View {
     @State private var errorMessage: String?
     @State private var pickingContact = false
     @State private var path: [ThreadSummary] = []
+    @ObservedObject private var rootTap = TabRootTap.shared
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -64,6 +65,11 @@ struct MessagesView: View {
                     pickingContact = false
                     Task { await start(with: contact) }
                 }
+            }
+            .onChange(of: rootTap.event) { event in
+                // Tapping Messages again while already there pops back to it.
+                guard event?.screen == AnyHashable(MainTabs.Screen.messages) else { return }
+                path = []
             }
         }
     }

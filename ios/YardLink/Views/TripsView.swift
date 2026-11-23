@@ -13,6 +13,8 @@ struct TripsView: View {
     @State private var openedTrip: OpenedTrip?
     @State private var recordingTrip: ManualTripContext?
     @State private var showingFuelReceipts = false
+    @ObservedObject private var rootTap = TabRootTap.shared
+    @State private var path = NavigationPath()
 
     /// Gaps by the later trip, which is the row they are shown above.
     private var gapsByNextTrip: [String: TripGap] {
@@ -35,7 +37,7 @@ struct TripsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 10) {
                     PageHeader("Trips") {
@@ -152,6 +154,12 @@ struct TripsView: View {
             }
             .refreshable { await load() }
             .task { await load() }
+            .onChange(of: rootTap.event) { event in
+                // Tapping Trips again while already on Trips pops back to it.
+                guard event?.screen == AnyHashable(MainTabs.Screen.trips) else { return }
+                path = NavigationPath()
+                showingFuelReceipts = false
+            }
         }
     }
 

@@ -10,6 +10,8 @@ struct TasksView: View {
     @State private var addingNote = false
     @State private var showDone = false
     @State private var startingPickup = false
+    @ObservedObject private var rootTap = TabRootTap.shared
+    @State private var path = NavigationPath()
 
     private var visible: [DriverTask] { showDone ? tasks : tasks.filter(\.isOpen) }
 
@@ -19,7 +21,7 @@ struct TasksView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     PageHeader("Tasks") {
@@ -79,6 +81,11 @@ struct TasksView: View {
             }
             .refreshable { await load() }
             .task { await load() }
+            .onChange(of: rootTap.event) { event in
+                // Tapping Tasks again while already on Tasks pops back to it.
+                guard event?.screen == AnyHashable(MainTabs.Screen.tasks) else { return }
+                path = NavigationPath()
+            }
         }
     }
 

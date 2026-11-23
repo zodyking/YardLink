@@ -11,6 +11,8 @@ struct LocationsView: View {
     @State private var query = ""
     @State private var loading = true
     @State private var errorMessage: String?
+    @ObservedObject private var rootTap = TabRootTap.shared
+    @State private var path = NavigationPath()
 
     private static let groups: [(title: String, types: [String])] = [
         ("Company yards", ["COMPANY_YARD"]),
@@ -19,7 +21,7 @@ struct LocationsView: View {
     ]
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     PageHeader("Containers") {
@@ -114,6 +116,11 @@ struct LocationsView: View {
                 if !query.isEmpty { try? await Task.sleep(nanoseconds: 350_000_000) }
                 if Task.isCancelled { return }
                 await load()
+            }
+            .onChange(of: rootTap.event) { event in
+                // Tapping Containers again while already there pops back to it.
+                guard event?.screen == AnyHashable(MainTabs.Screen.containers) else { return }
+                path = NavigationPath()
             }
         }
     }

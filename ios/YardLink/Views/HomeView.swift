@@ -20,6 +20,8 @@ struct HomeView: View {
     @State private var cancelling = false
     @ObservedObject private var push = PushCenter.shared
     @ObservedObject private var arrivals = ArrivalWatch.shared
+    @ObservedObject private var rootTap = TabRootTap.shared
+    @State private var path = NavigationPath()
     /// Trips the driver has cleared off Home, newest last. A list rather than
     /// one id, so an older trip cannot reappear when something touches it.
     @AppStorage("home-cleared-trips") private var clearedTripIds = ""
@@ -65,7 +67,7 @@ struct HomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if let errorMessage { ErrorBanner(message: errorMessage) }
@@ -120,6 +122,11 @@ struct HomeView: View {
                 guard screen == "messages" else { return }
                 sheet = .messages
                 push.openScreen = nil
+            }
+            .onChange(of: rootTap.event) { event in
+                // Tapping Home again while already on Home pops back to it.
+                guard event?.screen == AnyHashable(MainTabs.Screen.home) else { return }
+                path = NavigationPath()
             }
         }
     }

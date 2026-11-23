@@ -13,6 +13,8 @@ struct MoreView: View {
     @State private var exporting = false
     @State private var exportedFile: URL?
     @State private var exportError: String?
+    @ObservedObject private var rootTap = TabRootTap.shared
+    @State private var path = NavigationPath()
 
     private var version: String {
         let info = Bundle.main.infoDictionary
@@ -22,7 +24,7 @@ struct MoreView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 PageHeader("More")
                     .listRowBackground(Color.clear)
@@ -117,6 +119,11 @@ struct MoreView: View {
                 Button("Stay Connected", role: .cancel) {}
             } message: {
                 Text("You will be signed out and will need to scan an employer code again.")
+            }
+            .onChange(of: rootTap.event) { event in
+                // Tapping More again while already on More pops back to it.
+                guard event?.screen == AnyHashable(MainTabs.Screen.more) else { return }
+                path = NavigationPath()
             }
         }
     }

@@ -1,5 +1,28 @@
 import SwiftUI
 
+/// Fires when the bar's already-selected item is tapped again. A plain tab
+/// switch just changes `selection`; this is the extra "tap again" signal
+/// each tab's own view listens for so it can pop its navigation stack back
+/// to its root, the way the system tab bar does for free.
+final class TabRootTap: ObservableObject {
+    static let shared = TabRootTap()
+
+    /// UUID-stamped so two taps on the same tab are never treated as the
+    /// "same" value and silently skipped by `.onChange`.
+    struct Event: Equatable {
+        let screen: AnyHashable
+        let id = UUID()
+    }
+
+    @Published private(set) var event: Event?
+
+    private init() {}
+
+    func fire<Screen: Hashable>(_ screen: Screen) {
+        event = Event(screen: AnyHashable(screen))
+    }
+}
+
 /// The bottom bar, drawn to match the web app: a white bar with a hairline
 /// top rule, five destinations, and Tasks raised on a blue disc in the
 /// middle. It is chrome — it stays put while each tab scrolls behind it.
@@ -22,7 +45,11 @@ struct DriverTabBar<Screen: Hashable>: View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(items) { item in
                 Button {
-                    selection = item.screen
+                    if selection == item.screen {
+                        TabRootTap.shared.fire(item.screen)
+                    } else {
+                        selection = item.screen
+                    }
                 } label: {
                     if item.raised {
                         raisedLabel(item)
@@ -39,8 +66,13 @@ struct DriverTabBar<Screen: Hashable>: View {
         .padding(.top, 6)
         .frame(height: 64, alignment: .top)
         .frame(maxWidth: .infinity)
-        .background(Brand.paper.ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) {
+        // The hairline is part of the background, under the bar's own
+        // content, not an overlay above it — the raised disc pokes up past
+        // the bar's top edge on purpose, and a line drawn in front of
+        // everything would cut straight across it instead of stopping at
+        // its edge the way the opaque disc naturally covers it from here.
+        .background(alignment: .top) {
+            Brand.paper.ignoresSafeArea(edges: .bottom)
             Rectangle().fill(Brand.line).frame(height: 1)
         }
     }
