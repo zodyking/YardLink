@@ -74,17 +74,6 @@ struct MoreView: View {
                         }
                     }
                 }
-                if user.isDriver {
-                    Section {
-                        NavigationLink {
-                            FuelReceiptsView()
-                        } label: {
-                            Label("Fuel Receipts", systemImage: "fuelpump.fill")
-                        }
-                    } footer: {
-                        Text("Snap a diesel receipt and track gallons, spend and cost per gallon by week.")
-                    }
-                }
                 Section {
                     Button {
                         Task { await exportLocations() }

@@ -12,6 +12,7 @@ struct TripsView: View {
     @State private var pickedDay: Date?
     @State private var openedTrip: OpenedTrip?
     @State private var recordingTrip: ManualTripContext?
+    @State private var showingFuelReceipts = false
 
     /// Gaps by the later trip, which is the row they are shown above.
     private var gapsByNextTrip: [String: TripGap] {
@@ -36,24 +37,33 @@ struct TripsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
+                LazyVStack(alignment: .leading, spacing: 10) {
                     PageHeader("Trips") {
-                        Button {
-                            recordingTrip = ManualTripContext(gap: nil)
+                        Menu {
+                            Button {
+                                recordingTrip = ManualTripContext(gap: nil)
+                            } label: {
+                                Label("Record a Trip", systemImage: "plus")
+                            }
+                            Button {
+                                showingCalendar.toggle()
+                                if !showingCalendar { pickedDay = nil }
+                            } label: {
+                                Label(
+                                    showingCalendar ? "Show the List" : "Show a Calendar",
+                                    systemImage: showingCalendar ? "list.bullet" : "calendar"
+                                )
+                            }
+                            Button {
+                                showingFuelReceipts = true
+                            } label: {
+                                Label("Fuel Receipts", systemImage: "fuelpump.fill")
+                            }
                         } label: {
-                            Image(systemName: "plus")
+                            Image(systemName: "line.3.horizontal")
                         }
                         .buttonStyle(IconButtonStyle())
-                        .accessibilityLabel("Record a trip")
-
-                        Button {
-                            showingCalendar.toggle()
-                            if !showingCalendar { pickedDay = nil }
-                        } label: {
-                            Image(systemName: showingCalendar ? "list.bullet" : "calendar")
-                        }
-                        .buttonStyle(IconButtonStyle())
-                        .accessibilityLabel(showingCalendar ? "Show the list" : "Show a calendar")
+                        .accessibilityLabel("More options")
                     }
 
                     if showingCalendar {
@@ -119,6 +129,9 @@ struct TripsView: View {
             .brandScreen()
             .navigationDestination(for: TripListItem.self) { trip in
                 TripDetailView(tripId: trip.id, onChanged: { Task { await load() } })
+            }
+            .navigationDestination(isPresented: $showingFuelReceipts) {
+                FuelReceiptsView()
             }
             .sheet(item: $openedTrip) { opened in
                 NavigationStack {
@@ -254,38 +267,47 @@ private struct TripRow: View {
         return trip.title
     }
 
+    /// One scannable line instead of a row of unseparated words.
+    private var facts: String {
+        var items: [String] = []
+        if !trip.isBareChassis { items.append((trip.isLoaded ?? false) ? "Loaded" : "Empty") }
+        if let line = Words.line(trip.containerType) { items.append(line) }
+        if let chassis = trip.chassisNumber, !chassis.isEmpty, !trip.isBareChassis { items.append("On \(chassis)") }
+        if trip.swapPairTripId != nil { items.append("Swap") }
+        return items.joined(separator: "   ·   ")
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 8) {
                 EquipmentNumber(
                     text: title,
-                    font: .system(.headline, design: .monospaced),
+                    font: .system(.subheadline, design: .monospaced),
                     label: trip.containerNumber?.isEmpty == false ? "Container" : nil,
                     copyOnTap: false,
                     kind: trip.containerNumber?.isEmpty == false ? .container : .plain
                 )
-                Spacer()
+                .lineLimit(1)
+                Spacer(minLength: 8)
                 StatusPill(text: Words.tripStatus(trip.status), color: tripStatusColor(trip.status))
             }
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Text(trip.originName ?? "—").lineLimit(1)
-                Image(systemName: "arrow.right").font(.caption.weight(.bold)).foregroundColor(Brand.linkBlue)
+                Image(systemName: "arrow.right").font(.caption2.weight(.bold)).foregroundColor(Brand.linkBlue)
                 Text(trip.destinationName ?? "No drop-off set").lineLimit(1)
             }
-            .font(.subheadline)
+            .font(.footnote.weight(.semibold))
             .foregroundColor(Brand.ink)
-            HStack(spacing: 8) {
-                if !trip.isBareChassis {
-                    Text((trip.isLoaded ?? false) ? "Loaded" : "Empty")
-                }
-                if let line = Words.line(trip.containerType) { Text(line) }
-                if let chassis = trip.chassisNumber, !chassis.isEmpty, !trip.isBareChassis { Text("On \(chassis)") }
-                if trip.swapPairTripId != nil { Text("Swap") }
+
+            if !facts.isEmpty {
+                Text(facts)
+                    .font(.caption)
+                    .foregroundColor(Brand.muted)
+                    .lineLimit(1)
             }
-            .font(.caption.weight(.semibold))
-            .foregroundColor(Brand.muted)
         }
-        .padding(14)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardSurface()
         .accessibilityElement(children: .combine)
