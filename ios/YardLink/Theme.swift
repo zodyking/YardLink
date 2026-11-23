@@ -595,7 +595,7 @@ private struct ConfirmPromptModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content.sheet(isPresented: $isPresented) {
-            ConfirmPromptCard(
+            let card = ConfirmPromptCard(
                 title: title,
                 message: message,
                 tint: isDestructive ? Brand.danger : Brand.linkBlue,
@@ -608,8 +608,17 @@ private struct ConfirmPromptModifier: ViewModifier {
             .interactiveDismissDisabled(!dismissable)
             .presentationDetents([.medium])
             .presentationDragIndicator(dismissable ? .visible : .hidden)
-            .presentationCornerRadius(Brand.radius)
-            .presentationBackground(Brand.mist)
+
+            // The app's minimum is iOS 16.0; these two shaping modifiers
+            // only exist from 16.4, so older phones fall back to the
+            // system's own sheet corners and background.
+            if #available(iOS 16.4, *) {
+                card
+                    .presentationCornerRadius(Brand.radius)
+                    .presentationBackground(Brand.mist)
+            } else {
+                card
+            }
         }
     }
 }
@@ -721,9 +730,19 @@ extension View {
     /// showing through at the rounded corners. Call on the view returned
     /// from a `.sheet { }` closure.
     func sheetChrome() -> some View {
-        self
-            .presentationDragIndicator(.visible)
-            .presentationCornerRadius(Brand.radius)
-            .presentationBackground(Brand.mist)
+        Group {
+            // The app's minimum is iOS 16.0; these two shaping modifiers
+            // only exist from 16.4, so older phones fall back to the
+            // system's own sheet corners and background.
+            if #available(iOS 16.4, *) {
+                self
+                    .presentationDragIndicator(.visible)
+                    .presentationCornerRadius(Brand.radius)
+                    .presentationBackground(Brand.mist)
+            } else {
+                self
+                    .presentationDragIndicator(.visible)
+            }
+        }
     }
 }
