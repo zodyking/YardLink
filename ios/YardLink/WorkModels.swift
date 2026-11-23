@@ -115,13 +115,13 @@ struct TripList: Decodable {
     let gapResolutions: [TripGapAnswer]?
 }
 
-/// What answering a gap sends back: the resolution, and — only for a
-/// freshly recorded missing trip — the id of the trip row it created.
+/// What answering a gap sends back. A genuinely missing trip is no longer
+/// resolved here — the driver records it for real (POST /api/trips/manual)
+/// — so a confirmed gap is always a bobtail.
 struct GapResolutionResult: Decodable {
     let priorTripId: String
     let nextTripId: String
     let resolution: String
-    let createdTripId: String?
 }
 
 /// A break in the chain of trips: the earlier one ended somewhere other than
@@ -132,6 +132,10 @@ struct TripGap: Identifiable, Hashable {
     let nextTripId: String
     let fromName: String
     let toName: String
+    /// The two stops a trip recorded to fill this gap should use — present
+    /// whenever both trips name a real location, not just free text.
+    let fromLocationId: String?
+    let toLocationId: String?
 
     var id: String { "\(priorTripId):\(nextTripId)" }
 
@@ -160,7 +164,9 @@ struct TripGap: Identifiable, Hashable {
                 priorTripId: prior.id,
                 nextTripId: next.id,
                 fromName: fromName.isEmpty ? "Unknown stop" : fromName,
-                toName: toName.isEmpty ? "Unknown stop" : toName
+                toName: toName.isEmpty ? "Unknown stop" : toName,
+                fromLocationId: prior.destinationLocationId,
+                toLocationId: next.originLocationId
             ))
         }
         return gaps

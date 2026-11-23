@@ -11,6 +11,7 @@ struct TripsView: View {
     @State private var showingCalendar = false
     @State private var pickedDay: Date?
     @State private var openedTrip: OpenedTrip?
+    @State private var recordingTrip: ManualTripContext?
 
     /// Gaps by the later trip, which is the row they are shown above.
     private var gapsByNextTrip: [String: TripGap] {
@@ -37,6 +38,14 @@ struct TripsView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     PageHeader("Trips") {
+                        Button {
+                            recordingTrip = ManualTripContext(gap: nil)
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .buttonStyle(IconButtonStyle())
+                        .accessibilityLabel("Record a trip")
+
                         Button {
                             showingCalendar.toggle()
                             if !showingCalendar { pickedDay = nil }
@@ -89,9 +98,12 @@ struct TripsView: View {
                         SectionTitle(text: Format.day(group.day))
                         ForEach(group.trips) { trip in
                             if let gap = gaps[trip.id] {
-                                GapCard(gap: gap, answer: gapAnswers[gap.id]) { resolution in
-                                    Task { await answer(gap, resolution) }
-                                }
+                                GapCard(
+                                    gap: gap,
+                                    answer: gapAnswers[gap.id],
+                                    onBobtail: { Task { await confirmBobtail(gap) } },
+                                    onRecordMissing: { recordingTrip = ManualTripContext(gap: gap) }
+                                )
                             }
                             NavigationLink(value: trip) {
                                 TripRow(trip: trip)
@@ -118,6 +130,13 @@ struct TripsView: View {
                         }
                 }
             }
+            .sheet(item: $recordingTrip) { context in
+                ManualTripEntrySheet(gap: context.gap) { tripId in
+                    recordingTrip = nil
+                    openedTrip = OpenedTrip(id: tripId)
+                    Task { await load() }
+                }
+            }
             .refreshable { await load() }
             .task { await load() }
         }
@@ -142,7 +161,7 @@ struct TripsView: View {
     private struct GapPayload: Encodable {
         let priorTripId: String
         let nextTripId: String
-        let resolution: String
+        let resolution = "BOBTAIL"
     }
 
     /// A trip just opened from a gap resolution, so it can be shown right
@@ -150,18 +169,21 @@ struct TripsView: View {
     /// own navigation so it works whether or not the trip is in `trips` yet.
     private struct OpenedTrip: Identifiable { let id: String }
 
-    private func answer(_ gap: TripGap, _ resolution: String) async {
+    /// What to open the manual-trip sheet with: a blank form from the "+"
+    /// button, or one pre-filled to fill a specific gap.
+    private struct ManualTripContext: Identifiable {
+        let id = UUID()
+        let gap: TripGap?
+    }
+
+    private func confirmBobtail(_ gap: TripGap) async {
         guard let api = model.api else { return }
         do {
-            let result: GapResolutionResult = try await api.post("/api/trips/gaps", body: GapPayload(
+            let _: GapResolutionResult = try await api.post("/api/trips/gaps", body: GapPayload(
                 priorTripId: gap.priorTripId,
-                nextTripId: gap.nextTripId,
-                resolution: resolution
+                nextTripId: gap.nextTripId
             ))
             await load()
-            if let createdTripId = result.createdTripId {
-                openedTrip = OpenedTrip(id: createdTripId)
-            }
         } catch {
             errorMessage = model.handle(error)
         }
@@ -172,7 +194,8 @@ struct TripsView: View {
 private struct GapCard: View {
     let gap: TripGap
     let answer: String?
-    let onAnswer: (String) -> Void
+    let onBobtail: () -> Void
+    let onRecordMissing: () -> Void
 
     private var isBobtail: Bool { answer == "BOBTAIL" }
 
@@ -185,7 +208,7 @@ private struct GapCard: View {
                 Spacer()
                 if isBobtail {
                     Menu {
-                        Button("This was a missing trip") { onAnswer("MISSING") }
+                        Button("This was a missing trip") { onRecordMissing() }
                     } label: {
                         Image(systemName: "ellipsis")
                             .frame(minWidth: 44, minHeight: 32)
@@ -205,9 +228,9 @@ private struct GapCard: View {
                     .font(.footnote)
                     .foregroundColor(Brand.muted)
                 HStack(spacing: 10) {
-                    Button("Record Missing Trip") { onAnswer("MISSING") }
+                    Button("Record Missing Trip") { onRecordMissing() }
                         .buttonStyle(DarkButtonStyle())
-                    Button("It Was a Bobtail Move") { onAnswer("BOBTAIL") }
+                    Button("It Was a Bobtail Move") { onBobtail() }
                         .buttonStyle(SecondaryButtonStyle())
                 }
             }
