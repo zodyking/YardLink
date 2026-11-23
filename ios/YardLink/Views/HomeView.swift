@@ -86,7 +86,15 @@ struct HomeView: View {
                             .frame(maxWidth: .infinity, minHeight: 240)
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                // Extra clearance so the last button in view (e.g. Cancel
+                // Trip, when there's little else on the page) never sits
+                // under the raised Tasks disc in the tab bar below, which
+                // paints above its own bar by design. The bar itself is
+                // untouched; this just keeps content clear of where it
+                // paints.
+                .padding(.bottom, 44)
             }
             .screenBackground()
             .brandScreen(leading: { toolsButton }) { messagesButton }
