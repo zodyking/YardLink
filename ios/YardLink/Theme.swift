@@ -72,11 +72,17 @@ struct BrandMark: View {
 }
 
 /// The slim navy strip across the top of every root screen: the brand in the
-/// middle, room for one control on the right (Messages on Home).
-struct BrandStrip<Trailing: View>: View {
+/// middle, room for one control on the left (Tools on Home) and one on the
+/// right (Messages on Home).
+struct BrandStrip<Leading: View, Trailing: View>: View {
+    @ViewBuilder var leading: Leading
     @ViewBuilder var trailing: Trailing
 
-    init(@ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
+    init(
+        @ViewBuilder leading: () -> Leading = { EmptyView() },
+        @ViewBuilder trailing: () -> Trailing = { EmptyView() }
+    ) {
+        self.leading = leading()
         self.trailing = trailing()
     }
 
@@ -84,10 +90,11 @@ struct BrandStrip<Trailing: View>: View {
         ZStack {
             BrandMark()
             HStack {
+                leading
                 Spacer()
                 trailing
             }
-            .padding(.trailing, 6)
+            .padding(.horizontal, 6)
         }
         .frame(height: 52)
         .frame(maxWidth: .infinity)
@@ -100,11 +107,16 @@ struct BrandStrip<Trailing: View>: View {
 
 extension View {
     /// A root screen: the brand strip pinned to the top in place of the
-    /// system bar, with the content scrolling beneath it.
-    func brandScreen<Trailing: View>(@ViewBuilder trailing: () -> Trailing = { EmptyView() }) -> some View {
+    /// system bar, with the content scrolling beneath it. `leading` defaults
+    /// to empty so existing call sites that only pass a trailing closure
+    /// (e.g. `.brandScreen { messagesButton }`) are unaffected.
+    func brandScreen<Leading: View, Trailing: View>(
+        @ViewBuilder leading: () -> Leading = { EmptyView() },
+        @ViewBuilder trailing: () -> Trailing = { EmptyView() }
+    ) -> some View {
         self
             .toolbar(.hidden, for: .navigationBar)
-            .safeAreaInset(edge: .top, spacing: 0) { BrandStrip(trailing: trailing) }
+            .safeAreaInset(edge: .top, spacing: 0) { BrandStrip(leading: leading, trailing: trailing) }
     }
 }
 
