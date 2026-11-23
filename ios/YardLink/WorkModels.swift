@@ -1004,3 +1004,50 @@ let resetTargets: [(id: String, label: String, hint: String)] = [
     ("trucks", "Trucks", "Company trucks"),
     ("users", "Users", "Other accounts. Yours stays."),
 ]
+
+// MARK: - Fuel receipts
+
+/// What the server read off a just-snapped receipt photo. A starting point
+/// for the confirm form, never saved as-is.
+struct FuelReceiptExtraction: Decodable {
+    let gallons: Double?
+    let totalAmount: Double?
+    let pricePerGallon: Double?
+    let stationName: String?
+    /// ISO date/time the receipt itself seems to carry, or nil to mean "use now".
+    let purchasedAt: Date?
+    let rawText: String
+}
+
+struct FuelReceiptExtractionEnvelope: Decodable {
+    let extraction: FuelReceiptExtraction
+}
+
+struct FuelReceiptSummary: Decodable, Identifiable, Hashable {
+    let id: String
+    let purchasedAt: Date
+    let gallons: Double
+    let totalAmount: Double
+    let pricePerGallon: Double?
+    let stationName: String?
+    let notes: String?
+}
+
+struct FuelReceiptWeek: Decodable, Identifiable, Hashable {
+    let weekStart: String
+    let weekEnd: String
+    let receipts: [FuelReceiptSummary]
+    let totalGallons: Double
+    let totalAmount: Double
+    let averagePricePerGallon: Double?
+
+    var id: String { weekStart }
+}
+
+struct FuelReceiptWeekList: Decodable {
+    let weeks: [FuelReceiptWeek]
+}
+
+struct FuelReceiptEnvelope: Decodable {
+    let receipt: FuelReceiptSummary
+}

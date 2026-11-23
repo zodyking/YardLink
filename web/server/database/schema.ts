@@ -779,6 +779,31 @@ export const damageReports = pgTable('damage_reports', {
   createdAt: utc('created_at').notNull().defaultNow(),
 }, t => [index('damage_reports_company_idx').on(t.companyId, t.createdAt)])
 
+/** A driver's own diesel receipt, snapped in Settings and tracked weekly. */
+export const fuelReceipts = pgTable('fuel_receipts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  driverId: uuid('driver_id').notNull().references(() => drivers.id, { onDelete: 'cascade' }),
+  purchasedAt: utc('purchased_at').notNull(),
+  gallons: numeric('gallons', { precision: 8, scale: 3 }).notNull(),
+  totalAmount: numeric('total_amount', { precision: 10, scale: 2 }).notNull(),
+  /** Always `totalAmount / gallons` — never read separately off the receipt. */
+  pricePerGallon: numeric('price_per_gallon', { precision: 8, scale: 3 }),
+  stationName: text('station_name'),
+  storageKey: text('storage_key').notNull(),
+  mimeType: text('mime_type').notNull(),
+  sizeBytes: integer('size_bytes').notNull().default(0),
+  /** Raw OCR transcript, kept so a bad read can be checked against the photo. */
+  ocrText: text('ocr_text'),
+  notes: text('notes'),
+  createdAt: utc('created_at').notNull().defaultNow(),
+  updatedAt: utc('updated_at').notNull().defaultNow(),
+  deletedAt: utc('deleted_at'),
+}, t => [
+  index('fuel_receipts_company_idx').on(t.companyId, t.purchasedAt),
+  index('fuel_receipts_driver_idx').on(t.driverId, t.purchasedAt),
+])
+
 /* ============================================================
    Notifications and audit
    ============================================================ */
