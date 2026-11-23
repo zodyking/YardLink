@@ -120,6 +120,7 @@ private struct TaskCardView: View {
 
     @State private var saving = false
     @State private var editingSteps = false
+    @State private var showingNote = false
 
     /// Dispatch work that begins with collecting equipment and has no trip yet.
     private var canStartPickup: Bool {
@@ -150,7 +151,6 @@ private struct TaskCardView: View {
                         .font(.footnote)
                         .foregroundColor(Brand.muted)
                 }
-                InfoRow(label: "Notes", value: card.notes)
             }
 
             ForEach(steps) { step in
@@ -180,6 +180,31 @@ private struct TaskCardView: View {
                     .font(.caption.weight(.bold))
                     .foregroundColor(Brand.linkBlue)
                     .frame(minHeight: 32)
+            }
+
+            // Steps above are this note, already broken into trackable lines —
+            // showing the whole original dispatch note by default just repeats
+            // all of that as one unbroken wall of text. Collapsed behind a
+            // toggle instead, for the rare time the original wording matters.
+            if let notes = task.card?.notes, !notes.isEmpty {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { showingNote.toggle() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(showingNote ? "Hide original note" : "Show original note")
+                        Image(systemName: showingNote ? "chevron.up" : "chevron.down")
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(Brand.muted)
+                }
+                .frame(minHeight: 32, alignment: .leading)
+
+                if showingNote {
+                    Text(notes)
+                        .font(.subheadline)
+                        .foregroundColor(Brand.navy)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
 
             if canStartPickup {
