@@ -1292,6 +1292,14 @@ export interface CorrectTripDetailsInput {
   originLocationId?: string | null
   destinationLocationId?: string | null
   /**
+   * Adjust an already-recorded pickup or drop-off instant — e.g. the driver
+   * fixed the clock time on their time card and that should flow back to
+   * the trip it came from. Never used to set one that hasn't happened yet;
+   * that still only ever happens through the live pickup/drop-off flow.
+   */
+  pickedUpAt?: Date
+  droppedOffAt?: Date
+  /**
    * Clear the swap pairing on this trip and its mate. For when "Swap" got
    * tapped as a shortcut to start the next pickup rather than because this
    * was actually a same-visit hookup, and history should not keep calling
@@ -1302,12 +1310,15 @@ export interface CorrectTripDetailsInput {
 
 /**
  * Fix up a trip's own record after the fact — the notes, which locations it
- * ran between, or whether it should still be paired as a swap. Unlike the
- * live-only edits above (the seal, the intended drop-off), this works on a
- * trip of any status except a cancelled one, so an old, finished trip — or
- * one just reconstructed to fill a missing-trip gap — is never stuck
- * showing the wrong thing with no way to fix it. It never touches
- * equipment, pool state or driver status, so it can't corrupt anything live.
+ * ran between, its pickup/drop-off times, or whether it should still be
+ * paired as a swap. Unlike the live-only edits above (the seal, the
+ * intended drop-off), this works on a trip of any status except a
+ * cancelled one, so an old, finished trip — or one just reconstructed to
+ * fill a missing-trip gap — is never stuck showing the wrong thing with no
+ * way to fix it. It never touches equipment, pool state, driver status, or
+ * the container's own event history, so it can't corrupt anything live —
+ * a time or place correction here is the trip's own record catching up to
+ * what the driver says actually happened, not a replay of events.
  */
 export async function correctTripDetails(
   db: Database,
@@ -1329,6 +1340,27 @@ export async function correctTripDetails(
     if (input.destinationLocationId !== undefined) {
       if (input.destinationLocationId) await loadLocation(tx, auth.companyId, input.destinationLocationId)
       set.destinationLocationId = input.destinationLocationId
+    }
+    if (input.pickedUpAt !== undefined) {
+      if (!trip.pickedUpAt) {
+        throw createError({ statusCode: 409, statusMessage: 'This trip has not been picked up yet.' })
+      }
+      const droppedOffAt = input.droppedOffAt ?? trip.droppedOffAt
+      if (droppedOffAt && input.pickedUpAt > droppedOffAt) {
+        throw createError({ statusCode: 422, statusMessage: 'Pickup cannot be after drop-off.' })
+      }
+      set.pickedUpAt = input.pickedUpAt
+    }
+    if (input.droppedOffAt !== undefined) {
+      if (!trip.droppedOffAt) {
+        throw createError({ statusCode: 409, statusMessage: 'This trip has not been dropped off yet.' })
+      }
+      const pickedUpAt = input.pickedUpAt ?? trip.pickedUpAt
+      if (pickedUpAt && input.droppedOffAt < pickedUpAt) {
+        throw createError({ statusCode: 422, statusMessage: 'Drop-off cannot be before pickup.' })
+      }
+      set.droppedOffAt = input.droppedOffAt
+      if (trip.completedAt) set.completedAt = input.droppedOffAt
     }
     if (input.unswap && trip.swapPairTripId) {
       set.swapPairTripId = null

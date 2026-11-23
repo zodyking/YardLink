@@ -13,7 +13,7 @@ import {
 import type { Database, DbExecutor } from '../utils/db'
 import type { AuthContext } from '../utils/session'
 import { companyTimezone } from './tasks'
-import { LIVE_TRIP_STATUSES } from './movements'
+import { correctTripDetails, LIVE_TRIP_STATUSES } from './movements'
 import { addIsoDays, calendarDateInZone } from '#shared/utils/sms-task'
 import { parseCoord } from '#shared/utils/geo'
 import {
@@ -26,6 +26,7 @@ import {
   markStopCorrections,
   mergeIncomingPing,
   mergeTimeCardStops,
+  minutesFromClock,
   routeCustomerFromTrips,
   sanitizeTimeCardStop,
   shiftTotals,
@@ -542,6 +543,80 @@ export async function recordTimeCardPing(
   return { accepted: true, live: card.live, workDate, card }
 }
 
+/** Minutes a submitted clock time moved from the auto baseline, or null if unreadable or unchanged. */
+function clockDeltaMinutes(submitted: string, base: string): number | null {
+  const next = minutesFromClock(submitted)
+  const prior = minutesFromClock(base)
+  if (next == null || prior == null || next === prior) return null
+  return next - prior
+}
+
+/**
+ * A driver correcting a TRIP-sourced stop's time on the time card is really
+ * correcting the trip — the stop is just that trip's pickup or drop-off
+ * rendered as a clock reading. Carries the same minute-for-minute change
+ * over to the real `pickedUpAt`/`droppedOffAt`, so the trip and every place
+ * that reads it (history, equipment records) lines up with what the time
+ * card now says, rather than the two quietly disagreeing forever.
+ *
+ * Works in whole-minute deltas rather than reconstructing an instant from
+ * the clock string and the card's time zone, so it is exact regardless of
+ * DST or odd zone offsets, and a correction the auto baseline cannot read
+ * (an unparsed clock, a stop with no matching trip) is simply left alone.
+ */
+async function applyTripTimingCorrections(
+  db: Database,
+  auth: AuthContext & { driverId: string },
+  submitted: readonly TimeCardStop[],
+  auto: readonly TimeCardStop[],
+  dayTrips: readonly TimeCardTripInput[],
+): Promise<Set<string>> {
+  const autoByKey = new Map(auto.map(stop => [stop.key, stop]))
+  const tripsById = new Map(dayTrips.map(trip => [trip.id, trip]))
+  const corrected = new Set<string>()
+
+  for (const stop of submitted) {
+    if (stop.source !== 'TRIP' || !stop.tripId) continue
+    const base = autoByKey.get(stop.key)
+    const trip = tripsById.get(stop.tripId)
+    if (!base || !trip) continue
+    const isPickup = stop.key.endsWith(':PICKUP')
+    const isDropoff = stop.key.endsWith(':DROPOFF')
+    if (!isPickup && !isDropoff) continue
+
+    try {
+      if (isPickup) {
+        const delta = clockDeltaMinutes(stop.timeOut, base.timeOut)
+        const pickedUpAt = trip.pickedUpAt ? new Date(trip.pickedUpAt) : null
+        if (delta == null || !pickedUpAt) continue
+        await correctTripDetails(db, auth, {
+          tripId: stop.tripId,
+          pickedUpAt: new Date(pickedUpAt.getTime() + delta * 60_000),
+        })
+      }
+      else {
+        const delta = clockDeltaMinutes(stop.timeOut, base.timeOut) ?? clockDeltaMinutes(stop.timeIn, base.timeIn)
+        const droppedOffAt = trip.droppedOffAt ? new Date(trip.droppedOffAt) : null
+        if (delta == null || !droppedOffAt) continue
+        await correctTripDetails(db, auth, {
+          tripId: stop.tripId,
+          droppedOffAt: new Date(droppedOffAt.getTime() + delta * 60_000),
+        })
+      }
+      corrected.add(stop.tripId)
+    }
+    catch (error) {
+      // A rejected correction (e.g. it would put drop-off before pickup)
+      // leaves the trip exactly as it was; the card still shows the
+      // driver's edit, just marked as a correction rather than silently
+      // rewriting the trip underneath them.
+      console.warn('[time-card] could not apply a trip timing correction', error)
+    }
+  }
+
+  return corrected
+}
+
 export async function patchDriverTimeCard(
   db: Database,
   auth: AuthContext,
@@ -556,10 +631,10 @@ export async function patchDriverTimeCard(
   const current = await syncDriverTimeCard(db, driverAuth, workDate)
   const timeZone = await companyTimezone(db, driverAuth.companyId)
   const row = await ensureRow(db, driverAuth, workDate)
-  const dayTrips = await loadDayTrips(db, driverAuth, workDate, timeZone)
+  let dayTrips = await loadDayTrips(db, driverAuth, workDate, timeZone)
   const sites = await loadSites(db, driverAuth.companyId)
   const pings = annotatePingsWithSites(asPings(row.pings), sites)
-  const auto = mergeTimeCardStops(
+  let auto = mergeTimeCardStops(
     [...stopsFromTrips(dayTrips, timeZone), ...stopsFromPings(pings, timeZone)],
     [],
   )
@@ -570,6 +645,21 @@ export async function patchDriverTimeCard(
         .filter((item): item is TimeCardStop => Boolean(item))
         .slice(0, TIME_CARD_STOP_MAX)
     : asStops(row.stops)
+
+  // A driver's edit to a trip-sourced stop's clock time is a correction to
+  // the trip itself, not just to this card — push it back so trip history
+  // and the time card never disagree about when something actually
+  // happened. Re-derive the auto baseline afterward, since the trips it is
+  // built from just changed.
+  const correctedTrips = await applyTripTimingCorrections(db, driverAuth, submittedStops, auto, dayTrips)
+  if (correctedTrips.size) {
+    dayTrips = await loadDayTrips(db, driverAuth, workDate, timeZone)
+    auto = mergeTimeCardStops(
+      [...stopsFromTrips(dayTrips, timeZone), ...stopsFromPings(pings, timeZone)],
+      [],
+    )
+  }
+
   const stops = mergeTimeCardStops(auto, markStopCorrections(submittedStops, auto))
 
   const savedHeader = asHeader(row.header, workDate)
