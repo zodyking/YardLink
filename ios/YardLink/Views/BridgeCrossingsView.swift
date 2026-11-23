@@ -71,9 +71,16 @@ struct BridgeCrossingsListView: View {
 
     private func crossingCard(name: String, lanes: [BridgeCrossingLane]) -> some View {
         Card {
-            Text(name).font(.body.weight(.semibold)).foregroundColor(Brand.navy)
-            VStack(spacing: 8) {
-                ForEach(lanes) { lane in
+            HStack(spacing: 10) {
+                CrossingIcon()
+                Text(name).font(.body.weight(.bold)).foregroundColor(Brand.navy)
+                Spacer(minLength: 0)
+            }
+            VStack(spacing: 0) {
+                ForEach(Array(lanes.enumerated()), id: \.element.id) { index, lane in
+                    if index > 0 {
+                        Rectangle().fill(Brand.line).frame(height: 1)
+                    }
                     NavigationLink {
                         BridgeCrossingDetailView(facilityId: lane.facilityId, direction: lane.direction, crossingName: name)
                     } label: {
@@ -85,28 +92,43 @@ struct BridgeCrossingsListView: View {
         }
     }
 
+    private func laneAccentColor(_ lane: BridgeCrossingLane) -> Color {
+        if lane.isClosed { return Brand.danger }
+        switch lane.trend {
+        case .improving: return Brand.ok
+        case .worsening: return Brand.danger
+        case .steady: return Brand.line
+        }
+    }
+
     private func laneRow(_ lane: BridgeCrossingLane) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(laneAccentColor(lane))
+                .frame(width: 4, height: 30)
+
             Text(lane.direction == .towardNY ? "To NY" : "To NJ")
-                .font(.footnote.weight(.semibold))
+                .font(.caption.weight(.bold))
                 .foregroundColor(Brand.muted)
-                .frame(width: 48, alignment: .leading)
+                .frame(width: 44, alignment: .leading)
 
             if lane.isClosed {
                 Text("Closed")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.bold))
                     .foregroundColor(Brand.danger)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Text("\(lane.travelTimeMinutes) min")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(Brand.navy)
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text("\(lane.travelTimeMinutes)").font(.title3.weight(.bold)).foregroundColor(Brand.navy)
+                    Text("min").font(.caption).foregroundColor(Brand.muted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             TrendBadge(trend: lane.trend)
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundColor(Brand.muted.opacity(0.6))
+            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundColor(Brand.muted.opacity(0.5))
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 10)
     }
 
     /// `silent` is for the background refresh loop and skips the spinner and
@@ -142,7 +164,8 @@ private struct LastUpdatedLabel: View {
     }
 }
 
-/// Small "improving / worsening / steady" pill, shared by the list and detail screens.
+/// "Improving / worsening / steady" pill, shared by the list and detail
+/// screens — a tinted capsule in the same spirit as Theme's `StatusPill`.
 private struct TrendBadge: View {
     let trend: BridgeCrossingTrend
 
@@ -156,9 +179,26 @@ private struct TrendBadge: View {
 
     var body: some View {
         Label(style.label, systemImage: style.icon)
-            .font(.caption.weight(.semibold))
-            .foregroundColor(style.color)
+            .font(.caption2.weight(.bold))
             .labelStyle(.titleAndIcon)
+            .foregroundColor(style.color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(style.color.opacity(0.12))
+            .clipShape(Capsule())
+    }
+}
+
+/// The small tinted icon square used to anchor a crossing's identity, in the
+/// same spirit as Theme's `OptionRow` icon chip.
+private struct CrossingIcon: View {
+    var body: some View {
+        Image(systemName: "road.lanes")
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(Brand.linkBlue)
+            .frame(width: 34, height: 34)
+            .background(Brand.linkBlue.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
@@ -215,41 +255,86 @@ struct BridgeCrossingDetailView: View {
 
     private func header(_ lane: BridgeCrossingLane) -> some View {
         Card {
-            Text(lane.direction == .towardNY ? "Toward New York" : "Toward New Jersey")
-                .font(.footnote.weight(.semibold))
-                .foregroundColor(Brand.muted)
-
-            if lane.isClosed {
-                Text("Closed").font(.system(size: 34, weight: .bold)).foregroundColor(Brand.danger)
-            } else {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(lane.travelTimeMinutes)").font(.system(size: 40, weight: .bold)).foregroundColor(Brand.navy)
-                    Text("min").font(.title3).foregroundColor(Brand.muted)
-                }
+            HStack(spacing: 10) {
+                CrossingIcon()
+                Text(lane.direction == .towardNY ? "Toward New York" : "Toward New Jersey")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(Brand.muted)
+                Spacer(minLength: 0)
+                TrendBadge(trend: lane.trend)
             }
 
-            TrendBadge(trend: lane.trend)
+            if lane.isClosed {
+                Text("Closed")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundColor(Brand.danger)
+                    .padding(.vertical, 4)
+            } else {
+                HStack(alignment: .lastTextBaseline, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text("\(lane.travelTimeMinutes)")
+                                .font(.system(size: 48, weight: .bold))
+                                .foregroundColor(Brand.navy)
+                            Text("min").font(.title3).foregroundColor(Brand.muted)
+                        }
+                        Text("Right now").font(.caption).foregroundColor(Brand.muted)
+                    }
 
-            if let typical = lane.typicalTimeMinutes {
-                Text("Typically \(typical) min").font(.footnote).foregroundColor(Brand.muted)
+                    if let typical = lane.typicalTimeMinutes {
+                        Rectangle().fill(Brand.line).frame(width: 1, height: 40)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text("\(typical)").font(.title2.weight(.semibold)).foregroundColor(Brand.muted)
+                            Text("Typically").font(.caption).foregroundColor(Brand.muted)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
             }
         }
     }
 
     private func graph(_ history: [BridgeCrossingHistoryPoint]) -> some View {
-        Card {
-            Text("Past 24 hours").font(.footnote.weight(.semibold)).foregroundColor(Brand.muted)
+        let hasTypical = history.contains { $0.typicalTimeMinutes != nil }
+        return Card {
+            HStack {
+                Text("Past 24 hours").font(.footnote.weight(.semibold)).foregroundColor(Brand.muted)
+                Spacer(minLength: 8)
+                legendDot(color: Brand.linkBlue, label: "This crossing")
+                if hasTypical {
+                    legendDot(color: Brand.muted, label: "Typical")
+                }
+            }
             Chart(history) { point in
+                AreaMark(x: .value("Time", point.recordedAt), y: .value("Minutes", point.travelTimeMinutes))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Brand.linkBlue.opacity(0.22), Brand.linkBlue.opacity(0)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("Time", point.recordedAt), y: .value("Minutes", point.travelTimeMinutes))
                     .foregroundStyle(Brand.linkBlue)
+                    .lineStyle(StrokeStyle(lineWidth: 2))
                     .interpolationMethod(.monotone)
                 if let typical = point.typicalTimeMinutes {
                     LineMark(x: .value("Time", point.recordedAt), y: .value("Typical", typical))
                         .foregroundStyle(Brand.muted.opacity(0.5))
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        .interpolationMethod(.monotone)
                 }
             }
-            .frame(height: 180)
+            .chartLegend(.hidden)
+            .frame(height: 190)
+        }
+    }
+
+    private func legendDot(color: Color, label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(label).font(.caption2).foregroundColor(Brand.muted)
         }
     }
 
