@@ -314,6 +314,38 @@ private struct TripRow: View {
     }
 }
 
+/// One line inside the Actions card: icon, label, chevron — the same shape
+/// as the "Time Cards" shortcut on the Trips list, so a handful of utility
+/// actions read as one tidy list instead of a stack of loose full-width buttons.
+private struct ActionRow: View {
+    let icon: String
+    let title: String
+    var disabled = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(disabled ? Brand.muted.opacity(0.5) : Brand.linkBlue)
+                    .frame(width: 22)
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(disabled ? Brand.muted : Brand.navy)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(Brand.muted.opacity(0.5))
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+}
+
 /// One trip: equipment, route, history, and what can be done with it now.
 struct TripDetailView: View {
     @EnvironmentObject private var model: AppModel
@@ -435,8 +467,10 @@ struct TripDetailView: View {
         }
     }
 
-    /// The same next step Home offers for this trip, then everything else
-    /// that can be done with it.
+    /// The same next step Home offers for this trip, prominent on its own,
+    /// then everything else that can be done with it grouped into one card
+    /// — the same shape as Contacts and History below — so the screen reads
+    /// as a few clear sections instead of a long run of loose buttons.
     @ViewBuilder
     private func actions(_ detail: TripDetail) -> some View {
         let trip = detail.trip
@@ -454,46 +488,35 @@ struct TripDetailView: View {
             }
         }
 
-        HStack(spacing: 12) {
-            Button {
-                sheet = .documents
-            } label: {
-                Label("Documents", systemImage: "doc.text.fill")
+        SectionTitle(text: "Actions")
+        Card {
+            ActionRow(icon: "doc.text.fill", title: "Documents") { sheet = .documents }
+            Divider()
+            // Old trips and ones reconstructed from a missing-trip gap are
+            // editable too, not just live ones — there is otherwise no way
+            // to fix a note after the fact once a trip is finished.
+            ActionRow(
+                icon: "pencil",
+                title: trip.driverNotes?.isEmpty == false || trip.notes?.isEmpty == false ? "Edit Notes" : "Add Notes",
+                disabled: trip.status == "CANCELLED"
+            ) { sheet = .editNotes }
+            Divider()
+            ActionRow(
+                icon: "paperplane.fill",
+                title: "Send Update",
+                disabled: TripUpdate.action(for: trip.status) == nil
+            ) { sheet = .update }
+            // "Swap" is set the moment that button is tapped to start the
+            // next pickup — a shortcut to grab the container already
+            // sitting there, not necessarily a same-visit hookup the driver
+            // meant to call a swap. This is how to take the tag back off,
+            // on either half of it.
+            if trip.swapPairTripId != nil {
+                Divider()
+                ActionRow(icon: "arrow.left.arrow.right.circle", title: "Not a Swap", disabled: working) {
+                    confirmingUnswap = true
+                }
             }
-            .buttonStyle(SecondaryButtonStyle())
-
-            Button {
-                sheet = .update
-            } label: {
-                Label("Send Update", systemImage: "paperplane.fill")
-            }
-            .buttonStyle(SecondaryButtonStyle())
-            .disabled(TripUpdate.action(for: trip.status) == nil)
-        }
-
-        // Old trips and ones reconstructed from a missing-trip gap are
-        // editable too, not just live ones — there is otherwise no way to
-        // fix a note after the fact once a trip is finished.
-        Button {
-            sheet = .editNotes
-        } label: {
-            Label(trip.driverNotes?.isEmpty == false || trip.notes?.isEmpty == false ? "Edit Notes" : "Add Notes", systemImage: "pencil")
-        }
-        .buttonStyle(SecondaryButtonStyle())
-        .disabled(trip.status == "CANCELLED")
-
-        // "Swap" is set the moment that button is tapped to start the next
-        // pickup — a shortcut to grab the container already sitting there,
-        // not necessarily a same-visit hookup the driver meant to call a
-        // swap. This is how to take the tag back off, on either half of it.
-        if trip.swapPairTripId != nil {
-            Button {
-                confirmingUnswap = true
-            } label: {
-                Label("Not a Swap", systemImage: "arrow.left.arrow.right.circle")
-            }
-            .buttonStyle(SecondaryButtonStyle())
-            .disabled(working)
         }
 
         if trip.isLive {

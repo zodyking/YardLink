@@ -127,6 +127,12 @@ struct HomePayload: Decodable {
         let kind: String?
         let swapPairTripId: String?
         let customer: String?
+        /// When `recentCompleted` actually finished — the server keeps that
+        /// field around for 12 hours so Home can still reference it, but the
+        /// Live Activity only wants to say "done" for a few minutes, so it
+        /// needs the real timestamp rather than just the field being present.
+        let droppedOffAt: Date?
+        let completedAt: Date?
 
         var isLive: Bool { ["PICKUP_IN_PROGRESS", "IN_TRANSIT", "DROPOFF_IN_PROGRESS"].contains(status) }
         var isBareChassis: Bool { kind == "BARE_CHASSIS" }

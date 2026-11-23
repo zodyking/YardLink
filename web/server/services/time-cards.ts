@@ -13,7 +13,7 @@ import {
 import type { Database, DbExecutor } from '../utils/db'
 import type { AuthContext } from '../utils/session'
 import { companyTimezone } from './tasks'
-import { correctTripDetails, LIVE_TRIP_STATUSES } from './movements'
+import { correctTripDetails, LIVE_TRIP_STATUSES, type CorrectTripDetailsInput } from './movements'
 import { addIsoDays, calendarDateInZone } from '#shared/utils/sms-task'
 import { parseCoord } from '#shared/utils/geo'
 import {
@@ -585,19 +585,24 @@ function clockDeltaMinutes(submitted: string, base: string): number | null {
 }
 
 /**
- * A driver correcting a TRIP-sourced stop's time on the time card is really
+ * A driver correcting a TRIP-sourced stop on the time card is really
  * correcting the trip — the stop is just that trip's pickup or drop-off
- * rendered as a clock reading. Carries the same minute-for-minute change
- * over to the real `pickedUpAt`/`droppedOffAt`, so the trip and every place
- * that reads it (history, equipment records) lines up with what the time
- * card now says, rather than the two quietly disagreeing forever.
+ * rendered as a clock reading and a place name. Carries the same change
+ * over to the real trip, so the trip and every place that reads it
+ * (history, equipment records, the dispatcher console) lines up with what
+ * the time card now says, rather than the two quietly disagreeing forever.
  *
- * Works in whole-minute deltas rather than reconstructing an instant from
- * the clock string and the card's time zone, so it is exact regardless of
- * DST or odd zone offsets, and a correction the auto baseline cannot read
- * (an unparsed clock, a stop with no matching trip) is simply left alone.
+ * Timing is carried over as a whole-minute delta rather than by
+ * reconstructing an instant from the clock string and the card's time
+ * zone, so it is exact regardless of DST or odd zone offsets. A place is
+ * only ever carried over from `locationId` — a real pick off the location
+ * list — never from the free-text label next to it: the label alone
+ * cannot be trusted to name one real place, and guessing wrong would
+ * quietly move a container's recorded stop to the wrong yard. A
+ * correction the auto baseline cannot read (an unparsed clock, a stop with
+ * no matching trip, a place typed rather than picked) is simply left alone.
  */
-async function applyTripTimingCorrections(
+async function applyTripStopCorrections(
   db: Database,
   auth: AuthContext & { driverId: string },
   submitted: readonly TimeCardStop[],
@@ -617,33 +622,34 @@ async function applyTripTimingCorrections(
     const isDropoff = stop.key.endsWith(':DROPOFF')
     if (!isPickup && !isDropoff) continue
 
+    const correction: CorrectTripDetailsInput = { tripId: stop.tripId }
+
+    if (isPickup) {
+      const delta = clockDeltaMinutes(stop.timeOut, base.timeOut)
+      const pickedUpAt = trip.pickedUpAt ? new Date(trip.pickedUpAt) : null
+      if (delta != null && pickedUpAt) correction.pickedUpAt = new Date(pickedUpAt.getTime() + delta * 60_000)
+      if (stop.locationId && stop.locationId !== base.locationId) correction.originLocationId = stop.locationId
+    }
+    else {
+      const delta = clockDeltaMinutes(stop.timeOut, base.timeOut) ?? clockDeltaMinutes(stop.timeIn, base.timeIn)
+      const droppedOffAt = trip.droppedOffAt ? new Date(trip.droppedOffAt) : null
+      if (delta != null && droppedOffAt) correction.droppedOffAt = new Date(droppedOffAt.getTime() + delta * 60_000)
+      if (stop.locationId && stop.locationId !== base.locationId) correction.destinationLocationId = stop.locationId
+    }
+
+    if (!correction.pickedUpAt && !correction.droppedOffAt && !correction.originLocationId && !correction.destinationLocationId) continue
+
     try {
-      if (isPickup) {
-        const delta = clockDeltaMinutes(stop.timeOut, base.timeOut)
-        const pickedUpAt = trip.pickedUpAt ? new Date(trip.pickedUpAt) : null
-        if (delta == null || !pickedUpAt) continue
-        await correctTripDetails(db, auth, {
-          tripId: stop.tripId,
-          pickedUpAt: new Date(pickedUpAt.getTime() + delta * 60_000),
-        })
-      }
-      else {
-        const delta = clockDeltaMinutes(stop.timeOut, base.timeOut) ?? clockDeltaMinutes(stop.timeIn, base.timeIn)
-        const droppedOffAt = trip.droppedOffAt ? new Date(trip.droppedOffAt) : null
-        if (delta == null || !droppedOffAt) continue
-        await correctTripDetails(db, auth, {
-          tripId: stop.tripId,
-          droppedOffAt: new Date(droppedOffAt.getTime() + delta * 60_000),
-        })
-      }
+      await correctTripDetails(db, auth, correction)
       corrected.add(stop.tripId)
     }
     catch (error) {
-      // A rejected correction (e.g. it would put drop-off before pickup)
-      // leaves the trip exactly as it was; the card still shows the
-      // driver's edit, just marked as a correction rather than silently
-      // rewriting the trip underneath them.
-      console.warn('[time-card] could not apply a trip timing correction', error)
+      // A rejected correction (e.g. it would put drop-off before pickup,
+      // or names a location from a different company) leaves the trip
+      // exactly as it was; the card still shows the driver's edit, just
+      // marked as a correction rather than silently rewriting the trip
+      // underneath them.
+      console.warn('[time-card] could not apply a trip stop correction', error)
     }
   }
 
@@ -679,12 +685,12 @@ export async function patchDriverTimeCard(
         .slice(0, TIME_CARD_STOP_MAX)
     : asStops(row.stops)
 
-  // A driver's edit to a trip-sourced stop's clock time is a correction to
-  // the trip itself, not just to this card — push it back so trip history
-  // and the time card never disagree about when something actually
-  // happened. Re-derive the auto baseline afterward, since the trips it is
-  // built from just changed.
-  const correctedTrips = await applyTripTimingCorrections(db, driverAuth, submittedStops, auto, dayTrips)
+  // A driver's edit to a trip-sourced stop — its clock time or which place
+  // it names — is a correction to the trip itself, not just to this card —
+  // push it back so trip history and the time card never disagree about
+  // what actually happened or where. Re-derive the auto baseline
+  // afterward, since the trips it is built from just changed.
+  const correctedTrips = await applyTripStopCorrections(db, driverAuth, submittedStops, auto, dayTrips)
   if (correctedTrips.size) {
     dayTrips = await loadDayTrips(db, driverAuth, workDate, timeZone)
     auto = mergeTimeCardStops(

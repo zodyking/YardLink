@@ -290,6 +290,8 @@ private struct StopEditor: View {
     @Binding var stop: TimeCardStop
     let onRemove: () -> Void
 
+    @State private var showingLocationPicker = false
+
     private var sourceLabel: String {
         switch stop.source {
         case "TRIP": return "From a trip"
@@ -297,6 +299,12 @@ private struct StopEditor: View {
         default: return "Added by you"
         }
     }
+
+    /// A trip-sourced stop's place can only be corrected by picking a real
+    /// location, not by typing over it — the trip it came from gets this
+    /// same correction, and free text alone is never enough to know which
+    /// real place was meant.
+    private var locationIsPicked: Bool { stop.source == "TRIP" }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -316,8 +324,26 @@ private struct StopEditor: View {
                 timeField("In", text: $stop.timeIn)
                 timeField("Out", text: $stop.timeOut)
             }
-            FieldBox {
-                TextField("Location", text: $stop.location)
+            if locationIsPicked {
+                Button {
+                    showingLocationPicker = true
+                } label: {
+                    FieldBox {
+                        HStack {
+                            Text(stop.location.isEmpty ? "Choose a location" : stop.location)
+                                .foregroundColor(stop.location.isEmpty ? Brand.muted : Brand.navy)
+                            Spacer(minLength: 8)
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.bold))
+                                .foregroundColor(Brand.muted.opacity(0.6))
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            } else {
+                FieldBox {
+                    TextField("Location", text: $stop.location)
+                }
             }
             FieldBox {
                 TextField("What you did there", text: $stop.activity)
@@ -325,6 +351,16 @@ private struct StopEditor: View {
         }
         .padding(14)
         .cardSurface()
+        .sheet(isPresented: $showingLocationPicker) {
+            // The pick only updates this stop in place; saving the card is
+            // what actually sends it, the same moment a corrected time
+            // would be sent — correcting the real trip is the server's job
+            // once it sees a `locationId` that does not match its own.
+            LocationPickerSheet(title: "Change Location", selectedId: stop.locationId) { location, _ in
+                stop.location = location.name
+                stop.locationId = location.id
+            }
+        }
     }
 
     private func timeField(_ label: String, text: Binding<String>) -> some View {

@@ -114,7 +114,10 @@ struct MainTabs: View {
             PushCenter.shared.refresh()
             if let api = model.api { await WidgetSync.flushPending(api: api) }
             PushCenter.shared.clearBadge()
-            if user.isDriver { await ArrivalWatch.shared.refresh() }
+            if user.isDriver {
+                await ArrivalWatch.shared.refresh()
+                await syncLiveActivity()
+            }
         }
         .onChange(of: push.openScreen) { screen in
             // A driver reads messages over Home, which clears this itself; a
@@ -145,5 +148,13 @@ struct MainTabs: View {
                 try? await Task.sleep(nanoseconds: 120_000_000_000)
             }
         }
+    }
+
+    /// The same fetch-and-sync Home does on its own `.task`, usable from
+    /// here so a reopened app cleans up Home's widgets and Live Activity
+    /// even when the driver lands on another tab.
+    private func syncLiveActivity() async {
+        guard let api = model.api, let payload: HomePayload = try? await api.get("/api/home") else { return }
+        WidgetSync.update(home: payload)
     }
 }

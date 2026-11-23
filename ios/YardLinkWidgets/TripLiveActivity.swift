@@ -145,15 +145,34 @@ private struct BrandMark: View {
 private struct StatRow: View {
     let state: TripActivityAttributes.ContentState
 
+    /// Once the trip is done there is nothing left to count down — three
+    /// dashes in place of real numbers reads as broken, not finished, so
+    /// this brief closing beat shows one clear line instead.
+    private var isDone: Bool { state.stage >= 3 }
+
     var body: some View {
-        HStack(spacing: 0) {
-            StatCell(value: state.ettText ?? "—", caption: "ETT")
-            RailDivider()
-            StatCell(value: arrival, caption: "ETA")
-            RailDivider()
-            StatCell(value: distance, caption: "MILES AWAY")
+        if isDone {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .symbolEffect(.bounce)
+                    .foregroundStyle(WidgetBrand.ok)
+                Text("Trip complete")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+            .frame(maxWidth: .infinity)
+            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+        } else {
+            HStack(spacing: 0) {
+                StatCell(value: state.ettText ?? "—", caption: "ETT")
+                RailDivider()
+                StatCell(value: arrival, caption: "ETA")
+                RailDivider()
+                StatCell(value: distance, caption: "MILES AWAY")
+            }
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
     }
 
     private var arrival: String {

@@ -166,10 +166,23 @@ enum TripActivityCenter {
             if let meters { sent = (meters, Date()) }
         }
 
+        /// A trip that just finished is shown as done for a few minutes
+        /// first — but only genuinely just now. Home keeps `recentCompleted`
+        /// around for 12 hours so the screen can still reference it, and
+        /// without this check every reopen of the app in that window would
+        /// re-arm another 5 minutes of "done" on the Dynamic Island, long
+        /// after the driver has moved on.
+        private static let justFinishedWindow: TimeInterval = 5 * 60
+
+        private func isJustFinished(_ finished: HomePayload.Active) -> Bool {
+            guard let at = [finished.trip.droppedOffAt, finished.trip.completedAt].compactMap({ $0 }).max() else { return false }
+            return Date().timeIntervalSince(at) < Self.justFinishedWindow
+        }
+
         /// Close the activity. A trip that just finished is shown as done for a few minutes first.
         func stop(finished: HomePayload.Active? = nil) async {
             for activity in Activity<TripActivityAttributes>.activities {
-                if let finished, finished.trip.id == activity.attributes.tripId {
+                if let finished, finished.trip.id == activity.attributes.tripId, isJustFinished(finished) {
                     var state = activity.content.state
                     state.status = finished.trip.status
                     state.next = nil
@@ -177,7 +190,7 @@ enum TripActivityCenter {
                     state.arriveBy = nil
                     await activity.end(
                         ActivityContent(state: state, staleDate: nil),
-                        dismissalPolicy: .after(Date().addingTimeInterval(5 * 60))
+                        dismissalPolicy: .after(Date().addingTimeInterval(Self.justFinishedWindow))
                     )
                 } else {
                     await activity.end(nil, dismissalPolicy: .immediate)
