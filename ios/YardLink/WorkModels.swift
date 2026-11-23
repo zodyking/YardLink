@@ -1018,6 +1018,12 @@ struct FuelReceiptExtraction: Decodable {
     let stationName: String?
     /// ISO date/time the receipt itself seems to carry, or nil to mean "use now".
     let purchasedAt: Date?
+    /// The merchant's invoice/receipt number, when the receipt prints one.
+    let invoiceNumber: String?
+    /// Anything else worth keeping that isn't its own field — an auth code,
+    /// the card's last four digits, a transaction number — already joined
+    /// into one short line, meant to pre-fill the notes field.
+    let suggestedNotes: String?
     let rawText: String
 }
 

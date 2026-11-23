@@ -20,6 +20,15 @@ export interface FuelReceiptExtraction {
   stationName: string | null
   /** ISO date the receipt itself appears to carry, or null to mean "use the capture time". */
   purchasedAt: string | null
+  /** The merchant's invoice/receipt number, when the receipt prints one. */
+  invoiceNumber: string | null
+  /**
+   * Anything else worth keeping that isn't its own field — an authorization
+   * code, the card's last four digits, a pump/transaction number — joined
+   * into one short line meant to pre-fill the notes field. Null when the
+   * receipt didn't carry any of these.
+   */
+  suggestedNotes: string | null
   rawText: string
 }
 
@@ -59,20 +68,49 @@ const TOTAL_LINE_RE = /\bTOTAL\b/i
 // A line that is clearly tax, discount or a running subtotal rather than the
 // amount actually charged.
 const NOT_GRAND_TOTAL_RE = /\bSUB\s*TOTAL\b|\bTAX\b|\bDISCOUNT\b|\bSAVINGS\b|\bDUE\b\s*AT\b/i
-const AMOUNT_RE = /\$?\s*(\d{1,4}\.\d{2})\b/
+// Thousands commas are optional ("1,234.56" and "438.07" both match, with
+// the comma stripped before the capture is read as a number).
+const AMOUNT_RE = /\$?\s*(\d{1,3}(?:,\d{3})*\.\d{2})\b/
+// When no line is explicitly labeled "TOTAL" (a poor OCR read can drop the
+// word entirely), the line confirming how the card was charged carries the
+// same figure and is the next best thing.
+const CHARGED_LINE_RE = /\b(?:CREDIT|DEBIT|CHARGED|AMOUNT\s*DUE|USD)\b/i
 const GALLON_AMOUNT_RE = /(\d{1,3}\.\d{2,3})/
 const DATE_RE = /\b(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})\b/
+// "Invoice #: 699374", "INV#699374", "Invoice No. 1234-5678" — but never
+// "INVALID", since \b after INV requires a non-word character right there.
+const INVOICE_RE = /\b(?:INVOICE|INV)\b\.?\s*(?:NO\.?|NUMBER|#)?\s*[:#]?\s*([0-9][0-9A-Z-]{2,19})\b/i
+// "Auth #: 965942" / "Approval Code 965942".
+const AUTH_CODE_RE = /\b(?:AUTH(?:ORIZATION)?|APPROVAL)\b\.?\s*(?:CODE|#)?\s*[:#]?\s*([0-9A-Z]{4,12})\b/i
+// "TRAN#1018109" / "Transaction # 1018109".
+const TRANSACTION_RE = /\bTRAN(?:SACTION)?\b\.?\s*#?\s*[:#]?\s*([0-9A-Z-]{3,20})\b/i
+// A masked card number ending in its real last four digits:
+// "************7148", "XXXX7148", "****-7148".
+const CARD_LAST4_RE = /(?:\*{2,}|X{2,}|•{2,})[\s-]*(\d{4})\b/i
 
 function roundTo(value: number, decimals: number): number {
   const factor = 10 ** decimals
   return Math.round(value * factor) / factor
 }
 
+function parseAmount(text: string): number {
+  return Number(text.replace(/,/g, ''))
+}
+
 function firstAmountOnOrAfter(lines: string[], index: number, pattern: RegExp): number | null {
   const here = lines[index]?.match(pattern)
-  if (here) return Number(here[1])
+  if (here) return parseAmount(here[1]!)
   const next = lines[index + 1]?.match(pattern)
-  return next ? Number(next[1]) : null
+  return next ? parseAmount(next[1]!) : null
+}
+
+/** First match of `pattern` across every line, or null if none carries it. */
+function firstMatch(lines: string[], pattern: RegExp): string | null {
+  for (const line of lines) {
+    const match = pattern.exec(line)
+    if (match) return match[1]!
+  }
+  return null
 }
 
 /** A plausible receipt date: a two-digit year is read as 2000 + yy. */
@@ -154,10 +192,35 @@ export function parseFuelReceiptLines(lines: string[]): FuelReceiptExtraction {
       break
     }
   }
+  // No line was actually labeled "TOTAL" — the card-charge confirmation
+  // line ("CREDIT $438.07", "USD$438.07") carries the same figure and is
+  // printed on nearly every pump receipt even when "TOTAL" itself doesn't
+  // OCR cleanly.
+  if (totalAmount == null) {
+    for (let i = clean.length - 1; i >= 0; i--) {
+      const line = clean[i]!
+      if (!CHARGED_LINE_RE.test(line)) continue
+      const value = firstAmountOnOrAfter(clean, i, AMOUNT_RE)
+      if (value != null && value > 0 && value < 2000) {
+        totalAmount = value
+        break
+      }
+    }
+  }
 
   const pricePerGallon = gallons && totalAmount ? roundTo(totalAmount / gallons, 3) : null
   const stationName = guessStationName(clean)
   const purchasedAt = clean.map(parseReceiptDate).find((d): d is string => d !== null) ?? null
+
+  const invoiceNumber = firstMatch(clean, INVOICE_RE)
+  const authCode = firstMatch(clean, AUTH_CODE_RE)
+  const transactionNumber = firstMatch(clean, TRANSACTION_RE)
+  const cardLast4 = firstMatch(clean, CARD_LAST4_RE)
+  const extras: string[] = []
+  if (authCode) extras.push(`Auth #${authCode}`)
+  if (transactionNumber) extras.push(`Trans #${transactionNumber}`)
+  if (cardLast4) extras.push(`Card ••${cardLast4}`)
+  const suggestedNotes = extras.length ? extras.join(' · ') : null
 
   return {
     gallons,
@@ -165,6 +228,8 @@ export function parseFuelReceiptLines(lines: string[]): FuelReceiptExtraction {
     pricePerGallon,
     stationName,
     purchasedAt,
+    invoiceNumber,
+    suggestedNotes,
     rawText: clean.join(' | ').slice(0, 2000),
   }
 }

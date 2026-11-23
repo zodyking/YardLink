@@ -420,6 +420,21 @@ struct FuelReceiptCaptureSheet: View {
             if let totalAmount = extraction.totalAmount { totalText = String(format: "%.2f", totalAmount) }
             if let stationName = extraction.stationName { self.stationName = stationName }
             if let purchasedAt = extraction.purchasedAt { self.purchasedAt = purchasedAt }
+            // Invoice number and anything else the receipt carried (auth
+            // code, card last four, transaction number) land as a suggested
+            // starting point for Notes, same "suggest, confirm" rule as
+            // every other field here — never written anywhere the driver
+            // can't see and edit it first.
+            var noteParts: [String] = []
+            if let invoiceNumber = extraction.invoiceNumber, !invoiceNumber.isEmpty {
+                noteParts.append("Invoice #\(invoiceNumber)")
+            }
+            if let suggestedNotes = extraction.suggestedNotes, !suggestedNotes.isEmpty {
+                noteParts.append(suggestedNotes)
+            }
+            if notes.isEmpty, !noteParts.isEmpty {
+                notes = noteParts.joined(separator: " · ")
+            }
         } catch {
             // A failed read is not fatal — the driver can still type the
             // numbers straight off the receipt in front of them.
