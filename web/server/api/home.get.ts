@@ -8,6 +8,7 @@ import { calendarDateInZone } from '#shared/utils/sms-task'
 import { effectiveContainerStatus } from '#shared/utils/service-life'
 import { companyTimezone, listOpenTasksForHome } from '../services/tasks'
 import { requireDriver } from '../utils/session'
+import { loadCompanySettings } from '../utils/settings'
 
 type Db = ReturnType<typeof useDb>
 
@@ -110,9 +111,10 @@ export default defineEventHandler(async (event) => {
   const timezone = await companyTimezone(db, auth.companyId)
   const todayIso = calendarDateInZone(new Date(), timezone)
 
-  const [liveTrips, todayTasks] = await Promise.all([
+  const [liveTrips, todayTasks, settings] = await Promise.all([
     findActiveTrips(db, auth.companyId, auth.driverId),
     listOpenTasksForHome(db, auth, todayIso),
+    loadCompanySettings(db),
   ])
 
   const liveBundles = await Promise.all(liveTrips.map(trip => bundleTrip(db, trip)))
@@ -241,5 +243,6 @@ export default defineEventHandler(async (event) => {
     recentTrips,
     // TODO(Phase 2): replaced by the real Dexie outbox depth.
     pendingSync: { events: 0, photos: 0 },
+    bridgeCrossingTimesEnabled: settings.bridgeCrossingTimesEnabled,
   }
 })

@@ -177,6 +177,8 @@ struct HomePayload: Decodable {
     /// A trip finished in the last few hours, kept on Home until cleared.
     let recentCompleted: Active?
     let todayTasks: [TodayTask]?
+    /// Whether the company has turned on Tools > Bridge Crossing Times.
+    let bridgeCrossingTimesEnabled: Bool?
 }
 
 // MARK: - Messages

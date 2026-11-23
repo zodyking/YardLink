@@ -1053,3 +1053,52 @@ struct FuelReceiptWeekList: Decodable {
 struct FuelReceiptEnvelope: Decodable {
     let receipt: FuelReceiptSummary
 }
+
+// MARK: - Bridge crossing times
+
+/// Which side the lane is headed toward, exactly as the Port Authority's own feed names it.
+enum BridgeCrossingDirection: String, Decodable {
+    case towardNY = "ToNY"
+    case towardNJ = "ToNJ"
+}
+
+enum BridgeCrossingTrend: String, Decodable {
+    case improving = "IMPROVING"
+    case worsening = "WORSENING"
+    case steady = "STEADY"
+}
+
+/// One crossing's current reading in one direction. The GWB's lower level is
+/// never sent — only its upper level counts as "the George Washington Bridge" here.
+struct BridgeCrossingLane: Decodable, Identifiable, Hashable {
+    let facilityId: Int
+    let crossingName: String
+    let direction: BridgeCrossingDirection
+    let travelTimeMinutes: Int
+    let typicalTimeMinutes: Int?
+    let isClosed: Bool
+    let trend: BridgeCrossingTrend
+    let sourceTimestamp: String?
+    let recordedAt: Date
+
+    var id: String { "\(facilityId):\(direction.rawValue)" }
+}
+
+struct BridgeCrossingLaneList: Decodable {
+    let lanes: [BridgeCrossingLane]
+}
+
+/// One point on a lane's 24-hour graph.
+struct BridgeCrossingHistoryPoint: Decodable, Identifiable, Hashable {
+    let travelTimeMinutes: Int
+    let typicalTimeMinutes: Int?
+    let isClosed: Bool
+    let recordedAt: Date
+
+    var id: Date { recordedAt }
+}
+
+struct BridgeCrossingDetail: Decodable {
+    let lane: BridgeCrossingLane
+    let history: [BridgeCrossingHistoryPoint]
+}

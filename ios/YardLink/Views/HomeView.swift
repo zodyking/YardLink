@@ -37,6 +37,7 @@ struct HomeView: View {
 
     private enum HomeSheet: Identifiable {
         case messages
+        case tools
         case arrive(tripId: String)
         case destination(tripId: String, currentId: String?, originId: String?)
         case seal(tripId: String, current: String?)
@@ -47,6 +48,7 @@ struct HomeView: View {
         var id: String {
             switch self {
             case .messages: return "messages"
+            case .tools: return "tools"
             case .arrive(let tripId): return "arrive-\(tripId)"
             case .destination(let tripId, _, _): return "destination-\(tripId)"
             case .seal(let tripId, _): return "seal-\(tripId)"
@@ -87,7 +89,7 @@ struct HomeView: View {
                 .padding(16)
             }
             .screenBackground()
-            .brandScreen { messagesButton }
+            .brandScreen(leading: { toolsButton }) { messagesButton }
             .fullScreenCover(item: $pickup) { launch in
                 PickupWizardView(mode: launch.mode, model: model) {
                     Task { await load() }
@@ -335,12 +337,26 @@ struct HomeView: View {
         .accessibilityLabel(model.unreadMessages > 0 ? "Messages, \(model.unreadMessages) unread" : "Messages")
     }
 
+    private var toolsButton: some View {
+        Button {
+            sheet = .tools
+        } label: {
+            Image(systemName: "wrench.and.screwdriver")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 44, height: 44)
+        }
+        .accessibilityLabel("Tools")
+    }
+
     @ViewBuilder
     private func sheetContent(_ sheet: HomeSheet) -> some View {
         Group {
             switch sheet {
             case .messages:
                 MessagesView(user: user)
+            case .tools:
+                ToolsView(bridgeCrossingTimesEnabled: home?.bridgeCrossingTimesEnabled ?? false)
             case .arrive(let tripId):
                 ArriveSheet(tripId: tripId) { arrived in
                     if arrived { arrivedTripId = tripId }
