@@ -48,6 +48,13 @@ const GALLON_LINE_RE = /\bGAL(?:LON)?S?\b/i
 // "PRICE/GAL" or "$/GAL" names the per-unit price, not the quantity pumped —
 // never read a gallon figure off one of those.
 const GALLON_EXCLUDE_RE = /PRICE|PER\s*GAL|\$\s*\/\s*GAL/i
+// Some pump receipts never spell out "gallons" at all — the item row's
+// quantity column carries a bare unit letter instead, e.g. "79.664G". Used
+// only when nothing spells out GAL/GALLON(S) anywhere on the receipt.
+const GALLON_UNIT_SUFFIX_RE = /(\d{1,3}\.\d{2,3})\s*G\b/i
+// A per-unit price ("@ 5.499/ G") can carry the same bare-G suffix as the
+// quantity — "@" or "/" right there, or PRICE/PER wording, means "skip it".
+const GALLON_UNIT_EXCLUDE_RE = /[@/]|PRICE|PER\b/i
 const TOTAL_LINE_RE = /\bTOTAL\b/i
 // A line that is clearly tax, discount or a running subtotal rather than the
 // amount actually charged.
@@ -85,13 +92,18 @@ function parseReceiptDate(text: string): string | null {
   return date.toISOString()
 }
 
-/** First line that reads like a business name rather than a number or a date. */
+// Boilerplate greeting/banner lines that print above the actual business
+// name on a lot of pump receipts ("WELCOME TO", then the name itself).
+const STATION_NAME_SKIP_RE = /^(WELCOME\b|THANK\s*YOU\b|CUSTOMER\s*COPY\b|MERCHANT\s*COPY\b)/i
+
+/** First line that reads like a business name rather than a number, a date, or a boilerplate greeting. */
 function guessStationName(lines: string[]): string | null {
-  for (const line of lines.slice(0, 4)) {
+  for (const line of lines.slice(0, 6)) {
     const text = line.replace(/\s+/g, ' ').trim()
     if (text.length < 3) continue
     if (!/[A-Za-z]{3,}/.test(text)) continue
     if (DATE_RE.test(text) || AMOUNT_RE.test(text)) continue
+    if (STATION_NAME_SKIP_RE.test(text)) continue
     return text.slice(0, 60)
   }
   return null
@@ -113,6 +125,20 @@ export function parseFuelReceiptLines(lines: string[]): FuelReceiptExtraction {
     if (value != null && value > 0 && value < 300) {
       gallons = value
       break
+    }
+  }
+  // Nothing spelled out GAL/GALLON(S) anywhere — fall back to a bare "G"
+  // unit suffix on the quantity itself (see GALLON_UNIT_SUFFIX_RE above).
+  if (gallons == null) {
+    for (const line of clean) {
+      if (GALLON_UNIT_EXCLUDE_RE.test(line)) continue
+      const match = GALLON_UNIT_SUFFIX_RE.exec(line)
+      if (!match) continue
+      const value = Number(match[1])
+      if (value > 0 && value < 300) {
+        gallons = value
+        break
+      }
     }
   }
 
