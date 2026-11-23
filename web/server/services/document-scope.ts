@@ -1,14 +1,12 @@
-import { and, desc, eq, gte, inArray, isNull, lte, notInArray, or } from 'drizzle-orm'
+import { and, desc, eq, gte, isNull, inArray, lte, or } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { PgColumn } from 'drizzle-orm/pg-core'
 import { chassis, containerDutyCycles, containers, documents, trips } from '../database/schema'
+import { LIVE_TRIP_STATUSES } from './movements'
 import { containerWindow, tripWindow } from '#shared/utils/document-scope'
 import type { DocumentWindow } from '#shared/utils/document-scope'
 
 type Db = ReturnType<typeof useDb>
-
-/** Days a finished trip stays on the driver's Documents list. */
-const RECENT_DAYS = 7
 
 /**
  * The condition that selects a trip's files: those filed on the trip itself,
@@ -51,18 +49,18 @@ export interface DocumentGroup {
   tripId: string
   containerNumber: string | null
   chassisNumber: string | null
-  /** The equipment has been dropped off. */
-  droppedOff: boolean
   count: number
+  /** An image file to show as a thumbnail; null when the group has none yet. */
+  previewDocumentId: string | null
 }
 
 /**
- * The equipment a driver has worked recently, live trips first, then the
- * drop-offs of the past week that still have files. One entry per container
- * and chassis combination in a service cycle.
+ * The equipment on the driver's active trip right now, with the files filed
+ * against it. A finished trip drops off this list — its files stay
+ * reachable from the trip itself (Trips) or the equipment's own page
+ * (Inventory), not from here.
  */
 export async function driverDocumentGroups(db: Db, companyId: string, driverId: string): Promise<DocumentGroup[]> {
-  const since = new Date(Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000)
   const rows = await db
     .select({
       trip: trips,
@@ -75,14 +73,9 @@ export async function driverDocumentGroups(db: Db, companyId: string, driverId: 
     .where(and(
       eq(trips.companyId, companyId),
       eq(trips.driverId, driverId),
-      notInArray(trips.status, ['DRAFT', 'CANCELLED']),
-      or(
-        inArray(trips.status, ['PICKUP_IN_PROGRESS', 'IN_TRANSIT', 'DROPOFF_IN_PROGRESS']),
-        gte(trips.updatedAt, since),
-      ),
+      inArray(trips.status, [...LIVE_TRIP_STATUSES]),
     ))
     .orderBy(desc(trips.updatedAt))
-    .limit(60)
 
   const seen = new Set<string>()
   const groups: DocumentGroup[] = []
@@ -94,18 +87,17 @@ export async function driverDocumentGroups(db: Db, companyId: string, driverId: 
     const condition = await tripDocumentCondition(db, companyId, trip.id)
     if (!condition) continue
     const files = await db
-      .select({ id: documents.id })
+      .select({ id: documents.id, mimeType: documents.mimeType })
       .from(documents)
       .where(and(eq(documents.companyId, companyId), isNull(documents.deletedAt), condition))
-    const live = ['PICKUP_IN_PROGRESS', 'IN_TRANSIT', 'DROPOFF_IN_PROGRESS'].includes(trip.status)
-    if (!live && files.length === 0) continue
+      .orderBy(desc(documents.createdAt))
 
     groups.push({
       tripId: trip.id,
       containerNumber,
       chassisNumber,
-      droppedOff: !live,
       count: files.length,
+      previewDocumentId: files.find(f => f.mimeType?.startsWith('image/'))?.id ?? null,
     })
   }
   return groups

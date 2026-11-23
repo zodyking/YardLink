@@ -872,9 +872,10 @@ struct DocumentViewer: View {
     }
 }
 
-/// Everything the driver has on file: the equipment still on the road and
-/// what was dropped off this week. Each entry opens that equipment's files,
-/// which stay with it for its whole service cycle.
+/// The equipment on the driver's active trip right now. Each entry opens
+/// that equipment's files. Once a trip is dropped off its files are still
+/// there — just reachable from Trips or the equipment's page in Inventory
+/// instead of this list, which only shows what's actively in motion.
 struct DriverDocumentsSheet: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
@@ -893,7 +894,7 @@ struct DriverDocumentsSheet: View {
                     if loading {
                         ProgressView().frame(maxWidth: .infinity, minHeight: 120)
                     } else if groups.isEmpty {
-                        EmptyNote(title: "No documents yet", detail: "Photos and paperwork for your trips appear here, and stay here after you drop the equipment off.")
+                        EmptyNote(title: "No active trip", detail: "Photos and paperwork appear here while you're on a trip. Once it's dropped off, find its files from Trips or the equipment's page in Inventory.")
                     } else {
                         ForEach(groups) { group in
                             row(group)
@@ -925,20 +926,28 @@ struct DriverDocumentsSheet: View {
         } label: {
             Card {
                 HStack(spacing: 12) {
-                    Image(systemName: group.droppedOff ? "checkmark.circle.fill" : "shippingbox.fill")
-                        .foregroundColor(group.droppedOff ? Brand.linkBlue : Brand.ink)
+                    Group {
+                        if let previewDocumentId = group.previewDocumentId {
+                            ServerImage(documentId: previewDocumentId)
+                        } else {
+                            ZStack {
+                                Brand.skyWash
+                                Image(systemName: "shippingbox.fill").foregroundColor(Brand.linkBlue)
+                            }
+                        }
+                    }
+                    .frame(width: 64, height: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text(group.title.isEmpty ? "Trip" : group.title)
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(Brand.ink)
-                        Text(group.droppedOff ? "Dropped off" : "On the road")
+                        Text(group.count == 0 ? "No files yet" : group.count == 1 ? "1 file" : "\(group.count) files")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                     Spacer()
-                    Text(group.count == 1 ? "1 file" : "\(group.count) files")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                     Image(systemName: "chevron.right").font(.caption).foregroundColor(.secondary)
                 }
             }

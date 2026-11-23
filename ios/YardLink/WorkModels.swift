@@ -330,14 +330,14 @@ struct DocumentList: Decodable {
     let items: [DocumentItem]
 }
 
-/// Equipment the driver is working or has just dropped off, with a count of
-/// the files that followed it through its service cycle.
+/// Equipment on the driver's active trip right now, with a count of the
+/// files filed against it and one to show as a thumbnail.
 struct DocumentGroup: Decodable, Identifiable, Hashable {
     let tripId: String
     let containerNumber: String?
     let chassisNumber: String?
-    let droppedOff: Bool
     let count: Int
+    let previewDocumentId: String?
 
     var id: String { tripId }
 
