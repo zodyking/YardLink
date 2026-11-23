@@ -1086,6 +1086,10 @@ struct BridgeCrossingLane: Decodable, Identifiable, Hashable {
 
 struct BridgeCrossingLaneList: Decodable {
     let lanes: [BridgeCrossingLane]
+    /// When the newest reading in `lanes` was taken. The server refreshes
+    /// on-demand whenever this would otherwise be more than five minutes
+    /// old, so this is mostly just a "how fresh is this" stamp for the page.
+    let lastUpdated: Date?
 }
 
 /// One point on a lane's 24-hour graph.
@@ -1101,4 +1105,5 @@ struct BridgeCrossingHistoryPoint: Decodable, Identifiable, Hashable {
 struct BridgeCrossingDetail: Decodable {
     let lane: BridgeCrossingLane
     let history: [BridgeCrossingHistoryPoint]
+    let lastUpdated: Date?
 }

@@ -18,29 +18,45 @@ async function fetchBridgeCrossingFeed(): Promise<unknown> {
   return response.json()
 }
 
+// Dedupes concurrent callers (the 5-minute interval tick and any number of
+// on-demand refreshes an API request triggers at the same moment) onto a
+// single in-flight fetch, so a burst of stale page loads can't each kick off
+// their own call to the Port Authority or insert their own duplicate row.
+let inFlightPoll: Promise<{ lanes: number }> | null = null
+
 /**
  * One poll: fetch the live feed, store one snapshot row per lane, and prune
  * anything past retention. The feed has no memory of its own — this table is
  * what makes the "worsening or improving" trend and the 24-hour graph possible.
  */
-export async function runBridgeCrossingPoll(db: Database): Promise<{ lanes: number }> {
-  const raw = await fetchBridgeCrossingFeed()
-  const lanes = parseBridgeCrossingFeed(raw)
-  if (!lanes.length) return { lanes: 0 }
+export function runBridgeCrossingPoll(db: Database): Promise<{ lanes: number }> {
+  if (inFlightPoll) return inFlightPoll
 
-  await db.insert(bridgeCrossingSnapshots).values(lanes.map(lane => ({
-    facilityId: lane.facilityId,
-    crossingName: lane.crossingName,
-    direction: lane.direction,
-    travelTimeMinutes: lane.travelTimeMinutes,
-    typicalTimeMinutes: lane.typicalTimeMinutes,
-    isClosed: lane.isClosed,
-    sourceTimestamp: lane.sourceTimestamp,
-  })))
+  inFlightPoll = (async () => {
+    try {
+      const raw = await fetchBridgeCrossingFeed()
+      const lanes = parseBridgeCrossingFeed(raw)
+      if (!lanes.length) return { lanes: 0 }
 
-  await db
-    .delete(bridgeCrossingSnapshots)
-    .where(lt(bridgeCrossingSnapshots.recordedAt, new Date(Date.now() - BRIDGE_CROSSING_RETENTION_MS)))
+      await db.insert(bridgeCrossingSnapshots).values(lanes.map(lane => ({
+        facilityId: lane.facilityId,
+        crossingName: lane.crossingName,
+        direction: lane.direction,
+        travelTimeMinutes: lane.travelTimeMinutes,
+        typicalTimeMinutes: lane.typicalTimeMinutes,
+        isClosed: lane.isClosed,
+        sourceTimestamp: lane.sourceTimestamp,
+      })))
 
-  return { lanes: lanes.length }
+      await db
+        .delete(bridgeCrossingSnapshots)
+        .where(lt(bridgeCrossingSnapshots.recordedAt, new Date(Date.now() - BRIDGE_CROSSING_RETENTION_MS)))
+
+      return { lanes: lanes.length }
+    } finally {
+      inFlightPoll = null
+    }
+  })()
+
+  return inFlightPoll
 }

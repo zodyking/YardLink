@@ -9,6 +9,7 @@ struct BridgeCrossingsListView: View {
     @EnvironmentObject private var model: AppModel
 
     @State private var lanes: [BridgeCrossingLane] = []
+    @State private var lastUpdated: Date?
     @State private var loading = true
     @State private var errorMessage: String?
 
@@ -30,8 +31,9 @@ struct BridgeCrossingsListView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if let errorMessage { ErrorBanner(message: errorMessage) }
+                if let lastUpdated { LastUpdatedLabel(date: lastUpdated) }
 
-                if loading {
+                if loading && lanes.isEmpty {
                     ProgressView().frame(maxWidth: .infinity, minHeight: 160)
                 } else if lanes.isEmpty {
                     EmptyNote(
@@ -51,7 +53,20 @@ struct BridgeCrossingsListView: View {
         .navigationBarTitleDisplayMode(.inline)
         .lightBar()
         .task { await load() }
+        // Keeps the page current on its own while it's open, quietly, in the
+        // background — no spinner, no error banner if a tick happens to miss.
+        .task { await silentRefreshLoop() }
         .refreshable { await load() }
+    }
+
+    /// Reloads on a timer for as long as this view is on screen. SwiftUI
+    /// cancels `.task` automatically on disappear, which stops this loop too.
+    private func silentRefreshLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 60_000_000_000)
+            if Task.isCancelled { return }
+            await load(silent: true)
+        }
     }
 
     private func crossingCard(name: String, lanes: [BridgeCrossingLane]) -> some View {
@@ -94,16 +109,36 @@ struct BridgeCrossingsListView: View {
         .padding(.vertical, 2)
     }
 
-    private func load() async {
+    /// `silent` is for the background refresh loop and skips the spinner and
+    /// the error banner — a quiet tick that misses just tries again in 60s,
+    /// leaving whatever's already on screen exactly as it was.
+    private func load(silent: Bool = false) async {
         guard let api = model.api else { return }
-        errorMessage = nil
+        if !silent { loading = true }
         do {
             let list: BridgeCrossingLaneList = try await api.get("/api/bridge-crossings")
             lanes = list.lanes
+            lastUpdated = list.lastUpdated
+            errorMessage = nil
         } catch {
-            errorMessage = model.handle(error)
+            if !silent { errorMessage = model.handle(error) }
         }
         loading = false
+    }
+}
+
+/// "Updated 3 min ago" — ticks on its own via SwiftUI's relative date style,
+/// so it stays accurate between refreshes without any extra state or timer.
+private struct LastUpdatedLabel: View {
+    let date: Date
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "clock.arrow.circlepath")
+            Text("Updated ") + Text(date, style: .relative) + Text(" ago")
+        }
+        .font(.caption)
+        .foregroundColor(Brand.muted)
     }
 }
 
@@ -143,6 +178,7 @@ struct BridgeCrossingDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let errorMessage { ErrorBanner(message: errorMessage) }
+                if let lastUpdated = detail?.lastUpdated { LastUpdatedLabel(date: lastUpdated) }
 
                 if let detail {
                     header(detail.lane)
@@ -165,7 +201,16 @@ struct BridgeCrossingDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .lightBar()
         .task { await load() }
+        .task { await silentRefreshLoop() }
         .refreshable { await load() }
+    }
+
+    private func silentRefreshLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 60_000_000_000)
+            if Task.isCancelled { return }
+            await load(silent: true)
+        }
     }
 
     private func header(_ lane: BridgeCrossingLane) -> some View {
@@ -208,14 +253,15 @@ struct BridgeCrossingDetailView: View {
         }
     }
 
-    private func load() async {
+    private func load(silent: Bool = false) async {
         guard let api = model.api else { return }
-        errorMessage = nil
+        if !silent { loading = true }
         do {
             let result: BridgeCrossingDetail = try await api.get("/api/bridge-crossings/\(facilityId)/\(direction.rawValue)")
             detail = result
+            errorMessage = nil
         } catch {
-            errorMessage = model.handle(error)
+            if !silent { errorMessage = model.handle(error) }
         }
         loading = false
     }

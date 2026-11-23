@@ -1,4 +1,4 @@
-import { and, asc, eq, gte } from 'drizzle-orm'
+import { and, asc, desc, eq, gte } from 'drizzle-orm'
 import { bridgeCrossingSnapshots } from '../database/schema'
 import type { Database } from '../utils/db'
 import {
@@ -21,9 +21,29 @@ export interface BridgeCrossingLaneView {
   recordedAt: Date
 }
 
+/**
+ * The most recent reading timestamp across every lane, or null if the table
+ * is empty. Used both to decide whether an on-demand refresh is worth
+ * kicking off and to show the page's own "last updated" stamp.
+ */
+export async function latestBridgeCrossingRecordedAt(db: Database): Promise<Date | null> {
+  const [row] = await db
+    .select({ recordedAt: bridgeCrossingSnapshots.recordedAt })
+    .from(bridgeCrossingSnapshots)
+    .orderBy(desc(bridgeCrossingSnapshots.recordedAt))
+    .limit(1)
+  return row?.recordedAt ?? null
+}
+
 /** Every lane's latest reading, with a trend against a reading from ~30 minutes earlier. */
 export async function listBridgeCrossingLanes(db: Database): Promise<BridgeCrossingLaneView[]> {
-  const since = new Date(Date.now() - BRIDGE_CROSSING_TREND_WINDOW_MS - 5 * 60 * 1000)
+  const newest = await latestBridgeCrossingRecordedAt(db)
+  if (!newest) return []
+
+  // Windowed off the newest reading actually on hand, not wall-clock time, so
+  // a lane keeps showing its last known reading (with a trend) if the feed or
+  // the poll has gone stale, instead of quietly going empty 30+ minutes later.
+  const since = new Date(newest.getTime() - BRIDGE_CROSSING_TREND_WINDOW_MS - 5 * 60 * 1000)
   const rows = await db
     .select()
     .from(bridgeCrossingSnapshots)
