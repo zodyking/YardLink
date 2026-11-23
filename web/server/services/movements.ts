@@ -6,6 +6,7 @@ import {
   containers,
   drivers,
   locations,
+  tripGaps,
   trips,
 } from '../database/schema'
 import type { Container, Location, Trip } from '../database/schema'
@@ -1347,80 +1348,230 @@ export async function correctTripDetails(
   })
 }
 
-export interface RecordMissingTripInput {
-  priorTripId: string
-  nextTripId: string
+export interface RecordManualTripInput {
+  kind: TripKind
+  containerNumber?: string | null
+  containerType?: Container['containerType'] | null
+  equipmentType?: Container['equipmentType'] | null
+  chassisNumber?: string | null
+  isLoaded: boolean
+  sealNumber?: string | null
+  originLocationId: string
+  destinationLocationId: string
+  customer?: string | null
+  pickedUpAt: Date
+  droppedOffAt: Date
+  notes?: string | null
+  /** A detected gap this trip fills — cleared once the real trip exists. */
+  resolvesGap?: { priorTripId: string, nextTripId: string } | null
 }
 
 /**
- * A gap between two trips where the driver confirms a trip is genuinely
- * missing — not a bobtail — used to just discard the gap with nothing to
- * show for it. Now it gets a real trip row of its own, bridging the same
- * two locations, so it shows up in history and can be filled in (via
- * correctTripDetails) with what actually moved.
+ * A trip the driver is logging after the fact — forgot to run it through the
+ * app live, or it happened before they started using it at all — with the
+ * real equipment, stops and times entered up front rather than a blank
+ * placeholder nobody can finish filling in (the old "missing trip" gap
+ * filler inserted an empty bare-chassis row that could never be fixed up:
+ * `correctTripDetails` has no way to attach a container or chassis to a
+ * trip that isn't live, and `attachContainerToTrip` refuses anything that
+ * isn't already IN_TRANSIT). This writes the trip straight to its finished
+ * state — the same pool/chassis end-state a live pickup-then-drop-off would
+ * leave behind — so the equipment's own record and the driver's time card
+ * both read exactly as if the trip had run through the app normally.
  */
-export async function recordMissingTrip(
+export async function recordManualTrip(
   db: Database,
-  auth: AuthContext,
-  input: RecordMissingTripInput,
-): Promise<Trip> {
+  auth: AuthContext & { driverId: string },
+  input: RecordManualTripInput,
+): Promise<{ trip: Trip, container: Container | null }> {
+  if (input.droppedOffAt.getTime() < input.pickedUpAt.getTime()) {
+    throw createError({ statusCode: 422, statusMessage: 'Drop-off cannot be before pickup.' })
+  }
+  if (input.pickedUpAt.getTime() > Date.now() + 5 * 60 * 1000) {
+    throw createError({ statusCode: 422, statusMessage: 'A trip cannot be recorded in the future.' })
+  }
+
   return db.transaction(async (tx) => {
-    const [prior] = await tx.select().from(trips)
-      .where(and(eq(trips.id, input.priorTripId), eq(trips.companyId, auth.companyId)))
-      .limit(1)
-    const [next] = await tx.select().from(trips)
-      .where(and(eq(trips.id, input.nextTripId), eq(trips.companyId, auth.companyId)))
-      .limit(1)
+    await loadLocation(tx, auth.companyId, input.originLocationId)
+    const destination = await loadLocation(tx, auth.companyId, input.destinationLocationId)
+    const isFinalRelease = dropoffCompletesServiceLife(destination.type)
+    const containerStatus = containerStatusAfterDropoff(destination.type)
+    const isLoaded = input.kind === 'BARE_CHASSIS' ? false : input.isLoaded
+    const sealNumber = input.kind === 'BARE_CHASSIS' ? null : sealForLoadedContainer(isLoaded, input.sealNumber)
 
-    if (!prior || !next || !prior.driverId || prior.driverId !== next.driverId) {
-      throw createError({ statusCode: 404, statusMessage: 'Those trips were not found.' })
+    let chassisId: string | null = null
+    if (input.chassisNumber?.trim()) {
+      const normalized = input.chassisNumber.trim().toUpperCase()
+      const [chassisRow] = await tx
+        .select()
+        .from(chassisTable)
+        .where(and(eq(chassisTable.companyId, auth.companyId), eq(chassisTable.number, normalized)))
+        .limit(1)
+      if (!chassisRow) {
+        throw createError({ statusCode: 404, statusMessage: `Chassis ${normalized} was not found.` })
+      }
+      chassisId = chassisRow.id
+    } else if (input.kind === 'BARE_CHASSIS') {
+      throw createError({ statusCode: 422, statusMessage: 'Enter a chassis number.' })
     }
-    const driverId: string = prior.driverId
 
+    let container: Container | null = null
+    let claimedContainerId: string | null = null
+
+    if (input.kind === 'CONTAINER') {
+      if (!input.containerNumber || !input.containerType) {
+        throw createError({ statusCode: 422, statusMessage: 'Enter a container number.' })
+      }
+      const claim = await claimContainerForPickup(tx, {
+        companyId: auth.companyId,
+        driverId: auth.driverId,
+        userId: auth.userId,
+        rawNumber: input.containerNumber,
+        containerType: input.containerType,
+        equipmentType: input.equipmentType ?? undefined,
+      })
+      claimedContainerId = claim.container.id
+    }
+
+    // The trip row is inserted with a known id before any event references
+    // it — every other mover here operates on a trip that already exists,
+    // and the duty-cycle filing below keys events to a real tripId the same
+    // way, rather than inventing a chicken-and-egg special case.
+    const tripId = crypto.randomUUID()
     const reference = await nextTripReference(tx, auth.companyId)
-    const priorEnd = prior.droppedOffAt ?? prior.completedAt ?? prior.updatedAt
-    const nextStart = next.pickedUpAt ?? next.createdAt
-    const pickedUpAt = priorEnd ?? nextStart ?? new Date()
-    const droppedOffAt = nextStart ?? pickedUpAt
-
     const [trip] = await tx
       .insert(trips)
       .values({
+        id: tripId,
         companyId: auth.companyId,
         reference,
-        driverId,
-        containerId: null,
-        chassisId: null,
-        originLocationId: prior.destinationLocationId,
-        destinationLocationId: next.originLocationId,
-        kind: 'BARE_CHASSIS',
+        driverId: auth.driverId,
+        containerId: claimedContainerId,
+        chassisId,
+        originLocationId: input.originLocationId,
+        destinationLocationId: input.destinationLocationId,
+        kind: input.kind,
         status: 'COMPLETED',
-        isLoaded: false,
-        pickedUpAt,
-        droppedOffAt,
-        completedAt: droppedOffAt,
-        driverNotes: 'Recorded to fill a gap in trip history. Edit this trip to add what actually moved.',
+        isLoaded,
+        sealNumber,
+        customer: input.customer?.trim() || null,
+        isFinalRelease,
+        pickedUpAt: input.pickedUpAt,
+        droppedOffAt: input.droppedOffAt,
+        completedAt: input.droppedOffAt,
+        driverNotes: input.notes?.trim() || null,
       })
       .returning()
 
     if (!trip) {
-      throw createError({ statusCode: 500, statusMessage: 'Could not record the missing trip.' })
+      throw createError({ statusCode: 500, statusMessage: 'Could not record the trip.' })
     }
 
-    await recordEvent(tx, {
-      id: crypto.randomUUID(),
-      companyId: auth.companyId,
-      containerId: null,
-      eventType: 'CORRECTION',
-      occurredAt: pickedUpAt,
-      actorUserId: auth.userId,
-      actorDriverId: driverId,
-      tripId: trip.id,
-      locationId: prior.destinationLocationId,
-      notes: 'Driver confirmed a trip is missing between these two stops.',
-    })
+    if (claimedContainerId) {
+      // Opens the duty cycle at pickup, same as a live PICKUP_CONFIRMED.
+      await recordEvent(
+        tx,
+        {
+          id: crypto.randomUUID(),
+          companyId: auth.companyId,
+          containerId: claimedContainerId,
+          eventType: 'PICKUP_CONFIRMED',
+          occurredAt: input.pickedUpAt,
+          actorUserId: auth.userId,
+          actorDriverId: auth.driverId,
+          tripId,
+          locationId: input.originLocationId,
+          chassisId,
+          payload: { isLoaded, sealNumber, manualTrip: true },
+          notes: 'Recorded manually by the driver.',
+        },
+        {
+          activePoolState: 'DRIVER_CUSTODY',
+          currentDriverId: auth.driverId,
+          currentLocationId: null,
+          currentChassisId: chassisId,
+          activeMovementId: tripId,
+          isLoaded,
+          sealNumber,
+          containerStatus: 'IN_TRANSIT',
+        },
+      )
 
-    return trip
+      // Then closes it at drop-off, same as a live DROPOFF_CONFIRMED — this
+      // is the patch that sticks, since it runs after the one above.
+      await recordEvent(
+        tx,
+        {
+          id: crypto.randomUUID(),
+          companyId: auth.companyId,
+          containerId: claimedContainerId,
+          eventType: 'DROPOFF_CONFIRMED',
+          occurredAt: input.droppedOffAt,
+          actorUserId: auth.userId,
+          actorDriverId: auth.driverId,
+          tripId,
+          locationId: input.destinationLocationId,
+          chassisId,
+          payload: { isFinalRelease, containerStatus, manualTrip: true },
+          notes: 'Recorded manually by the driver.',
+        },
+        {
+          activePoolState: isFinalRelease ? 'INACTIVE' : 'AT_LOCATION',
+          currentDriverId: null,
+          currentLocationId: input.destinationLocationId,
+          activeMovementId: null,
+          currentChassisId: chassisId,
+          releasedAt: isFinalRelease ? input.droppedOffAt : null,
+          containerStatus,
+        },
+      )
+
+      if (chassisId) {
+        await tx
+          .update(chassisTable)
+          .set({ currentContainerId: claimedContainerId, status: 'IN_USE', updatedAt: new Date() })
+          .where(and(eq(chassisTable.id, chassisId), eq(chassisTable.companyId, auth.companyId)))
+      }
+
+      if (isFinalRelease) {
+        await recordEvent(tx, {
+          id: crypto.randomUUID(),
+          companyId: auth.companyId,
+          containerId: claimedContainerId,
+          eventType: 'RELEASED',
+          occurredAt: input.droppedOffAt,
+          actorUserId: auth.userId,
+          actorDriverId: auth.driverId,
+          tripId,
+          locationId: input.destinationLocationId,
+          notes: 'Final release from the tracked network.',
+        })
+      }
+
+      const [fresh] = await tx.select().from(containers).where(eq(containers.id, claimedContainerId)).limit(1)
+      container = fresh ?? null
+    }
+    else if (chassisId) {
+      await tx
+        .update(chassisTable)
+        .set({
+          currentContainerId: null,
+          currentLocationId: input.destinationLocationId,
+          status: 'AVAILABLE',
+          updatedAt: new Date(),
+        })
+        .where(and(eq(chassisTable.id, chassisId), eq(chassisTable.companyId, auth.companyId)))
+    }
+
+    if (input.resolvesGap) {
+      await tx.delete(tripGaps).where(and(
+        eq(tripGaps.companyId, auth.companyId),
+        eq(tripGaps.priorTripId, input.resolvesGap.priorTripId),
+        eq(tripGaps.nextTripId, input.resolvesGap.nextTripId),
+      ))
+    }
+
+    return { trip, container }
   })
 }
 

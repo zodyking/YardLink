@@ -1,20 +1,22 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { tripGaps, trips } from '../../database/schema'
-import { recordMissingTrip } from '../../services/movements'
 import { requireAuth } from '../../utils/session'
-import { GAP_RESOLUTIONS } from '#shared/utils/trip-gaps'
 
+/**
+ * Confirm a bobtail between two trips whose places do not chain. A trip
+ * that was genuinely missing is no longer resolved here — the driver
+ * records it for real (POST /api/trips/manual, with the gap's two trip ids
+ * so the gap clears once the trip exists), rather than this endpoint
+ * planting a blank placeholder nobody could ever finish filling in.
+ * Absence of a row means the hop still reads as a missing trip.
+ */
 const schema = z.object({
   priorTripId: z.string().uuid(),
   nextTripId: z.string().uuid(),
-  resolution: z.enum(GAP_RESOLUTIONS),
+  resolution: z.literal('BOBTAIL'),
 })
 
-/**
- * Confirm or clear a bobtail between two trips whose places do not chain.
- * Absence of a row means the hop still reads as a missing trip.
- */
 export default defineEventHandler(async (event) => {
   const auth = await requireAuth(event)
   if (!auth.driverId && auth.role !== 'ADMIN') {
@@ -49,26 +51,6 @@ export default defineEventHandler(async (event) => {
   }
   if (auth.role !== 'ADMIN' && prior.driverId !== auth.driverId) {
     throw createError({ statusCode: 403, statusMessage: 'This movement belongs to another driver.' })
-  }
-
-  if (body.resolution === 'MISSING') {
-    // A trip genuinely missing from history gets a real, editable trip row
-    // of its own — not just a cleared flag with nothing to show for it.
-    const created = await recordMissingTrip(db, auth, {
-      priorTripId: body.priorTripId,
-      nextTripId: body.nextTripId,
-    })
-    await db.delete(tripGaps).where(and(
-      eq(tripGaps.companyId, auth.companyId),
-      eq(tripGaps.priorTripId, body.priorTripId),
-      eq(tripGaps.nextTripId, body.nextTripId),
-    ))
-    return {
-      priorTripId: body.priorTripId,
-      nextTripId: body.nextTripId,
-      resolution: 'MISSING' as const,
-      createdTripId: created.id,
-    }
   }
 
   const now = new Date()
