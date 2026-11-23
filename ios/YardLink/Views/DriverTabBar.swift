@@ -73,19 +73,21 @@ struct DriverTabBar<Screen: Hashable>: View {
         // its edge the way the opaque disc naturally covers it from here.
         //
         // The disc's own drop shadow bleeds further than the disc itself,
-        // though, so a single edge-to-edge line still reads as a smudge
-        // right where it meets that shadow even though the opaque disc is
-        // genuinely on top of it. Rather than lean on z-order and shadow
-        // math lining up pixel-for-pixel, the line is drawn in two pieces
-        // with an explicit gap under the raised item — wide enough to clear
-        // the disc and its shadow outright, so there's nothing there for a
-        // shadow to smudge. (Assumes the one raised item sits in the middle,
-        // which is the only case this bar actually draws today.)
+        // though — a soft shadow never has a hard edge, it just fades out,
+        // so pixel-measuring "where it ends" and sizing a gap to exactly
+        // that point still leaves a faint, visible tail right where the
+        // line resumes. The line is drawn in two pieces with a gap under
+        // the raised item sized with real margin past the shadow (not just
+        // past the point it becomes hard to see in a screenshot), and the
+        // shadow itself was also tightened (see raisedLabel) so there's
+        // less of it to clear in the first place. (Assumes the one raised
+        // item sits in the middle, which is the only case this bar
+        // actually draws today.)
         .background(alignment: .top) {
             Brand.paper.ignoresSafeArea(edges: .bottom)
             HStack(spacing: 0) {
                 Rectangle().fill(Brand.line)
-                Color.clear.frame(width: 84)
+                Color.clear.frame(width: 120)
                 Rectangle().fill(Brand.line)
             }
             .frame(height: 1)
@@ -129,7 +131,13 @@ struct DriverTabBar<Screen: Hashable>: View {
                     in: Circle()
                 )
                 .overlay(Circle().stroke(Brand.paper, lineWidth: 4))
-                .shadow(color: Brand.navy.opacity(0.22), radius: 6, y: 3)
+                // Kept deliberately subtle: a bigger blur radius/opacity here
+                // reads fine right under the disc but faintly darkens the
+                // paper several points further out than it looks like it
+                // should, which is what was smudging into the hairline's
+                // gap below. A tighter, lighter shadow still reads as
+                // "raised" without reaching that far.
+                .shadow(color: Brand.navy.opacity(0.15), radius: 3, y: 2)
                 .offset(y: -22)
             Text(item.label)
                 .font(.system(size: 11, weight: .semibold))
