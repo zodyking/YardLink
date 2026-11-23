@@ -243,6 +243,7 @@ private struct StatusPill: View {
         HStack(spacing: 4) {
             Image(systemName: stageSymbol(state.stage))
                 .font(.system(size: 9, weight: .bold))
+                .symbolEffect(.pulse, options: .repeating, isActive: state.stage < 3)
             Text(state.statusText.uppercased())
                 .font(.system(size: 9, weight: .heavy))
                 .kerning(0.6)
