@@ -71,9 +71,24 @@ struct DriverTabBar<Screen: Hashable>: View {
         // the bar's top edge on purpose, and a line drawn in front of
         // everything would cut straight across it instead of stopping at
         // its edge the way the opaque disc naturally covers it from here.
+        //
+        // The disc's own drop shadow bleeds further than the disc itself,
+        // though, so a single edge-to-edge line still reads as a smudge
+        // right where it meets that shadow even though the opaque disc is
+        // genuinely on top of it. Rather than lean on z-order and shadow
+        // math lining up pixel-for-pixel, the line is drawn in two pieces
+        // with an explicit gap under the raised item — wide enough to clear
+        // the disc and its shadow outright, so there's nothing there for a
+        // shadow to smudge. (Assumes the one raised item sits in the middle,
+        // which is the only case this bar actually draws today.)
         .background(alignment: .top) {
             Brand.paper.ignoresSafeArea(edges: .bottom)
-            Rectangle().fill(Brand.line).frame(height: 1)
+            HStack(spacing: 0) {
+                Rectangle().fill(Brand.line)
+                Color.clear.frame(width: 84)
+                Rectangle().fill(Brand.line)
+            }
+            .frame(height: 1)
         }
     }
 
