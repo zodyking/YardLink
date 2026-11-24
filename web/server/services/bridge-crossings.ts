@@ -59,7 +59,7 @@ export async function listBridgeCrossingLanes(db: Database): Promise<BridgeCross
     latestByLane.set(key, row)
   }
 
-  return [...latestByLane.values()]
+  const views = [...latestByLane.values()]
     .map((latest) => {
       const key = bridgeCrossingLaneKey(latest.facilityId, latest.direction)
       const previous = earliestByLane.get(key)?.travelTimeMinutes ?? null
@@ -75,7 +75,22 @@ export async function listBridgeCrossingLanes(db: Database): Promise<BridgeCross
         recordedAt: latest.recordedAt,
       }
     })
-    .sort((a, b) => a.facilityId - b.facilityId || a.direction.localeCompare(b.direction))
+
+  // Fastest crossing first, judged by its quicker direction (a closed lane
+  // never counts as quick). Lanes of one crossing stay next to each other,
+  // in a fixed direction order, since clients group consecutive lanes into
+  // one card per crossing.
+  const fastestByFacility = new Map<number, number>()
+  for (const lane of views) {
+    const minutes = lane.isClosed ? Number.POSITIVE_INFINITY : lane.travelTimeMinutes
+    fastestByFacility.set(lane.facilityId, Math.min(fastestByFacility.get(lane.facilityId) ?? Number.POSITIVE_INFINITY, minutes))
+  }
+  return views.sort((a, b) =>
+    fastestByFacility.get(a.facilityId)! - fastestByFacility.get(b.facilityId)!
+    || a.crossingName.localeCompare(b.crossingName)
+    || a.facilityId - b.facilityId
+    || a.direction.localeCompare(b.direction),
+  )
 }
 
 export interface BridgeCrossingHistoryPoint {

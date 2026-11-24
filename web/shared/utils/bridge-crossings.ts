@@ -49,11 +49,14 @@ export interface BridgeCrossingLane {
   sourceTimestamp: string | null
 }
 
+/** Tunnels are in the feed too, but the page is bridges only. */
+const TUNNEL_NAME_RE = /\btunnel\b/i
+
 /**
- * Keep only the lanes the page shows: every crossing's two directions, using
- * the George Washington Bridge's upper level only — its only facility with a
- * level split (`facilityModifier`); every other crossing leaves it blank and
- * is unaffected by dropping "Lower".
+ * Keep only the lanes the page shows: every bridge's two directions (tunnels
+ * are dropped), using the George Washington Bridge's upper level only — its
+ * only facility with a level split (`facilityModifier`); every other crossing
+ * leaves it blank and is unaffected by dropping "Lower".
  */
 export function parseBridgeCrossingFeed(raw: unknown): BridgeCrossingLane[] {
   if (!Array.isArray(raw)) return []
@@ -71,10 +74,13 @@ export function parseBridgeCrossingFeed(raw: unknown): BridgeCrossingLane[] {
     if (!Number.isFinite(travelTimeMinutes)) continue
     if (direction !== 'ToNY' && direction !== 'ToNJ') continue
 
+    const crossingName = String(entry.crossingDisplayName ?? '').trim() || `Crossing ${facilityId}`
+    if (TUNNEL_NAME_RE.test(crossingName)) continue
+
     const typical = Number(entry.routeTravelTimeHist)
     lanes.push({
       facilityId,
-      crossingName: String(entry.crossingDisplayName ?? '').trim() || `Crossing ${facilityId}`,
+      crossingName,
       direction,
       travelTimeMinutes,
       typicalTimeMinutes: Number.isFinite(typical) ? typical : null,

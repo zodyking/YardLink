@@ -1,8 +1,9 @@
 import SwiftUI
 import Charts
 
-/// Live Hudson River crossing times from the Port Authority, grouped by
-/// crossing with New York– and New Jersey–bound side by side. The George
+/// Live Hudson River bridge crossing times from the Port Authority (tunnels
+/// are left out), grouped by crossing with New York– and New Jersey–bound
+/// side by side, fastest crossing first. The George
 /// Washington Bridge's lower level is never shown — "the GWB" here always
 /// means its upper level, its only facility with a level split.
 struct BridgeCrossingsListView: View {
@@ -14,7 +15,7 @@ struct BridgeCrossingsListView: View {
     @State private var errorMessage: String?
 
     /// Consecutive lanes for the same crossing, in the order the server sent
-    /// them (already sorted by crossing, then direction).
+    /// them: fastest crossing first, each crossing's lanes kept together.
     private var grouped: [(facilityId: Int, name: String, lanes: [BridgeCrossingLane])] {
         var result: [(facilityId: Int, name: String, lanes: [BridgeCrossingLane])] = []
         for lane in lanes {
