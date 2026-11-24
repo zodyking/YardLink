@@ -38,6 +38,12 @@ enum Format {
         guard let text, let date = iso.date(from: text) else { return "Undated" }
         return day(date)
     }
+
+    /// "2026-11-15" → midnight that day, or nil if it doesn't parse.
+    static func date(iso text: String?) -> Date? {
+        guard let text else { return nil }
+        return iso.date(from: text)
+    }
 }
 
 /// Label on the left, value on the right; hidden when there is no value.

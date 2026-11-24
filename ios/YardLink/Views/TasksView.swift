@@ -10,14 +10,33 @@ struct TasksView: View {
     @State private var addingNote = false
     @State private var showDone = false
     @State private var startingPickup = false
+    @State private var showingCalendar = false
+    @State private var pickedDay: Date?
     @ObservedObject private var rootTap = TabRootTap.shared
     @State private var path = NavigationPath()
 
-    private var visible: [DriverTask] { showDone ? tasks : tasks.filter(\.isOpen) }
+    // A removed task is gone for good, not just hidden — "finished" only
+    // ever means Done here, never Dismissed, so there's no toggle that ever
+    // brings a removed task back.
+    private var visible: [DriverTask] { tasks.filter { showDone ? $0.status != "DISMISSED" : $0.isOpen } }
 
     private var days: [(day: String, tasks: [DriverTask])] {
         let grouped = Dictionary(grouping: visible) { $0.workDate ?? "" }
         return grouped.keys.sorted(by: >).map { ($0, grouped[$0] ?? []) }
+    }
+
+    /// In calendar view, one chosen day; otherwise every day, same as Trips.
+    private var shownDays: [(day: String, tasks: [DriverTask])] {
+        guard showingCalendar, let pickedDay else { return showingCalendar ? [] : days }
+        let calendar = Calendar.current
+        return days.filter { group in
+            guard let date = Format.date(iso: group.day) else { return false }
+            return calendar.isDate(date, inSameDayAs: pickedDay)
+        }
+    }
+
+    private var markedDays: Set<Date> {
+        Set(days.compactMap { Format.date(iso: $0.day) })
     }
 
     var body: some View {
@@ -25,6 +44,15 @@ struct TasksView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     PageHeader("Tasks") {
+                        Button {
+                            showingCalendar.toggle()
+                            if !showingCalendar { pickedDay = nil }
+                        } label: {
+                            Image(systemName: showingCalendar ? "list.bullet" : "calendar")
+                        }
+                        .buttonStyle(IconButtonStyle())
+                        .accessibilityLabel(showingCalendar ? "Show the list" : "Show a calendar")
+
                         Button {
                             showDone.toggle()
                         } label: {
@@ -42,6 +70,10 @@ struct TasksView: View {
                         .accessibilityLabel("Add a note")
                     }
 
+                    if showingCalendar {
+                        DayPickerCalendar(days: markedDays, selected: $pickedDay)
+                    }
+
                     if let errorMessage { ErrorBanner(message: errorMessage) }
 
                     if !loading && visible.isEmpty && errorMessage == nil {
@@ -51,7 +83,15 @@ struct TasksView: View {
                         )
                     }
 
-                    ForEach(days, id: \.day) { group in
+                    if showingCalendar && pickedDay == nil {
+                        Text("Pick a day with a dot to see its tasks.")
+                            .font(.footnote)
+                            .foregroundColor(Brand.muted)
+                    } else if showingCalendar && shownDays.isEmpty {
+                        EmptyNote(title: "No tasks this day", detail: "Nothing was assigned or added on this date.")
+                    }
+
+                    ForEach(shownDays, id: \.day) { group in
                         SectionTitle(text: Format.day(iso: group.day))
                         ForEach(group.tasks) { task in
                             TaskCardView(

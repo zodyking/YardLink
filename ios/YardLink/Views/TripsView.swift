@@ -69,7 +69,7 @@ struct TripsView: View {
                     }
 
                     if showingCalendar {
-                        TripCalendar(days: Set(days.map(\.day)), selected: $pickedDay)
+                        DayPickerCalendar(days: Set(days.map(\.day)), selected: $pickedDay)
                     }
 
                     if let errorMessage { ErrorBanner(message: errorMessage) }
@@ -859,9 +859,10 @@ struct ArriveSheet: View {
     }
 }
 
-/// A month at a time, with a dot on every day that has a trip. Tapping a day
-/// filters the list below, as the web app's calendar does.
-private struct TripCalendar: View {
+/// A month at a time, with a dot on every day that has something (a trip, a
+/// task). Tapping a day filters the list below, as the web app's calendar
+/// does. Shared by Trips and Tasks — nothing here is trip-specific.
+struct DayPickerCalendar: View {
     let days: Set<Date>
     @Binding var selected: Date?
 
@@ -940,7 +941,7 @@ private struct TripCalendar: View {
     }
 
     private func dayCell(_ day: Date) -> some View {
-        let hasTrips = days.contains { calendar.isDate($0, inSameDayAs: day) }
+        let hasEntries = days.contains { calendar.isDate($0, inSameDayAs: day) }
         let isSelected = selected.map { calendar.isDate($0, inSameDayAs: day) } ?? false
         let isToday = calendar.isDateInToday(day)
         return Button {
@@ -949,9 +950,9 @@ private struct TripCalendar: View {
             VStack(spacing: 3) {
                 Text("\(calendar.component(.day, from: day))")
                     .font(.subheadline.weight(isToday ? .bold : .semibold))
-                    .foregroundColor(isSelected ? .white : (hasTrips ? Brand.navy : Brand.muted.opacity(0.7)))
+                    .foregroundColor(isSelected ? .white : (hasEntries ? Brand.navy : Brand.muted.opacity(0.7)))
                 Circle()
-                    .fill(hasTrips ? (isSelected ? Color.white : Brand.linkBlue) : .clear)
+                    .fill(hasEntries ? (isSelected ? Color.white : Brand.linkBlue) : .clear)
                     .frame(width: 5, height: 5)
             }
             .frame(maxWidth: .infinity)
@@ -960,9 +961,9 @@ private struct TripCalendar: View {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(!hasTrips)
+        .disabled(!hasEntries)
         .accessibilityLabel(Format.day(day))
-        .accessibilityHint(hasTrips ? "Has trips" : "No trips")
+        .accessibilityHint(hasEntries ? "Has entries" : "Nothing this day")
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
