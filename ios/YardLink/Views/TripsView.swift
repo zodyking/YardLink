@@ -74,25 +74,6 @@ struct TripsView: View {
 
                     if let errorMessage { ErrorBanner(message: errorMessage) }
 
-                    NavigationLink {
-                        TimeCardsView()
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "clock.badge.checkmark.fill")
-                                .font(.title3)
-                                .foregroundColor(Brand.linkBlue)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Time Cards").font(.body.weight(.semibold)).foregroundColor(Brand.navy)
-                                Text("Your stops for each day, ready to send").font(.footnote).foregroundColor(Brand.muted)
-                            }
-                            Spacer(minLength: 0)
-                            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundColor(Brand.muted.opacity(0.6))
-                        }
-                        .padding(14)
-                        .cardSurface()
-                    }
-                    .buttonStyle(.plain)
-
                     if !loading && trips.isEmpty && errorMessage == nil {
                         EmptyNote(title: "No trips yet", detail: "Trips appear here once you confirm a pickup.")
                     }

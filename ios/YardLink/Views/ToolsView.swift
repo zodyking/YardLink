@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Home's Tools menu: a short list of utilities that don't belong on the
-/// main tab bar. Bridge Crossing Times only appears once a dispatcher turns
-/// it on for the company in Settings.
+/// main tab bar (Time Cards, Fuel Receipts, …). Bridge Crossing Times only
+/// appears once a dispatcher turns it on for the company in Settings.
 struct ToolsView: View {
     @Environment(\.dismiss) private var dismiss
     let bridgeCrossingTimesEnabled: Bool
@@ -11,6 +11,14 @@ struct ToolsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
+                    row(
+                        icon: "clock.badge.checkmark.fill",
+                        title: "Time Cards",
+                        detail: "Your stops for each day, ready to send."
+                    ) {
+                        TimeCardsView()
+                    }
+
                     row(
                         icon: "fuelpump.fill",
                         title: "Fuel Receipts",
