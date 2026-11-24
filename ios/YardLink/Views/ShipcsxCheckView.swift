@@ -129,13 +129,31 @@ struct ShipcsxCheckView: View {
         }
     }
 
-    /// Ask the server where the check has got to until it stops running.
+    /// Ask the server where the check has got to until it stops running. A
+    /// server that stops answering, or forgets the check (a restart), ends
+    /// the wait with a message instead of leaving the step frozen on screen.
     private func follow() async {
         guard let api = model.api else { return }
+        var misses = 0
         while !Task.isCancelled, check?.running ?? false {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
-            guard let latest: ShipcsxCheckEnvelope = try? await api.get("/api/containers/\(containerId)/shipcsx") else { continue }
-            check = latest.check
+            do {
+                let latest: ShipcsxCheckEnvelope = try await api.get("/api/containers/\(containerId)/shipcsx")
+                misses = 0
+                guard let next = latest.check else {
+                    check = nil
+                    errorMessage = "The check stopped before it finished. Try again."
+                    return
+                }
+                check = next
+            } catch {
+                misses += 1
+                if misses >= 5 {
+                    check = nil
+                    errorMessage = model.handle(error)
+                    return
+                }
+            }
         }
         if check?.status == "done" || check?.status == "error" { onFinished() }
     }

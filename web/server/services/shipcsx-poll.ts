@@ -150,6 +150,8 @@ export async function checkShipcsxForItems(
   options?: {
     reference?: string
     onStep?: ShipcsxLookupStepHandler
+    /** A person is waiting: jump the background queue, and throw a failed lookup (after saving it) instead of returning it as a result. */
+    interactive?: boolean
   },
 ) {
   const byTerminal = new Map<string, ShipcsxEligibleBox[]>()
@@ -170,6 +172,7 @@ export async function checkShipcsxForItems(
         })),
         reference: options?.reference,
         onStep: options?.onStep,
+        urgent: options?.interactive,
       })
       saved.push(...await recordShipcsxHits(db, companyId, hits.map(hit => ({
         ...hit,
@@ -189,6 +192,7 @@ export async function checkShipcsxForItems(
         gateWindow: null,
         error: message,
       }))))
+      if (options?.interactive) throw new Error(message, { cause: error })
     }
   }
   return saved

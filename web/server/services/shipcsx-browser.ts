@@ -36,7 +36,6 @@ type PlaywrightModule = typeof import('playwright')
 type Page = import('playwright').Page
 type Locator = import('playwright').Locator
 
-let queue: Promise<unknown> = Promise.resolve()
 let playwrightModule: PlaywrightModule | null | undefined
 
 const CHROMIUM_ARGS = [
@@ -56,10 +55,42 @@ function config() {
   }
 }
 
-export async function withShipcsxLock<T>(work: () => Promise<T>): Promise<T> {
-  const run = queue.then(work, work)
-  queue = run.then(() => undefined, () => undefined)
-  return run
+/** One browser at a time. A check someone is waiting on goes ahead of the background poll. */
+let lockHeld = false
+const lockWaiters: Array<{ urgent: boolean, start: () => void }> = []
+
+function releaseShipcsxLock() {
+  const urgentIndex = lockWaiters.findIndex(waiter => waiter.urgent)
+  const [next] = lockWaiters.splice(urgentIndex >= 0 ? urgentIndex : 0, 1)
+  if (next) next.start()
+  else lockHeld = false
+}
+
+async function withShipcsxLock<T>(urgent: boolean, work: () => Promise<T>): Promise<T> {
+  if (lockHeld) {
+    await new Promise<void>(start => lockWaiters.push({ urgent, start }))
+  }
+  else {
+    lockHeld = true
+  }
+  try {
+    return await work()
+  }
+  finally {
+    releaseShipcsxLock()
+  }
+}
+
+/** Longest one batch may hold the browser. A hung page must never block every later check. */
+const LOOKUP_DEADLINE_MS = 150_000
+const CLOSE_DEADLINE_MS = 10_000
+
+function within<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms)
+  })
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer))
 }
 
 async function loadPlaywright(): Promise<PlaywrightModule> {
@@ -92,10 +123,12 @@ async function openPage() {
     headless: true,
     args: CHROMIUM_ARGS,
     chromiumSandbox: false,
+    timeout: 30_000,
   }).catch(async (first) => {
     const retry = await chromium.launch({
       headless: true,
       args: CHROMIUM_ARGS,
+      timeout: 30_000,
       channel: 'chrome',
     }).catch(() => null)
     if (retry) return retry
@@ -391,12 +424,15 @@ async function submitSearch(page: Page) {
 
 async function withLookupPage<T>(work: (page: Page) => Promise<T>): Promise<T> {
   const { browser, context, page } = await openPage()
+  const running = work(page)
+  // Closing the browser on the deadline makes the abandoned work reject; that is expected.
+  running.catch(() => undefined)
   try {
-    return await work(page)
+    return await within(running, LOOKUP_DEADLINE_MS, 'ShipCSX took too long to answer.')
   }
   finally {
-    await context.close().catch(() => undefined)
-    await browser.close().catch(() => undefined)
+    await within(context.close(), CLOSE_DEADLINE_MS, 'close').catch(() => undefined)
+    await within(browser.close(), CLOSE_DEADLINE_MS, 'close').catch(() => undefined)
   }
 }
 
@@ -409,7 +445,6 @@ async function runLookup(
   return withLookupPage(async (page) => {
     try {
       console.info('[shipcsx] lookup', { terminal, count: equipment.length })
-      onStep?.('open')
       await page.goto(SHIPCSX_LOOKUP_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 })
       await waitForLookupForm(page)
       assertLookupPage(await bodyText(page), page.url())
@@ -448,6 +483,8 @@ export async function lookupShipcsxShipments(input: {
   items: ShipcsxLookupItem[]
   reference?: string
   onStep?: ShipcsxLookupStepHandler
+  /** Someone is watching this check; run it before queued background work. */
+  urgent?: boolean
 }): Promise<ShipcsxLookupHit[]> {
   const terminal = wizardShipcsxTerminal(input.terminal)
   if (!terminal) throw new Error('Choose a CSX location.')
@@ -455,9 +492,12 @@ export async function lookupShipcsxShipments(input: {
   if (!items.length) return []
   const reference = (input.reference ?? SHIPCSX_REFERENCE).trim() || SHIPCSX_REFERENCE
 
-  return withShipcsxLock(async () => {
-    const hits: ShipcsxLookupHit[] = []
-    for (const batch of chunkShipcsxEquipment(items, SHIPCSX_BATCH_SIZE)) {
+  const hits: ShipcsxLookupHit[] = []
+  // The lock is taken per batch, so a long background poll yields to a check
+  // someone is waiting on between batches instead of holding it to the end.
+  for (const batch of chunkShipcsxEquipment(items, SHIPCSX_BATCH_SIZE)) {
+    await withShipcsxLock(input.urgent ?? false, async () => {
+      input.onStep?.('open')
       const cards = await runLookup(
         terminal,
         batch.map(item => item.equipmentNumber),
@@ -479,9 +519,9 @@ export async function lookupShipcsxShipments(input: {
         })
       }
       await pause(500, 1100)
-    }
-    return hits
-  })
+    })
+  }
+  return hits
 }
 
 export function defaultShipcsxTerminal(): string {

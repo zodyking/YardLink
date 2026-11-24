@@ -52,6 +52,7 @@ export default defineEventHandler(async (event) => {
       }], {
         reference,
         onStep: step => setShipcsxCheckStep(id, step),
+        interactive: true,
       })
       finishShipcsxCheckJob(id)
     }

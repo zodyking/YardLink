@@ -1,4 +1,5 @@
 export const SHIPCSX_CHECK_STEPS = [
+  { id: 'queued', label: 'Waiting for another check to finish' },
   { id: 'open', label: 'Opening ShipCSX' },
   { id: 'terminal', label: 'Selecting terminal' },
   { id: 'equipment', label: 'Typing trailer number' },

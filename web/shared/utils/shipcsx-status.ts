@@ -45,6 +45,9 @@ export function shipcsxPublicError(raw: string | null | undefined): string {
   if (/terminal name|default_terminal|NUXT_SHIPCSX_DEFAULT_TERMINAL|rail location/i.test(text)) {
     return 'Choose a CSX location on Check CSX and try again.'
   }
+  if (/took too long/i.test(text)) {
+    return 'ShipCSX took too long to answer. Try again in a few minutes.'
+  }
   if (/challenged|captcha|blocked/i.test(text)) {
     return 'ShipCSX blocked this check. Try again later.'
   }

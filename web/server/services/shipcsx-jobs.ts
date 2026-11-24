@@ -18,7 +18,7 @@ export function getShipcsxCheckJob(containerId: string): ShipcsxCheckProgress | 
 export function beginShipcsxCheckJob(containerId: string): ShipcsxCheckProgress {
   const existing = getShipcsxCheckJob(containerId)
   if (existing?.status === 'running') return existing
-  const step = shipcsxCheckStep('open')
+  const step = shipcsxCheckStep('queued')
   const job: ShipcsxCheckProgress = {
     containerId,
     status: 'running',
