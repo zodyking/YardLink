@@ -6,6 +6,15 @@ import SwiftUI
 struct ToolsView: View {
     @Environment(\.dismiss) private var dismiss
     let bridgeCrossingTimesEnabled: Bool
+    /// The container on the trip in hand, if there is one, for Check CSX.
+    let tripContainer: TripContainer?
+
+    struct TripContainer: Identifiable {
+        let id: String
+        let number: String
+    }
+
+    @State private var checking: TripContainer?
 
     var body: some View {
         NavigationStack {
@@ -18,6 +27,8 @@ struct ToolsView: View {
                     ) {
                         TimeCardsView()
                     }
+
+                    checkCsxRow
 
                     row(
                         icon: "fuelpump.fill",
@@ -48,7 +59,27 @@ struct ToolsView: View {
                     Button("Close") { dismiss() }
                 }
             }
+            .sheet(item: $checking) { box in
+                TripContainerCsxCheck(container: box)
+                    .sheetChrome()
+            }
         }
+    }
+
+    private var checkCsxRow: some View {
+        Button {
+            checking = tripContainer
+        } label: {
+            rowLabel(
+                icon: "tram.fill",
+                title: "Check CSX",
+                detail: tripContainer.map { "Look up \(Marking.formatContainer($0.number)) on ShipCSX." }
+                    ?? "Start a trip with a container to check it on ShipCSX."
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(tripContainer == nil)
+        .opacity(tripContainer == nil ? 0.55 : 1)
     }
 
     private func row<Destination: View>(
@@ -60,20 +91,55 @@ struct ToolsView: View {
         NavigationLink {
             destination()
         } label: {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundColor(Brand.linkBlue)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.body.weight(.semibold)).foregroundColor(Brand.navy)
-                    Text(detail).font(.footnote).foregroundColor(Brand.muted)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundColor(Brand.muted.opacity(0.6))
-            }
-            .padding(14)
-            .cardSurface()
+            rowLabel(icon: icon, title: title, detail: detail)
         }
         .buttonStyle(.plain)
+    }
+
+    private func rowLabel(icon: String, title: String, detail: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(Brand.linkBlue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.body.weight(.semibold)).foregroundColor(Brand.navy)
+                Text(detail).font(.footnote).foregroundColor(Brand.muted)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundColor(Brand.muted.opacity(0.6))
+        }
+        .padding(14)
+        .cardSurface()
+    }
+}
+
+/// Check CSX for the trip's container. Loads the container first so the
+/// terminal used last time is preselected, as on the container page.
+private struct TripContainerCsxCheck: View {
+    @EnvironmentObject private var model: AppModel
+    let container: ToolsView.TripContainer
+
+    @State private var suggestedTerminal: String?
+    @State private var loaded = false
+
+    var body: some View {
+        Group {
+            if loaded {
+                ShipcsxCheckView(
+                    containerId: container.id,
+                    containerNumber: container.number,
+                    suggestedTerminal: suggestedTerminal
+                ) {}
+            } else {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task {
+            if let api = model.api {
+                let detail: ContainerDetail? = try? await api.get("/api/containers/\(container.id)")
+                suggestedTerminal = detail?.suggestedTerminal
+            }
+            loaded = true
+        }
     }
 }

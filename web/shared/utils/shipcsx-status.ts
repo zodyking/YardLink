@@ -31,6 +31,20 @@ export function shipcsxStatusLabel(snapshot: ShipcsxStatusInput | null | undefin
 
 /** Driver-facing lookup failure — hide Playwright / env internals. */
 export function shipcsxPublicError(raw: string | null | undefined): string {
+  // The lookup tags failures with the step they stopped at: "… (at Selecting terminal)".
+  const tagged = raw?.trim().match(/^(.*?)\s*\(at ([^)]+)\)$/s)
+  if (tagged) {
+    const at = tagged[2] ?? ''
+    // Before the form exists there is no CSX location to blame yet.
+    const reason = /^opening/i.test(at) && /form did not load|never became/i.test(tagged[1] ?? '')
+      ? 'The ShipCSX page did not load for the server.'
+      : describeShipcsxError(tagged[1] ?? '')
+    return `${reason.replace(/\.?$/, '.')} Stopped at: ${at}.`
+  }
+  return describeShipcsxError(raw)
+}
+
+function describeShipcsxError(raw: string | null | undefined): string {
   const text = raw?.trim() ?? ''
   if (!text) return 'Could not check ShipCSX.'
   if (/playwright is not installed/i.test(text)) {

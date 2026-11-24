@@ -398,6 +398,12 @@ struct HomeView: View {
         await load()
     }
 
+    /// The live trip's container, for Tools > Check CSX.
+    private var toolsTripContainer: ToolsView.TripContainer? {
+        guard let box = home?.active?.container, let id = box.id, let number = box.number, !number.isEmpty else { return nil }
+        return ToolsView.TripContainer(id: id, number: number)
+    }
+
     private func taskLine(_ task: HomePayload.TodayTask) -> String? {
         guard let card = task.card else { return nil }
         let route = [card.locationName, card.destinationLocationName]
@@ -451,7 +457,10 @@ struct HomeView: View {
             case .messages:
                 MessagesView(user: user)
             case .tools:
-                ToolsView(bridgeCrossingTimesEnabled: home?.bridgeCrossingTimesEnabled ?? false)
+                ToolsView(
+                    bridgeCrossingTimesEnabled: home?.bridgeCrossingTimesEnabled ?? false,
+                    tripContainer: toolsTripContainer
+                )
             case .arrive(let tripId):
                 ArriveSheet(tripId: tripId) { arrived in
                     if arrived { arrivedTripId = tripId }

@@ -15,7 +15,7 @@ import {
   shipcsxPageLooksLikeLogin,
   type CsxLookupCard,
 } from '#shared/utils/csx-lookup'
-import type { ShipcsxCheckStepId } from '#shared/utils/shipcsx-check'
+import { shipcsxCheckStep, type ShipcsxCheckStepId } from '#shared/utils/shipcsx-check'
 import { normalizeContainerNumber } from '#shared/utils/iso6346'
 import { peekCompanySettings } from '../utils/settings'
 
@@ -185,6 +185,8 @@ async function waitForLookupForm(page: Page) {
     await pause(400, 800)
   }
   const leftover = await bodyText(page)
+  // What the server's browser actually saw, so a failure here can be diagnosed from the logs.
+  console.warn('[shipcsx] lookup form missing', { url: page.url(), title: await page.title().catch(() => ''), snippet: leftover.slice(0, 400) })
   if (shipcsxPageLooksLikeChallenge(leftover) || shipcsxPageLooksHardBlocked(leftover)) {
     throw new Error('ShipCSX challenged this session. Backing off automatic checks.')
   }
@@ -442,22 +444,27 @@ async function runLookup(
   reference: string,
   onStep?: ShipcsxLookupStepHandler,
 ): Promise<CsxLookupCard[]> {
+  let reached: ShipcsxCheckStepId = 'open'
+  const step = (id: ShipcsxCheckStepId) => {
+    reached = id
+    onStep?.(id)
+  }
   return withLookupPage(async (page) => {
     try {
       console.info('[shipcsx] lookup', { terminal, count: equipment.length })
       await page.goto(SHIPCSX_LOOKUP_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 })
       await waitForLookupForm(page)
       assertLookupPage(await bodyText(page), page.url())
-      onStep?.('terminal')
+      step('terminal')
       await selectTerminal(page, terminal)
-      onStep?.('equipment')
+      step('equipment')
       await fillEquipmentRows(page, equipment)
-      onStep?.('reference')
+      step('reference')
       await fillReferenceRows(page, equipment.length, reference)
-      onStep?.('search')
+      step('search')
       await submitSearch(page)
       await page.waitForTimeout(1200)
-      onStep?.('results')
+      step('results')
       const resultsHeading = page.getByText(/Shipment Lookup Results|In-Gate|NOTIFIED/i).first()
       const appeared = await resultsHeading.waitFor({ timeout: 25_000 }).then(() => true).catch(() => false)
       const results = await bodyText(page)
@@ -469,11 +476,13 @@ async function runLookup(
       return parseShipcsxLookupText(results).cards
     }
     catch (error) {
+      const at = shipcsxCheckStep(reached).stepLabel
       if (error instanceof Error && /locator\.|timeout \d+ms exceeded|getByRole/i.test(error.message)) {
-        console.warn('[shipcsx] playwright', error.message.split('\n')[0])
-        throw new Error('ShipCSX did not return lookup results. Search may still be disabled.', { cause: error })
+        console.warn('[shipcsx] playwright', { at, error: error.message.split('\n')[0] })
+        throw new Error(`ShipCSX did not return lookup results. Search may still be disabled. (at ${at})`, { cause: error })
       }
-      throw error
+      const message = error instanceof Error ? error.message : 'ShipCSX lookup failed.'
+      throw new Error(`${message} (at ${at})`, { cause: error })
     }
   })
 }

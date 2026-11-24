@@ -13,6 +13,10 @@ struct MoreView: View {
     @State private var exporting = false
     @State private var exportedFile: URL?
     @State private var exportError: String?
+    /// Settings > Check ShipCSX automatically, for dispatchers. Nil until loaded.
+    @State private var shipcsxPoll: Bool?
+    @State private var savingShipcsxPoll = false
+    @State private var shipcsxPollError: String?
     @ObservedObject private var rootTap = TabRootTap.shared
     @State private var path = NavigationPath()
 
@@ -94,6 +98,26 @@ struct MoreView: View {
                 } footer: {
                     Text("Name, address, phones and contacts as a spreadsheet you can share.")
                 }
+                if user.role == "ADMIN" {
+                    Section {
+                        Toggle(isOn: shipcsxPollBinding) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Check ShipCSX automatically")
+                                Text("Every 30 minutes, 5am–10pm Eastern, for containers at customers.")
+                                    .font(.caption)
+                                    .foregroundColor(Brand.muted)
+                            }
+                        }
+                        .disabled(shipcsxPoll == nil || savingShipcsxPoll)
+                        if let shipcsxPollError {
+                            Text(shipcsxPollError).font(.footnote).foregroundColor(Brand.danger)
+                        }
+                    } header: {
+                        Text("Company Settings")
+                    } footer: {
+                        Text("Off means ShipCSX is only checked when someone taps Check CSX.")
+                    }
+                }
                 Section {
                     Button("Sign Out") {
                         Task { await model.signOut() }
@@ -110,6 +134,7 @@ struct MoreView: View {
             .brandScreen()
             .quickLookPreview($exportedFile)
             .task { await loadEmailPrefs() }
+            .task { await loadShipcsxPoll() }
             .confirmPrompt(
                 "Disconnect from \(user.companyName)?",
                 message: "You will be signed out and will need to scan an employer code again.",
@@ -138,6 +163,49 @@ struct MoreView: View {
             exportedFile = url
         } catch {
             exportError = model.handle(error)
+        }
+    }
+
+    // MARK: Company settings
+
+    private struct AdminSettingsPayload: Decodable {
+        struct Settings: Decodable { let shipcsxPoll: Bool }
+        let settings: Settings
+    }
+
+    private struct ShipcsxPollBody: Encodable { let shipcsxPoll: Bool }
+
+    private var shipcsxPollBinding: Binding<Bool> {
+        Binding(
+            get: { shipcsxPoll ?? false },
+            set: { next in Task { await saveShipcsxPoll(next) } }
+        )
+    }
+
+    private func loadShipcsxPoll() async {
+        guard user.role == "ADMIN", let api = model.api else { return }
+        do {
+            let payload: AdminSettingsPayload = try await api.get("/api/admin/settings")
+            shipcsxPoll = payload.settings.shipcsxPoll
+            shipcsxPollError = nil
+        } catch {
+            shipcsxPollError = model.handle(error)
+        }
+    }
+
+    private func saveShipcsxPoll(_ on: Bool) async {
+        guard let api = model.api else { return }
+        let before = shipcsxPoll
+        shipcsxPoll = on
+        savingShipcsxPoll = true
+        defer { savingShipcsxPoll = false }
+        do {
+            let payload: AdminSettingsPayload = try await api.patch("/api/admin/settings", body: ShipcsxPollBody(shipcsxPoll: on))
+            shipcsxPoll = payload.settings.shipcsxPoll
+            shipcsxPollError = nil
+        } catch {
+            shipcsxPoll = before
+            shipcsxPollError = model.handle(error)
         }
     }
 
