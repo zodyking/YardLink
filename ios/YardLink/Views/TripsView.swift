@@ -16,7 +16,8 @@ struct TripsView: View {
     @ObservedObject private var rootTap = TabRootTap.shared
     @State private var path = NavigationPath()
 
-    /// Gaps by the later trip, which is the row they are shown above.
+    /// Gaps by the later trip. The list is newest first, so each is shown
+    /// directly below that trip, between it and the earlier one.
     private var gapsByNextTrip: [String: TripGap] {
         Dictionary(TripGap.find(in: trips).map { ($0.nextTripId, $0) }, uniquingKeysWith: { first, _ in first })
     }
@@ -90,6 +91,12 @@ struct TripsView: View {
                     ForEach(shownDays, id: \.day) { group in
                         SectionTitle(text: Format.day(group.day))
                         ForEach(group.trips) { trip in
+                            NavigationLink(value: trip) {
+                                TripRow(trip: trip)
+                            }
+                            .buttonStyle(.plain)
+                            // Newest first, so the break between a trip and the one
+                            // before it sits underneath: older drop-off → this pickup.
                             if let gap = gaps[trip.id] {
                                 GapCard(
                                     gap: gap,
@@ -98,10 +105,6 @@ struct TripsView: View {
                                     onRecordMissing: { recordingTrip = ManualTripContext(gap: gap) }
                                 )
                             }
-                            NavigationLink(value: trip) {
-                                TripRow(trip: trip)
-                            }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
