@@ -204,6 +204,20 @@
       "when": 1796000000000,
       "tag": "0028_bridge_crossings",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1796100000000,
+      "tag": "0029_drop_false_chassis_attach",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1796200000000,
+      "tag": "0030_drop_tunnel_crossings",
+      "breakpoints": true
     }
   ]
 }
