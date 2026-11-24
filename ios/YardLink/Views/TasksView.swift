@@ -206,6 +206,7 @@ private struct TaskCardView: View {
                             .foregroundColor(Brand.navy)
                             .strikethrough(step.done, color: Brand.muted)
                             .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
                     }
                     .frame(minHeight: 36)

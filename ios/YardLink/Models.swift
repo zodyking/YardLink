@@ -166,6 +166,7 @@ struct HomePayload: Decodable {
         let title: String?
         let status: String?
         let kind: String?
+        let steps: [TaskStep]?
         let card: TaskCard?
     }
 

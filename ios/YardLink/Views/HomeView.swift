@@ -28,6 +28,23 @@ struct HomeView: View {
     /// The trip whose arrival was just recorded, so the button becomes Clear
     /// Trip at once instead of after the next load.
     @State private var arrivedTripId: String?
+    /// Tasks just completed from Home, with where each sat in the list. They
+    /// stay on screen with an Undo for a minute, since the server stops
+    /// listing a task the moment it is done.
+    @State private var justDone: [JustDone] = []
+    @State private var taskError: String?
+
+    /// How long a completed task keeps its Undo.
+    private static let undoWindow: UInt64 = 60
+
+    private struct JustDone: Identifiable {
+        let task: HomePayload.TodayTask
+        let index: Int
+        var id: String { task.id }
+    }
+
+    private struct TaskStatusBody: Encodable { let status: String }
+    private struct TaskStepsBody: Encodable { let steps: [TaskStep] }
 
     /// A pickup to open: new, resumed, a swap, or a container for a bare chassis.
     private struct PickupLaunch: Identifiable {
@@ -272,43 +289,113 @@ struct HomeView: View {
 
     @ViewBuilder
     private func dispatch(_ home: HomePayload) -> some View {
-        let tasks = home.todayTasks ?? []
+        let tasks = dispatchRows(home.todayTasks ?? [])
         if !tasks.isEmpty {
             HStack {
                 SectionTitle(text: "Dispatch")
                 Button("All Tasks", action: openTasks)
                     .font(.subheadline.weight(.semibold))
             }
+            if let taskError { ErrorBanner(message: taskError) }
             ForEach(tasks) { task in
-                Button(action: openTasks) {
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: task.status == "DONE" ? "checkmark.circle.fill" : "circle")
+                let finished = justDone.contains { $0.id == task.id }
+                HStack(alignment: .top, spacing: 12) {
+                    Button {
+                        Task { await finish(task, from: tasks) }
+                    } label: {
+                        Image(systemName: finished ? "checkmark.circle.fill" : "circle")
                             .font(.title3)
-                            .foregroundColor(task.status == "DONE" ? Brand.ok : Brand.linkBlue)
+                            .foregroundColor(finished ? Brand.ok : Brand.linkBlue)
+                            .frame(width: 32, height: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(finished)
+                    .accessibilityLabel(finished ? "Done" : "Mark done")
+
+                    Button(action: openTasks) {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(task.title?.isEmpty == false ? (task.title ?? "") : Words.taskKind(task.kind))
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundColor(Brand.navy)
+                                .foregroundColor(finished ? Brand.muted : Brand.navy)
+                                .strikethrough(finished, color: Brand.muted)
                                 .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
                             if let line = taskLine(task) {
                                 Text(line)
                                     .font(.footnote)
                                     .foregroundColor(Brand.muted)
                                     .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
-                        Spacer(minLength: 0)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+
+                    if finished {
+                        Button("Undo") { Task { await undo(task.id) } }
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(Brand.linkBlue)
+                            .frame(minHeight: 32)
+                    } else {
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.bold))
                             .foregroundColor(Brand.muted.opacity(0.6))
+                            .padding(.top, 8)
                     }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .cardSurface()
                 }
-                .buttonStyle(.plain)
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .cardSurface()
             }
         }
+    }
+
+    /// The server's open tasks with the just-completed ones put back where
+    /// they were, so a finished task does not jump out from under the thumb.
+    private func dispatchRows(_ open: [HomePayload.TodayTask]) -> [HomePayload.TodayTask] {
+        var rows = open.filter { task in !justDone.contains { $0.id == task.id } }
+        for item in justDone.sorted(by: { $0.index < $1.index }) {
+            rows.insert(item.task, at: min(item.index, rows.count))
+        }
+        return rows
+    }
+
+    private func finish(_ task: HomePayload.TodayTask, from rows: [HomePayload.TodayTask]) async {
+        guard let api = model.api else { return }
+        taskError = nil
+        do {
+            let _: TaskEnvelope = try await api.patch("/api/tasks/\(task.id)", body: TaskStatusBody(status: "DONE"))
+        } catch {
+            taskError = model.handle(error)
+            return
+        }
+        justDone.append(JustDone(task: task, index: rows.firstIndex { $0.id == task.id } ?? rows.count))
+        Task {
+            try? await Task.sleep(nanoseconds: Self.undoWindow * 1_000_000_000)
+            guard justDone.contains(where: { $0.id == task.id }) else { return }
+            justDone.removeAll { $0.id == task.id }
+            await load()
+        }
+    }
+
+    /// Reopen a task. Marking done ticks every step, so the steps go back as
+    /// they were; a task with no steps just reopens.
+    private func undo(_ id: String) async {
+        guard let api = model.api, let item = justDone.first(where: { $0.id == id }) else { return }
+        taskError = nil
+        do {
+            if let steps = item.task.steps, !steps.isEmpty {
+                let _: TaskEnvelope = try await api.patch("/api/tasks/\(id)", body: TaskStepsBody(steps: steps))
+            } else {
+                let _: TaskEnvelope = try await api.patch("/api/tasks/\(id)", body: TaskStatusBody(status: "OPEN"))
+            }
+        } catch {
+            taskError = model.handle(error)
+            return
+        }
+        justDone.removeAll { $0.id == id }
+        await load()
     }
 
     private func taskLine(_ task: HomePayload.TodayTask) -> String? {
