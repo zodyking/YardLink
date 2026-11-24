@@ -29,11 +29,22 @@ export function cleanStepText(value: string): string {
     .trim()
 }
 
-/** Keep the pasted dispatcher text as a single step. Drivers split it by hand. */
+/**
+ * Break a pasted note into one step per blank-line-separated paragraph.
+ * Dispatchers write a multi-leg run with a blank line between each leg, so
+ * splitting there turns that structure straight into a checklist instead of
+ * leaving the whole note as one wall of text the driver has to split by
+ * hand. A note with no blank line at all — one paragraph, a single line, a
+ * reminder that happens to wrap — stays one step exactly as before; nothing
+ * here guesses at sentence or list-item boundaries within a paragraph (that
+ * is still what "Edit Steps" is for).
+ */
 export function stepsFromBlob(text: string): TaskStep[] {
   const blob = text.replace(/\r\n/g, '\n').trim()
   if (!blob) return []
-  return [emptyStep(blob)]
+  const paragraphs = blob.split(/\n[ \t]*\n+/).map(p => p.trim()).filter(Boolean)
+  if (paragraphs.length <= 1) return [emptyStep(blob)]
+  return paragraphs.map(p => emptyStep(p.replace(/\s+/g, ' ')))
 }
 
 /** Break one step into one step per non-empty line. */

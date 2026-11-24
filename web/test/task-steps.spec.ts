@@ -10,11 +10,37 @@ import {
 } from '../shared/utils/task-steps'
 
 describe('stepsFromBlob', () => {
-  it('keeps the full paste as one step', () => {
+  it('splits into one step per blank-line-separated paragraph', () => {
     const steps = stepsFromBlob('1. Pickup TCLU at NJ Yard\n- Drop off Coastal Tile\n\nEmpty to depot')
+    expect(steps.map(step => step.text)).toEqual([
+      '1. Pickup TCLU at NJ Yard - Drop off Coastal Tile',
+      'Empty to depot',
+    ])
+    expect(steps.every(step => step.done === false)).toBe(true)
+  })
+
+  it('splits a real multi-leg dispatch note the way a driver pastes it', () => {
+    const steps = stepsFromBlob([
+      'Take loaded CTNR from Queens Yard to CSX North Bergan and drop.',
+      '',
+      'PU empty Tropical CTNR# BSIU825680, PU# 19616684.',
+      '',
+      'Take empty to Standard Shippers, Ditmas Ave, Brooklyn, NY, and drop.',
+      '',
+      'Bobtail back to CSX North Bergan.',
+    ].join('\n'))
+    expect(steps.map(step => step.text)).toEqual([
+      'Take loaded CTNR from Queens Yard to CSX North Bergan and drop.',
+      'PU empty Tropical CTNR# BSIU825680, PU# 19616684.',
+      'Take empty to Standard Shippers, Ditmas Ave, Brooklyn, NY, and drop.',
+      'Bobtail back to CSX North Bergan.',
+    ])
+  })
+
+  it('keeps a single paragraph (no blank line) as one step, untouched', () => {
+    const steps = stepsFromBlob('Pickup TCLU at NJ Yard\nDrop off Coastal Tile')
     expect(steps).toHaveLength(1)
-    expect(steps[0]!.text).toBe('1. Pickup TCLU at NJ Yard\n- Drop off Coastal Tile\n\nEmpty to depot')
-    expect(steps[0]!.done).toBe(false)
+    expect(steps[0]!.text).toBe('Pickup TCLU at NJ Yard\nDrop off Coastal Tile')
   })
 
   it('returns an empty list for blank input', () => {
