@@ -13,6 +13,29 @@ struct APIError: LocalizedError {
     var isSignedOut: Bool { status == 401 }
 }
 
+/// The field-level detail a 422 carries: `{ data: { issues: [{ path, message }] } }`.
+private struct ValidationErrorBody: Decodable {
+    struct Issue: Decodable {
+        let path: String
+        let message: String
+
+        /// "header.trailerNumber" → "trailer number". List indexes are skipped.
+        var fieldName: String {
+            let last = path.split(separator: ".").last(where: { Int($0) == nil }).map(String.init) ?? path
+            return last.reduce(into: "") { words, character in
+                if character.isUppercase { words += " " }
+                words += character.lowercased()
+            }
+        }
+    }
+
+    struct Detail: Decodable {
+        let issues: [Issue]?
+    }
+
+    let data: Detail?
+}
+
 private struct ServerErrorBody: Decodable {
     let statusMessage: String?
     let message: String?
@@ -201,7 +224,12 @@ final class APIClient {
         let fallback = http.statusCode >= 500
             ? "The server ran into a problem. Try again in a moment."
             : "That did not work. Try again."
-        let message = [body?.statusMessage, body?.message].compactMap { $0 }.first(where: { !$0.isEmpty }) ?? fallback
+        var message = [body?.statusMessage, body?.message].compactMap { $0 }.first(where: { !$0.isEmpty }) ?? fallback
+        // A rejected form says which field failed, so the message is
+        // something the driver can act on instead of a bare "not valid".
+        if let issue = (try? JSONDecoder().decode(ValidationErrorBody.self, from: data))?.data?.issues?.first {
+            message += " (\(issue.fieldName): \(issue.message))"
+        }
         throw APIError(status: http.statusCode, message: message, flags: flags, details: details)
     }
 }
