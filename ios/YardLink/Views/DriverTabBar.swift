@@ -66,32 +66,21 @@ struct DriverTabBar<Screen: Hashable>: View {
         .padding(.top, 6)
         .frame(height: 64, alignment: .top)
         .frame(maxWidth: .infinity)
-        // The hairline is part of the background, under the bar's own
-        // content, not an overlay above it — the raised disc pokes up past
-        // the bar's top edge on purpose, and a line drawn in front of
-        // everything would cut straight across it instead of stopping at
-        // its edge the way the opaque disc naturally covers it from here.
+        // The hairline sits behind the bar's own content, so the raised
+        // disc (which pokes up past the top edge on purpose) is drawn in
+        // front of it and covers it, rather than the line cutting across.
         //
-        // The disc's own drop shadow bleeds further than the disc itself,
-        // though — a soft shadow never has a hard edge, it just fades out,
-        // so pixel-measuring "where it ends" and sizing a gap to exactly
-        // that point still leaves a faint, visible tail right where the
-        // line resumes. The line is drawn in two pieces with a gap under
-        // the raised item sized with real margin past the shadow (not just
-        // past the point it becomes hard to see in a screenshot), and the
-        // shadow itself was also tightened (see raisedLabel) so there's
-        // less of it to clear in the first place. (Assumes the one raised
-        // item sits in the middle, which is the only case this bar
-        // actually draws today.)
+        // It gets its own background, separate from the paper fill. When
+        // both shared one, the paper's ignoresSafeArea stretched that shared
+        // box down into the home-indicator area, and the line was laid out
+        // against the stretched box instead of the bar. That pushed it about
+        // 30pt down, through the middle of the icons and labels. On its own
+        // background the line is laid out against the bar's frame alone, so
+        // .top really is the bar's top edge.
         .background(alignment: .top) {
-            Brand.paper.ignoresSafeArea(edges: .bottom)
-            HStack(spacing: 0) {
-                Rectangle().fill(Brand.line)
-                Color.clear.frame(width: 120)
-                Rectangle().fill(Brand.line)
-            }
-            .frame(height: 1)
+            Rectangle().fill(Brand.line).frame(height: 1)
         }
+        .background(Brand.paper.ignoresSafeArea(edges: .bottom))
     }
 
     private func flatLabel(_ item: Item) -> some View {
@@ -131,12 +120,8 @@ struct DriverTabBar<Screen: Hashable>: View {
                     in: Circle()
                 )
                 .overlay(Circle().stroke(Brand.paper, lineWidth: 4))
-                // Kept deliberately subtle: a bigger blur radius/opacity here
-                // reads fine right under the disc but faintly darkens the
-                // paper several points further out than it looks like it
-                // should, which is what was smudging into the hairline's
-                // gap below. A tighter, lighter shadow still reads as
-                // "raised" without reaching that far.
+                // Kept subtle so it reads as "raised" without a heavy smudge
+                // on the bar around the disc.
                 .shadow(color: Brand.navy.opacity(0.15), radius: 3, y: 2)
                 .offset(y: -22)
             Text(item.label)
