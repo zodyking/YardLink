@@ -86,6 +86,9 @@ enum FuelReceiptMessage {
     static func single(_ receipt: FuelReceiptSummary) -> String {
         var lines = ["Fuel Receipt ⛽️", day.string(from: receipt.purchasedAt)]
         if let station = receipt.stationName, !station.isEmpty { lines.append(station) }
+        if let address = receipt.stationAddress, !address.isEmpty { lines.append(address) }
+        if let invoice = receipt.invoiceNumber, !invoice.isEmpty { lines.append("Invoice #: \(invoice)") }
+        if let fuelType = receipt.fuelType, !fuelType.isEmpty { lines.append("Fuel: \(fuelType)") }
         lines.append("Gallons: \(String(format: "%.3f", receipt.gallons))")
         lines.append("Total: \(money(receipt.totalAmount))")
         lines.append("Per gallon: \(perGallon(receipt.pricePerGallon))")
@@ -275,6 +278,109 @@ struct FuelReceiptImage: View {
 /// Snap a photo, let the server suggest the numbers, then confirm or fix
 /// them before anything is saved — the same "suggest, confirm" rule the
 /// container/chassis scanner follows.
+/// The station and the receipt's reference details as the capture and edit
+/// forms hold them. Blank text means "none".
+struct FuelReceiptDetailsDraft {
+    var stationName = ""
+    var stationAddress = ""
+    var invoiceNumber = ""
+    var fuelType = ""
+    var cardLast4 = ""
+    var authCode = ""
+
+    init() {}
+
+    init(_ receipt: FuelReceiptSummary) {
+        stationName = receipt.stationName ?? ""
+        stationAddress = receipt.stationAddress ?? ""
+        invoiceNumber = receipt.invoiceNumber ?? ""
+        fuelType = receipt.fuelType ?? ""
+        cardLast4 = receipt.cardLast4 ?? ""
+        authCode = receipt.authCode ?? ""
+    }
+
+    /// Take what the receipt read. With `onlyBlanks`, a field the driver has
+    /// already filled is left alone, so reading the photo again never
+    /// overwrites a correction.
+    mutating func apply(_ extraction: FuelReceiptExtraction, onlyBlanks: Bool) {
+        func take(_ field: inout String, _ value: String?) {
+            guard let value, !value.isEmpty else { return }
+            if onlyBlanks && !field.trimmingCharacters(in: .whitespaces).isEmpty { return }
+            field = value
+        }
+        take(&stationName, extraction.stationName)
+        take(&stationAddress, extraction.stationAddress)
+        take(&invoiceNumber, extraction.invoiceNumber)
+        take(&fuelType, extraction.fuelType)
+        take(&cardLast4, extraction.cardLast4)
+        take(&authCode, extraction.authCode)
+    }
+
+    /// The only field with a fixed shape: blank, or exactly four digits.
+    var cardLast4IsValid: Bool {
+        let digits = cardLast4.trimmingCharacters(in: .whitespaces)
+        return digits.isEmpty || (digits.count == 4 && digits.allSatisfy(\.isNumber))
+    }
+
+    static func trimmed(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+/// Station name and address, at the top of both receipt forms.
+struct FuelReceiptStationFields: View {
+    @Binding var draft: FuelReceiptDetailsDraft
+
+    var body: some View {
+        FieldLabel(text: "Station (optional)")
+        FieldBox { TextField("Station name", text: $draft.stationName) }
+
+        FieldLabel(text: "Address (optional)")
+        FieldBox {
+            TextField("Street, city, state", text: $draft.stationAddress, axis: .vertical)
+                .lineLimit(1...3)
+        }
+    }
+}
+
+/// Invoice number, fuel type, card and authorization code, below the
+/// amounts on both receipt forms.
+struct FuelReceiptReferenceFields: View {
+    @Binding var draft: FuelReceiptDetailsDraft
+
+    var body: some View {
+        SectionTitle(text: "Receipt details")
+
+        FieldLabel(text: "Invoice #")
+        FieldBox {
+            TextField("Invoice number", text: $draft.invoiceNumber)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+        }
+
+        FieldLabel(text: "Fuel type")
+        FieldBox { TextField("Diesel", text: $draft.fuelType) }
+
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
+                FieldLabel(text: "Card last 4")
+                FieldBox(problem: !draft.cardLast4IsValid) {
+                    TextField("0000", text: $draft.cardLast4)
+                        .keyboardType(.numberPad)
+                }
+            }
+            VStack(alignment: .leading, spacing: 16) {
+                FieldLabel(text: "Auth code")
+                FieldBox {
+                    TextField("Approval code", text: $draft.authCode)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                }
+            }
+        }
+    }
+}
+
 struct FuelReceiptCaptureSheet: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
@@ -286,7 +392,7 @@ struct FuelReceiptCaptureSheet: View {
     @State private var rawText: String?
 
     @State private var purchasedAt = Date()
-    @State private var stationName = ""
+    @State private var details = FuelReceiptDetailsDraft()
     @State private var gallonsText = ""
     @State private var totalText = ""
     @State private var notes = ""
@@ -301,7 +407,7 @@ struct FuelReceiptCaptureSheet: View {
     }
     private var canSave: Bool {
         guard let gallons, gallons > 0, let totalAmount, totalAmount > 0 else { return false }
-        return image != nil
+        return image != nil && details.cardLast4IsValid
     }
 
     var body: some View {
@@ -331,8 +437,7 @@ struct FuelReceiptCaptureSheet: View {
                                 .labelsHidden()
                         }
 
-                        FieldLabel(text: "Station (optional)")
-                        FieldBox { TextField("Station name", text: $stationName) }
+                        FuelReceiptStationFields(draft: $details)
 
                         FieldLabel(text: "Gallons")
                         FieldBox {
@@ -351,6 +456,8 @@ struct FuelReceiptCaptureSheet: View {
                                 .font(.footnote)
                                 .foregroundColor(Brand.muted)
                         }
+
+                        FuelReceiptReferenceFields(draft: $details)
 
                         FieldLabel(text: "Notes (optional)")
                         FieldBox {
@@ -402,6 +509,7 @@ struct FuelReceiptCaptureSheet: View {
     private func retake() {
         image = nil
         rawText = nil
+        details = FuelReceiptDetailsDraft()
         showingCamera = true
     }
 
@@ -418,23 +526,8 @@ struct FuelReceiptCaptureSheet: View {
             rawText = extraction.rawText
             if let gallons = extraction.gallons { gallonsText = String(format: "%.3f", gallons) }
             if let totalAmount = extraction.totalAmount { totalText = String(format: "%.2f", totalAmount) }
-            if let stationName = extraction.stationName { self.stationName = stationName }
-            if let purchasedAt = extraction.purchasedAt { self.purchasedAt = purchasedAt }
-            // Invoice number and anything else the receipt carried (auth
-            // code, card last four, transaction number) land as a suggested
-            // starting point for Notes, same "suggest, confirm" rule as
-            // every other field here — never written anywhere the driver
-            // can't see and edit it first.
-            var noteParts: [String] = []
-            if let invoiceNumber = extraction.invoiceNumber, !invoiceNumber.isEmpty {
-                noteParts.append("Invoice #\(invoiceNumber)")
-            }
-            if let suggestedNotes = extraction.suggestedNotes, !suggestedNotes.isEmpty {
-                noteParts.append(suggestedNotes)
-            }
-            if notes.isEmpty, !noteParts.isEmpty {
-                notes = noteParts.joined(separator: " · ")
-            }
+            if let printed = extraction.printedMoment(fallback: purchasedAt) { purchasedAt = printed }
+            details.apply(extraction, onlyBlanks: false)
         } catch {
             // A failed read is not fatal — the driver can still type the
             // numbers straight off the receipt in front of them.
@@ -447,8 +540,13 @@ struct FuelReceiptCaptureSheet: View {
         let purchasedAt: String
         let gallons: Double
         let totalAmount: Double
-        let stationName: String?
-        let notes: String?
+        let stationName: String
+        let stationAddress: String
+        let invoiceNumber: String
+        let fuelType: String
+        let cardLast4: String
+        let authCode: String
+        let notes: String
         let ocrText: String?
     }
 
@@ -460,15 +558,19 @@ struct FuelReceiptCaptureSheet: View {
         errorMessage = nil
         defer { saving = false }
 
-        let trimmedStation = stationName.trimmingCharacters(in: .whitespaces)
-        let trimmedNotes = notes.trimmingCharacters(in: .whitespaces)
+        // Blank fields go up as "", which the server stores as "none".
         let payload = SavePayload(
             dataUrl: dataUrl,
             purchasedAt: ISO8601DateFormatter().string(from: purchasedAt),
             gallons: gallons,
             totalAmount: totalAmount,
-            stationName: trimmedStation.isEmpty ? nil : trimmedStation,
-            notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+            stationName: FuelReceiptDetailsDraft.trimmed(details.stationName),
+            stationAddress: FuelReceiptDetailsDraft.trimmed(details.stationAddress),
+            invoiceNumber: FuelReceiptDetailsDraft.trimmed(details.invoiceNumber),
+            fuelType: FuelReceiptDetailsDraft.trimmed(details.fuelType),
+            cardLast4: FuelReceiptDetailsDraft.trimmed(details.cardLast4),
+            authCode: FuelReceiptDetailsDraft.trimmed(details.authCode),
+            notes: FuelReceiptDetailsDraft.trimmed(notes),
             ocrText: rawText
         )
 
@@ -493,7 +595,7 @@ private struct FuelReceiptDetailSheet: View {
     let onChanged: () -> Void
 
     @State private var purchasedAt: Date
-    @State private var stationName: String
+    @State private var details: FuelReceiptDetailsDraft
     @State private var gallonsText: String
     @State private var totalText: String
     @State private var notes: String
@@ -504,12 +606,13 @@ private struct FuelReceiptDetailSheet: View {
     @State private var texting = false
     @State private var textAttachment: (data: Data, fileName: String)?
     @State private var preparingText = false
+    @State private var rereading = false
 
     init(receipt: FuelReceiptSummary, onChanged: @escaping () -> Void) {
         self.receipt = receipt
         self.onChanged = onChanged
         _purchasedAt = State(initialValue: receipt.purchasedAt)
-        _stationName = State(initialValue: receipt.stationName ?? "")
+        _details = State(initialValue: FuelReceiptDetailsDraft(receipt))
         _gallonsText = State(initialValue: String(format: "%.3f", receipt.gallons))
         _totalText = State(initialValue: String(format: "%.2f", receipt.totalAmount))
         _notes = State(initialValue: receipt.notes ?? "")
@@ -523,7 +626,7 @@ private struct FuelReceiptDetailSheet: View {
     }
     private var canSave: Bool {
         guard let gallons, gallons > 0, let totalAmount, totalAmount > 0 else { return false }
-        return true
+        return details.cardLast4IsValid
     }
 
     var body: some View {
@@ -537,14 +640,24 @@ private struct FuelReceiptDetailSheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: Brand.controlRadius, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: Brand.controlRadius, style: .continuous).stroke(Brand.line))
 
+                    // For a receipt saved before these fields existed, or one
+                    // read badly the first time: fills only what is blank.
+                    Button {
+                        Task { await reread() }
+                    } label: {
+                        Label(rereading ? "Reading the receipt…" : "Fill Blanks from Photo", systemImage: "doc.text.viewfinder")
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(rereading)
+
                     FieldLabel(text: "Date")
                     FieldBox {
                         DatePicker("Date", selection: $purchasedAt, displayedComponents: [.date, .hourAndMinute])
                             .labelsHidden()
                     }
 
-                    FieldLabel(text: "Station (optional)")
-                    FieldBox { TextField("Station name", text: $stationName) }
+                    FuelReceiptStationFields(draft: $details)
 
                     FieldLabel(text: "Gallons")
                     FieldBox {
@@ -563,6 +676,8 @@ private struct FuelReceiptDetailSheet: View {
                             .font(.footnote)
                             .foregroundColor(Brand.muted)
                     }
+
+                    FuelReceiptReferenceFields(draft: $details)
 
                     FieldLabel(text: "Notes (optional)")
                     FieldBox {
@@ -627,12 +742,39 @@ private struct FuelReceiptDetailSheet: View {
         texting = true
     }
 
+    /// Every text field is sent, blank as "", so clearing a field in the
+    /// form clears it on the receipt (a missing key would leave it as it was).
     private struct UpdatePayload: Encodable {
         let purchasedAt: String
         let gallons: Double
         let totalAmount: Double
-        let stationName: String?
-        let notes: String?
+        let stationName: String
+        let stationAddress: String
+        let invoiceNumber: String
+        let fuelType: String
+        let cardLast4: String
+        let authCode: String
+        let notes: String
+    }
+
+    private struct RereadPayload: Encodable {}
+
+    private func reread() async {
+        guard let api = model.api else { return }
+        rereading = true
+        errorMessage = nil
+        defer { rereading = false }
+        do {
+            // Reading a photo can take a while, so this goes the patient way.
+            let result: FuelReceiptExtractionEnvelope = try await api.post(
+                "/api/fuel-receipts/\(receipt.id)/extract",
+                body: RereadPayload(),
+                patient: true
+            )
+            details.apply(result.extraction, onlyBlanks: true)
+        } catch {
+            errorMessage = model.handle(error)
+        }
     }
 
     private func save() async {
@@ -641,14 +783,17 @@ private struct FuelReceiptDetailSheet: View {
         errorMessage = nil
         defer { saving = false }
 
-        let trimmedStation = stationName.trimmingCharacters(in: .whitespaces)
-        let trimmedNotes = notes.trimmingCharacters(in: .whitespaces)
         let payload = UpdatePayload(
             purchasedAt: ISO8601DateFormatter().string(from: purchasedAt),
             gallons: gallons,
             totalAmount: totalAmount,
-            stationName: trimmedStation.isEmpty ? nil : trimmedStation,
-            notes: trimmedNotes.isEmpty ? nil : trimmedNotes
+            stationName: FuelReceiptDetailsDraft.trimmed(details.stationName),
+            stationAddress: FuelReceiptDetailsDraft.trimmed(details.stationAddress),
+            invoiceNumber: FuelReceiptDetailsDraft.trimmed(details.invoiceNumber),
+            fuelType: FuelReceiptDetailsDraft.trimmed(details.fuelType),
+            cardLast4: FuelReceiptDetailsDraft.trimmed(details.cardLast4),
+            authCode: FuelReceiptDetailsDraft.trimmed(details.authCode),
+            notes: FuelReceiptDetailsDraft.trimmed(notes)
         )
 
         do {

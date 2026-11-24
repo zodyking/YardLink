@@ -12,27 +12,42 @@ import { addIsoDays, calendarDateInZone } from './sms-task'
  * scanner follows.
  */
 
-export interface FuelReceiptExtraction {
+/**
+ * What a receipt carries beyond the amounts, each in its own field (never
+ * folded into notes). All optional: plenty of receipts leave some out.
+ */
+export interface FuelReceiptDetails {
+  /** The merchant's invoice / receipt / ticket number. */
+  invoiceNumber: string | null
+  /** Street and city line as printed, e.g. "701 E. Edgar Rd, Linden NJ 07036". */
+  stationAddress: string | null
+  /** "Diesel", "Unleaded", … as the item line names it. */
+  fuelType: string | null
+  /** The card's last four digits, from its masked number. */
+  cardLast4: string | null
+  /** The card authorization / approval code. */
+  authCode: string | null
+}
+
+export interface FuelReceiptExtraction extends FuelReceiptDetails {
   gallons: number | null
   totalAmount: number | null
   /** Always `totalAmount / gallons` when both are known — never OCR'd separately. */
   pricePerGallon: number | null
   stationName: string | null
-  /** ISO date the receipt itself appears to carry, or null to mean "use the capture time". */
-  purchasedAt: string | null
-  /** The merchant's invoice/receipt number, when the receipt prints one. */
-  invoiceNumber: string | null
+  /** The date printed on the receipt, `YYYY-MM-DD`, or null to mean "use the capture date". */
+  printedDate: string | null
   /**
-   * Anything else worth keeping that isn't its own field — an authorization
-   * code, the card's last four digits, a pump/transaction number — joined
-   * into one short line meant to pre-fill the notes field. Null when the
-   * receipt didn't carry any of these.
+   * The time printed with it, 24-hour `HH:mm:ss`, or null. It is wall-clock
+   * time where the fuel was bought, so the app reads it in the phone's own
+   * time zone (the driver is standing at the pump) rather than the server
+   * guessing one.
    */
-  suggestedNotes: string | null
+  printedTime: string | null
   rawText: string
 }
 
-export interface FuelReceiptSummary {
+export interface FuelReceiptSummary extends FuelReceiptDetails {
   id: string
   purchasedAt: string
   gallons: number
@@ -51,6 +66,79 @@ export interface FuelReceiptWeek {
   totalGallons: number
   totalAmount: number
   averagePricePerGallon: number | null
+}
+
+/** One OCR text box with its position, as the OCR worker returns it. */
+export interface ReceiptOcrBox {
+  text: string
+  box?: unknown
+}
+
+interface PlacedBox {
+  text: string
+  x0: number
+  cx: number
+  cy: number
+  h: number
+}
+
+/** (x0, y0, x1, y1) for a quad of points or an `[x, y, w, h]` box — the two shapes the worker emits. */
+function boxBounds(box: unknown): [number, number, number, number] | null {
+  if (!Array.isArray(box) || box.length < 4) return null
+  if (box.slice(0, 4).every(value => typeof value === 'number')) {
+    const [x, y, w, h] = box as number[]
+    return [x!, y!, x! + w!, y! + h!]
+  }
+  const xs: number[] = []
+  const ys: number[] = []
+  for (const point of box) {
+    if (Array.isArray(point) && typeof point[0] === 'number' && typeof point[1] === 'number') {
+      xs.push(point[0])
+      ys.push(point[1])
+    }
+  }
+  if (!xs.length) return null
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
+}
+
+/**
+ * Rebuild the receipt's printed lines from OCR text boxes. The detector
+ * returns one box per word or phrase, in no reliable order, so "TOTAL" and
+ * "438.07", or "Invoice #:" and "699374", arrive as unrelated fragments.
+ * Boxes that sit on the same printed line are joined left to right with a
+ * space, and lines come out top to bottom. A box is matched against the
+ * nearest box (left/right) already on a line, so a photo taken slightly
+ * crooked still keeps each line together. Boxes without a position are
+ * dropped: without one there is no way to know which line they belong to.
+ */
+export function receiptLinesFromBoxes(boxes: ReceiptOcrBox[]): string[] {
+  const placed: PlacedBox[] = []
+  for (const entry of boxes) {
+    const text = String(entry.text ?? '').replace(/\s+/g, ' ').trim()
+    const bounds = boxBounds(entry.box)
+    if (!text || !bounds) continue
+    const [x0, y0, x1, y1] = bounds
+    placed.push({ text, x0, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, h: Math.max(1, y1 - y0) })
+  }
+
+  const rows: PlacedBox[][] = []
+  for (const item of [...placed].sort((a, b) => a.cy - b.cy)) {
+    const row = rows.find((members) => {
+      const nearest = members.reduce((best, member) =>
+        Math.abs(member.cx - item.cx) < Math.abs(best.cx - item.cx) ? member : best)
+      return Math.abs(nearest.cy - item.cy) <= Math.max(nearest.h, item.h) * 0.5
+    })
+    if (row) row.push(item)
+    else rows.push([item])
+  }
+
+  return rows
+    .map(members => ({
+      cy: members.reduce((sum, member) => sum + member.cy, 0) / members.length,
+      text: [...members].sort((a, b) => a.x0 - b.x0).map(member => member.text).join(' '),
+    }))
+    .sort((a, b) => a.cy - b.cy)
+    .map(row => row.text)
 }
 
 const GALLON_LINE_RE = /\bGAL(?:LON)?S?\b/i
@@ -77,16 +165,45 @@ const AMOUNT_RE = /\$?\s*(\d{1,3}(?:,\d{3})*\.\d{2})\b/
 const CHARGED_LINE_RE = /\b(?:CREDIT|DEBIT|CHARGED|AMOUNT\s*DUE|USD)\b/i
 const GALLON_AMOUNT_RE = /(\d{1,3}\.\d{2,3})/
 const DATE_RE = /\b(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})\b/
+// "1:24:03 PM", "13:24", "1:24PM".
+const TIME_RE = /\b(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP])?\.?M?\.?(?![\w:])/i
 // "Invoice #: 699374", "INV#699374", "Invoice No. 1234-5678" — but never
 // "INVALID", since \b after INV requires a non-word character right there.
 const INVOICE_RE = /\b(?:INVOICE|INV)\b\.?\s*(?:NO\.?|NUMBER|#)?\s*[:#]?\s*([0-9][0-9A-Z-]{2,19})\b/i
-// "Auth #: 965942" / "Approval Code 965942".
-const AUTH_CODE_RE = /\b(?:AUTH(?:ORIZATION)?|APPROVAL)\b\.?\s*(?:CODE|#)?\s*[:#]?\s*([0-9A-Z]{4,12})\b/i
-// "TRAN#1018109" / "Transaction # 1018109".
-const TRANSACTION_RE = /\bTRAN(?:SACTION)?\b\.?\s*#?\s*[:#]?\s*([0-9A-Z-]{3,20})\b/i
+// Used only when nothing is labeled as an invoice: truck stops often print
+// the same reference as a receipt or ticket number.
+const RECEIPT_NUMBER_RE = /\b(?:RECEIPT|TICKET|TKT)\b\.?\s*(?:NO\.?|NUMBER|#)?\s*[:#]?\s*([0-9][0-9A-Z-]{2,19})\b/i
+// "Auth #: 965942" / "Approval Code 965942" / "APPR CODE 965942".
+const AUTH_CODE_RE = /\b(?:AUTH(?:ORIZATION)?|APPROVAL|APPR)\b\.?\s*(?:CODE|NO\.?|#)?\s*[:#]?\s*([0-9A-Z]{4,12})\b/i
 // A masked card number ending in its real last four digits:
 // "************7148", "XXXX7148", "****-7148".
-const CARD_LAST4_RE = /(?:\*{2,}|X{2,}|•{2,})[\s-]*(\d{4})\b/i
+const CARD_MASKED_RE = /(?:\*{2,}|X{2,}|•{2,})[\s-]*(\d{4})\b/i
+// "Card ending in 7148" / "LAST 4: 7148".
+const CARD_ENDING_RE = /\b(?:ENDING(?:\s+IN)?|LAST\s*4)\b\D{0,4}(\d{4})\b/i
+// "Linden NJ 07036", "Linden, NJ 07036-1234".
+const CITY_STATE_ZIP_RE = /^[A-Za-z][A-Za-z .'-]*?,?\s+[A-Za-z]{2}\.?,?\s+\d{5}(?:-\d{4})?$/
+// "701 E. Edgar Rd": a street number, then words.
+const STREET_RE = /^\d{1,6}[A-Za-z]?\s+(?=.*[A-Za-z]{2,})[A-Za-z0-9 .#'&-]{3,60}$/
+// The fuel named on the item line. Only item lines (those carrying an amount
+// or quantity) are searched, so "PLUS"/"SUPER" in a store name never count.
+const FUEL_TYPE_RE = /\b(BIO\s*DIESEL|DIESEL|ULSD|UNLEADED|UNL|REGULAR|MID\s*-?\s*GRADE|PLUS|PREMIUM|SUPER|E85|DEF)\b/i
+const FUEL_TYPE_NAMES: Record<string, string> = {
+  BIODIESEL: 'Biodiesel',
+  DIESEL: 'Diesel',
+  ULSD: 'Diesel',
+  UNLEADED: 'Unleaded',
+  UNL: 'Unleaded',
+  REGULAR: 'Regular',
+  MIDGRADE: 'Midgrade',
+  PLUS: 'Plus',
+  PREMIUM: 'Premium',
+  SUPER: 'Super',
+  E85: 'E85',
+  DEF: 'DEF',
+}
+// Boilerplate banner lines printed above (or around) the business name,
+// sometimes wrapped in punctuation like "<CUSTOMER COPY>".
+const STATION_NAME_SKIP_RE = /^[^A-Za-z0-9]*(?:WELCOME\b|THANK\s*YOU\b|CUSTOMER\s*COPY\b|MERCHANT\s*COPY\b)/i
 
 function roundTo(value: number, decimals: number): number {
   const factor = 10 ** decimals
@@ -104,16 +221,24 @@ function firstAmountOnOrAfter(lines: string[], index: number, pattern: RegExp): 
   return next ? parseAmount(next[1]!) : null
 }
 
-/** First match of `pattern` across every line, or null if none carries it. */
+/**
+ * First match of `pattern` across the lines. A label printed with its value
+ * on the following line ("Invoice #:" then "699374") is caught by also
+ * trying each line joined to the next — only after no single line matched.
+ */
 function firstMatch(lines: string[], pattern: RegExp): string | null {
   for (const line of lines) {
     const match = pattern.exec(line)
     if (match) return match[1]!
   }
+  for (let i = 0; i < lines.length - 1; i++) {
+    const match = pattern.exec(`${lines[i]} ${lines[i + 1]}`)
+    if (match) return match[1]!
+  }
   return null
 }
 
-/** A plausible receipt date: a two-digit year is read as 2000 + yy. */
+/** A plausible receipt date, `YYYY-MM-DD`: a two-digit year is read as 2000 + yy. */
 function parseReceiptDate(text: string): string | null {
   const match = DATE_RE.exec(text)
   if (!match) return null
@@ -127,31 +252,81 @@ function parseReceiptDate(text: string): string | null {
   const now = new Date()
   if (date.getTime() > now.getTime() + 24 * 60 * 60 * 1000) return null
   if (now.getTime() - date.getTime() > 400 * 24 * 60 * 60 * 1000) return null
-  return date.toISOString()
+  return date.toISOString().slice(0, 10)
 }
 
-// Boilerplate greeting/banner lines that print above the actual business
-// name on a lot of pump receipts ("WELCOME TO", then the name itself).
-const STATION_NAME_SKIP_RE = /^(WELCOME\b|THANK\s*YOU\b|CUSTOMER\s*COPY\b|MERCHANT\s*COPY\b)/i
+/** A printed time of day as 24-hour `HH:mm:ss`, or null. */
+function parseReceiptTime(text: string): string | null {
+  const match = TIME_RE.exec(text)
+  if (!match) return null
+  let hour = Number(match[1])
+  const minute = Number(match[2])
+  const second = match[3] ? Number(match[3]) : 0
+  const meridiem = match[4]?.toUpperCase()
+  if (minute > 59 || second > 59) return null
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return null
+    if (meridiem === 'P' && hour !== 12) hour += 12
+    if (meridiem === 'A' && hour === 12) hour = 0
+  }
+  else if (hour > 23) {
+    return null
+  }
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${pad(hour)}:${pad(minute)}:${pad(second)}`
+}
 
-/** First line that reads like a business name rather than a number, a date, or a boilerplate greeting. */
+function isAddressLine(text: string): boolean {
+  return STREET_RE.test(text) || CITY_STATE_ZIP_RE.test(text)
+}
+
+/**
+ * The street and city lines near the top of the receipt. The city/state/ZIP
+ * line is the anchor (it is the easiest to recognize); the street is the line
+ * just above it when that line starts with a street number.
+ */
+function guessStationAddress(lines: string[]): string | null {
+  const top = lines.slice(0, 12)
+  const cityIndex = top.findIndex(line => CITY_STATE_ZIP_RE.test(line))
+  if (cityIndex >= 0) {
+    const street = cityIndex > 0 && STREET_RE.test(top[cityIndex - 1]!) ? top[cityIndex - 1] : null
+    return [street, top[cityIndex]].filter(Boolean).join(', ').slice(0, 200)
+  }
+  const street = top.find(line => STREET_RE.test(line) && !DATE_RE.test(line) && !AMOUNT_RE.test(line))
+  return street ? street.slice(0, 200) : null
+}
+
+/** First line that reads like a business name rather than a number, a date, an address, or a boilerplate banner. */
 function guessStationName(lines: string[]): string | null {
-  for (const line of lines.slice(0, 6)) {
-    const text = line.replace(/\s+/g, ' ').trim()
+  for (const text of lines.slice(0, 6)) {
     if (text.length < 3) continue
     if (!/[A-Za-z]{3,}/.test(text)) continue
     if (DATE_RE.test(text) || AMOUNT_RE.test(text)) continue
     if (STATION_NAME_SKIP_RE.test(text)) continue
+    if (isAddressLine(text)) continue
     return text.slice(0, 60)
   }
   return null
 }
 
+/** The fuel named on the first item line (a line that also carries a quantity or an amount). */
+function guessFuelType(lines: string[]): string | null {
+  for (const line of lines) {
+    if (!/\d\.\d{2}/.test(line)) continue
+    const match = FUEL_TYPE_RE.exec(line)
+    if (!match) continue
+    const key = match[1]!.toUpperCase().replace(/[\s-]/g, '')
+    return FUEL_TYPE_NAMES[key] ?? null
+  }
+  return null
+}
+
 /**
- * Read gallons, the amount charged, and (best-effort) the station name and
- * date off a diesel receipt's OCR transcript. Anything not found comes back
- * null rather than guessed, since a wrong number here is worse than a blank
- * field the driver fills in themselves.
+ * Read gallons, the amount charged, the station and its address, the
+ * printed date and time, and the receipt's reference numbers off a diesel
+ * receipt's printed lines (see `receiptLinesFromBoxes`). Anything not found
+ * comes back null rather than guessed, since a wrong number here is worse
+ * than a blank field the driver fills in themselves.
  */
 export function parseFuelReceiptLines(lines: string[]): FuelReceiptExtraction {
   const clean = lines.map(line => line.replace(/\s+/g, ' ').trim()).filter(Boolean)
@@ -208,28 +383,26 @@ export function parseFuelReceiptLines(lines: string[]): FuelReceiptExtraction {
     }
   }
 
-  const pricePerGallon = gallons && totalAmount ? roundTo(totalAmount / gallons, 3) : null
-  const stationName = guessStationName(clean)
-  const purchasedAt = clean.map(parseReceiptDate).find((d): d is string => d !== null) ?? null
-
-  const invoiceNumber = firstMatch(clean, INVOICE_RE)
-  const authCode = firstMatch(clean, AUTH_CODE_RE)
-  const transactionNumber = firstMatch(clean, TRANSACTION_RE)
-  const cardLast4 = firstMatch(clean, CARD_LAST4_RE)
-  const extras: string[] = []
-  if (authCode) extras.push(`Auth #${authCode}`)
-  if (transactionNumber) extras.push(`Trans #${transactionNumber}`)
-  if (cardLast4) extras.push(`Card ••${cardLast4}`)
-  const suggestedNotes = extras.length ? extras.join(' · ') : null
+  // The time is read off the date's own line first (that pairing is the
+  // printed timestamp); any other time on the receipt is a fallback.
+  const dateIndex = clean.findIndex(line => parseReceiptDate(line) !== null)
+  const printedDate = dateIndex >= 0 ? parseReceiptDate(clean[dateIndex]!) : null
+  const printedTime = (dateIndex >= 0 ? parseReceiptTime(clean[dateIndex]!) : null)
+    ?? clean.map(parseReceiptTime).find((time): time is string => time !== null)
+    ?? null
 
   return {
     gallons,
     totalAmount,
-    pricePerGallon,
-    stationName,
-    purchasedAt,
-    invoiceNumber,
-    suggestedNotes,
+    pricePerGallon: gallons && totalAmount ? roundTo(totalAmount / gallons, 3) : null,
+    stationName: guessStationName(clean),
+    stationAddress: guessStationAddress(clean),
+    printedDate,
+    printedTime,
+    fuelType: guessFuelType(clean),
+    invoiceNumber: firstMatch(clean, INVOICE_RE) ?? firstMatch(clean, RECEIPT_NUMBER_RE),
+    cardLast4: firstMatch(clean, CARD_MASKED_RE) ?? firstMatch(clean, CARD_ENDING_RE),
+    authCode: firstMatch(clean, AUTH_CODE_RE),
     rawText: clean.join(' | ').slice(0, 2000),
   }
 }

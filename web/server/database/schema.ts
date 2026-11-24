@@ -790,6 +790,11 @@ export const fuelReceipts = pgTable('fuel_receipts', {
   /** Always `totalAmount / gallons` — never read separately off the receipt. */
   pricePerGallon: numeric('price_per_gallon', { precision: 8, scale: 3 }),
   stationName: text('station_name'),
+  stationAddress: text('station_address'),
+  invoiceNumber: text('invoice_number'),
+  fuelType: text('fuel_type'),
+  cardLast4: text('card_last4'),
+  authCode: text('auth_code'),
   storageKey: text('storage_key').notNull(),
   mimeType: text('mime_type').notNull(),
   sizeBytes: integer('size_bytes').notNull().default(0),

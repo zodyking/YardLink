@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { updateFuelReceipt } from '../../services/fuel-receipts'
+import { fuelReceiptDetailsShape, normalizeFuelReceiptDetails } from '../../utils/fuel-receipt-details'
 import { requireDriver } from '../../utils/session'
 
 const schema = z.object({
@@ -7,12 +8,13 @@ const schema = z.object({
   gallons: z.number().positive().max(300).optional(),
   totalAmount: z.number().positive().max(2000).optional(),
   stationName: z.string().trim().max(120).nullish(),
+  ...fuelReceiptDetailsShape,
   notes: z.string().trim().max(500).nullish(),
 }).refine(body => Object.values(body).some(value => value !== undefined), {
   message: 'Nothing to update.',
 })
 
-/** Fix a misread amount or station after the fact. The photo itself never changes. */
+/** Fix a misread amount, station or detail after the fact. The photo itself never changes. */
 export default defineEventHandler(async (event) => {
   const auth = await requireDriver(event)
   const id = getRouterParam(event, 'id')
@@ -24,6 +26,7 @@ export default defineEventHandler(async (event) => {
     gallons: body.gallons,
     totalAmount: body.totalAmount,
     stationName: body.stationName === undefined ? undefined : (body.stationName?.trim() || null),
+    ...normalizeFuelReceiptDetails(body),
     notes: body.notes === undefined ? undefined : (body.notes?.trim() || null),
   })
   if (!receipt) throw createError({ statusCode: 404, statusMessage: 'Receipt not found.' })

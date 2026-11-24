@@ -141,12 +141,20 @@ class OpenOcrWorker {
     }
   }
 
-  async recognize(image: Buffer, timeoutMs = 90_000): Promise<OpenOcrResult> {
+  /**
+   * `document: true` reads a printed page (a receipt) as-is: one full-frame
+   * pass with every box's position and none of the container-plate extras
+   * (rotated re-reads, glued glyph joins).
+   */
+  async recognize(image: Buffer, options: { document?: boolean, timeoutMs?: number } = {}): Promise<OpenOcrResult> {
     const dir = await mkdtemp(join(tmpdir(), 'openocr-'))
     const file = join(dir, `frame.${imageExtension(image)}`)
     try {
       await writeFile(file, image)
-      return await this.request({ cmd: 'ocr', image_path: file }, timeoutMs)
+      return await this.request(
+        { cmd: 'ocr', image_path: file, ...(options.document ? { mode: 'document' } : {}) },
+        options.timeoutMs ?? 90_000,
+      )
     }
     finally {
       await rm(dir, { recursive: true, force: true })

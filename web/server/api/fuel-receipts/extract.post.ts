@@ -11,8 +11,9 @@ const schema = z.object({
 const DATA_URL_RE = /^data:([\w.+-]+\/[\w.+-]+);base64,([A-Za-z0-9+/=\s]+)$/
 
 /**
- * Read a just-snapped receipt photo and suggest gallons, total, station and
- * date. Nothing is saved — the driver sees these as an editable starting
+ * Read a just-snapped receipt photo and suggest every field: gallons, total,
+ * station and address, printed date and time, invoice number and the rest.
+ * Nothing is saved — the driver sees these as an editable starting
  * point, not a committed reading (same "suggest, confirm" rule the
  * container/chassis scanner follows).
  */

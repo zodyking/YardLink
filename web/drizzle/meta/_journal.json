@@ -218,6 +218,13 @@
       "when": 1796200000000,
       "tag": "0030_drop_tunnel_crossings",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1796300000000,
+      "tag": "0031_fuel_receipt_details",
+      "breakpoints": true
     }
   ]
 }

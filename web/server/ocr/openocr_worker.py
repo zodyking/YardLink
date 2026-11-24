@@ -446,7 +446,7 @@ def _run_numpy(ocr, img):
     return _parse_ocr_output(out)
 
 
-def _run(ocr, image_path: str):
+def _run(ocr, image_path: str, document: bool = False):
     # OpenOCR defaults save_dir='e2e_results/' in the process cwd (/app), which
     # the non-root app user cannot create. Prefer in-memory numpy so nothing is
     # written; if we must use a path, point save_dir at a writable temp folder.
@@ -463,6 +463,14 @@ def _run(ocr, image_path: str):
         return _parse_ocr_output(out)
 
     lines, timing = _run_numpy(ocr, img)
+    if document:
+        # A printed document (a fuel receipt) is read as-is: one full-frame
+        # pass, every box with its position, so the caller can rebuild the
+        # printed lines. The door-code search re-reads rotated crops, whose
+        # boxes sit in another coordinate frame, and the glyph joins glue
+        # boxes together without spaces. Both are container-plate tricks that
+        # only add noise to a document.
+        return lines, timing
     return _door_code_pass(ocr, img, lines, timing)
 
 
@@ -553,7 +561,7 @@ def main() -> int:
             continue
 
         try:
-            lines, timing = _run(ocr, path)
+            lines, timing = _run(ocr, path, document=req.get('mode') == 'document')
             _reply({
                 'ok': True,
                 'id': req_id,

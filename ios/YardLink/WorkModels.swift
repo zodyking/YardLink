@@ -1016,15 +1016,35 @@ struct FuelReceiptExtraction: Decodable {
     let totalAmount: Double?
     let pricePerGallon: Double?
     let stationName: String?
-    /// ISO date/time the receipt itself seems to carry, or nil to mean "use now".
-    let purchasedAt: Date?
-    /// The merchant's invoice/receipt number, when the receipt prints one.
+    let stationAddress: String?
+    /// The date printed on the receipt, "yyyy-MM-dd", or nil to mean "use now".
+    let printedDate: String?
+    /// The time printed with it, 24-hour "HH:mm:ss". It is wall-clock time
+    /// where the fuel was bought, so it is read in the phone's own time zone.
+    let printedTime: String?
     let invoiceNumber: String?
-    /// Anything else worth keeping that isn't its own field — an auth code,
-    /// the card's last four digits, a transaction number — already joined
-    /// into one short line, meant to pre-fill the notes field.
-    let suggestedNotes: String?
+    let fuelType: String?
+    let cardLast4: String?
+    let authCode: String?
     let rawText: String
+
+    /// The printed date and time as one moment in the phone's time zone. With
+    /// a date but no time, `fallback`'s time of day is kept on that date.
+    func printedMoment(fallback: Date) -> Date? {
+        guard let printedDate else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        if let printedTime {
+            formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            if let moment = formatter.date(from: "\(printedDate) \(printedTime)") { return moment }
+        }
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let day = formatter.date(from: printedDate) else { return nil }
+        let calendar = Calendar.current
+        let time = calendar.dateComponents([.hour, .minute, .second], from: fallback)
+        return calendar.date(bySettingHour: time.hour ?? 0, minute: time.minute ?? 0, second: time.second ?? 0, of: day)
+    }
 }
 
 struct FuelReceiptExtractionEnvelope: Decodable {
@@ -1038,6 +1058,11 @@ struct FuelReceiptSummary: Decodable, Identifiable, Hashable {
     let totalAmount: Double
     let pricePerGallon: Double?
     let stationName: String?
+    let stationAddress: String?
+    let invoiceNumber: String?
+    let fuelType: String?
+    let cardLast4: String?
+    let authCode: String?
     let notes: String?
 }
 
