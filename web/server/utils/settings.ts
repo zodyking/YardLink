@@ -11,8 +11,6 @@ import { loadPrimaryCompany } from './company'
 export interface CompanySettings {
   /** Address phones use to reach this server, e.g. https://yard.example.com */
   publicUrl: string
-  shipcsxDefaultTerminal: string
-  shipcsxPoll: boolean
   /** New accounts wait for a dispatcher to approve them. */
   approveNewAccounts: boolean
   /** Shows Bridge Crossing Times under Tools, for the Hudson River crossings. */
@@ -30,8 +28,6 @@ export interface CompanySettings {
 
 const DEFAULTS: CompanySettings = {
   publicUrl: '',
-  shipcsxDefaultTerminal: '',
-  shipcsxPoll: false,
   approveNewAccounts: true,
   bridgeCrossingTimesEnabled: false,
   timeCardOfficePhone: '',
@@ -64,10 +60,6 @@ export function settingsFromRow(raw: Record<string, unknown> | null | undefined)
   const row = raw ?? {}
   return {
     publicUrl: cleanPublicUrl(row.publicUrl),
-    shipcsxDefaultTerminal: text(row.shipcsxDefaultTerminal) || text(process.env.NUXT_SHIPCSX_DEFAULT_TERMINAL),
-    shipcsxPoll: typeof row.shipcsxPoll === 'boolean'
-      ? row.shipcsxPoll
-      : text(process.env.NUXT_SHIPCSX_POLL).toLowerCase() === 'true',
     approveNewAccounts: typeof row.approveNewAccounts === 'boolean' ? row.approveNewAccounts : DEFAULTS.approveNewAccounts,
     bridgeCrossingTimesEnabled: typeof row.bridgeCrossingTimesEnabled === 'boolean'
       ? row.bridgeCrossingTimesEnabled
@@ -99,8 +91,9 @@ export async function saveCompanySettings(
   const [row] = await db.select({ settings: companies.settings }).from(companies).where(eq(companies.id, companyId)).limit(1)
   const next: Record<string, unknown> = { ...(row?.settings ?? {}) }
   if (patch.publicUrl !== undefined) next.publicUrl = cleanPublicUrl(patch.publicUrl)
-  if (patch.shipcsxDefaultTerminal !== undefined) next.shipcsxDefaultTerminal = text(patch.shipcsxDefaultTerminal)
-  if (patch.shipcsxPoll !== undefined) next.shipcsxPoll = patch.shipcsxPoll
+  // Left from the retired server-side ShipCSX checker.
+  delete next.shipcsxDefaultTerminal
+  delete next.shipcsxPoll
   if (patch.approveNewAccounts !== undefined) next.approveNewAccounts = patch.approveNewAccounts
   if (patch.bridgeCrossingTimesEnabled !== undefined) next.bridgeCrossingTimesEnabled = patch.bridgeCrossingTimesEnabled
   if (patch.timeCardOfficePhone !== undefined) next.timeCardOfficePhone = text(patch.timeCardOfficePhone)

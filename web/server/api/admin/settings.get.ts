@@ -7,11 +7,9 @@ import { currentDatabaseUrl } from '../../utils/db'
 import { loadCompanySettings } from '../../utils/settings'
 import { loadSmtpConfig, summarizeSmtp } from '../../utils/smtp-settings'
 import { loadPushConfig, summarizePush } from '../../utils/push-settings'
-import { SHIPCSX_TERMINALS } from '#shared/utils/csx-lookup'
 import { useOcrService } from '../../services/ocr'
 import { useDocScanWorker } from '../../services/docscan'
 import { useObjectStorage } from '../../services/storage'
-import { shipcsxHealth } from '../../services/shipcsx-poll'
 import { requireAdmin } from '../../utils/session'
 
 /** Company settings plus the deployment status of each self-hosted subsystem. */
@@ -38,12 +36,11 @@ export default defineEventHandler(async (event) => {
     .where(eq(companies.id, auth.companyId))
     .limit(1)
 
-  const [ocr, docscan, storage, geocoder, shipcsx] = await Promise.all([
+  const [ocr, docscan, storage, geocoder] = await Promise.all([
     useOcrService().healthCheck(),
     useDocScanWorker().health(),
     useObjectStorage().healthCheck(),
     useGeocoder().healthCheck(),
-    shipcsxHealth(db, auth.companyId),
   ])
 
   const smtp = await loadSmtpConfig(db)
@@ -67,7 +64,6 @@ export default defineEventHandler(async (event) => {
     email: summarizeSmtp(smtp),
     push: summarizePush(apns),
     database: databaseStatus(currentDatabaseUrl()),
-    shipcsxTerminals: SHIPCSX_TERMINALS,
     counts: { ...counts, admins: adminCount?.value ?? 0 },
     services: [
       { key: 'ocr', name: 'OpenOCR (RepViT DB + RepSVTR Mobile)', healthy: ocr.healthy, detail: ocr.message, phase: 'Phase 1' },
@@ -96,16 +92,6 @@ export default defineEventHandler(async (event) => {
       { key: 'tiles', name: 'Planetiler / PMTiles vector tiles', healthy: false, detail: 'Regional tile archive not generated yet.', phase: 'Phase 2' },
       { key: 'realtime', name: 'WebSocket live updates', healthy: false, detail: 'Polling is used in Phase 1.', phase: 'Phase 2' },
       { key: 'jobs', name: 'pg-boss background jobs', healthy: false, detail: 'Job queue not enabled in Phase 1.', phase: 'Phase 2' },
-      {
-        key: 'shipcsx',
-        name: 'ShipCSX lookup',
-        healthy: !shipcsx.lastError,
-        detail: shipcsx.lastError
-          || (shipcsx.lastFinishedAt
-            ? `Last check ${shipcsx.lastFinishedAt.toISOString()} · ${shipcsx.checkedCount} boxes`
-            : 'No check yet. Turn on automatic checks below, or check a container.'),
-        phase: 'Phase 1',
-      },
     ],
   }
 })

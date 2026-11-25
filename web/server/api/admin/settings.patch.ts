@@ -1,6 +1,5 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { SHIPCSX_TERMINALS } from '#shared/utils/csx-lookup'
 import { companies } from '../../database/schema'
 import { formatInviteCode, generateInviteCode } from '../../utils/company'
 import { cleanPublicUrl, saveCompanySettings } from '../../utils/settings'
@@ -22,8 +21,6 @@ const schema = z.object({
   usdotNumber: z.string().trim().max(20).optional(),
   timezone: z.string().trim().max(60).refine(isTimezone, 'Choose a timezone.').optional(),
   publicUrl: z.string().trim().max(300).optional(),
-  shipcsxDefaultTerminal: z.string().trim().max(80).optional(),
-  shipcsxPoll: z.boolean().optional(),
   approveNewAccounts: z.boolean().optional(),
   bridgeCrossingTimesEnabled: z.boolean().optional(),
   timeCardOfficePhone: z.string().trim().max(40).optional(),
@@ -42,9 +39,6 @@ export default defineEventHandler(async (event) => {
   if (body.publicUrl && !cleanPublicUrl(body.publicUrl)) {
     throw createError({ statusCode: 422, statusMessage: 'Enter the server address like https://yard.example.com' })
   }
-  if (body.shipcsxDefaultTerminal && !(SHIPCSX_TERMINALS as readonly string[]).includes(body.shipcsxDefaultTerminal)) {
-    throw createError({ statusCode: 422, statusMessage: 'Choose a terminal from the list.' })
-  }
 
   const profile: Partial<typeof companies.$inferInsert> = {}
   if (body.name !== undefined) profile.name = body.name
@@ -59,8 +53,6 @@ export default defineEventHandler(async (event) => {
 
   const settings = await saveCompanySettings(db, auth.companyId, {
     publicUrl: body.publicUrl,
-    shipcsxDefaultTerminal: body.shipcsxDefaultTerminal,
-    shipcsxPoll: body.shipcsxPoll,
     approveNewAccounts: body.approveNewAccounts,
     bridgeCrossingTimesEnabled: body.bridgeCrossingTimesEnabled,
     timeCardOfficePhone: body.timeCardOfficePhone,

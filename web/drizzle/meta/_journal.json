@@ -225,6 +225,13 @@
       "when": 1796300000000,
       "tag": "0031_fuel_receipt_details",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1796400000000,
+      "tag": "0032_drop_shipcsx_lookups",
+      "breakpoints": true
     }
   ]
 }

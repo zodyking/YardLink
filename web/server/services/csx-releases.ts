@@ -1,5 +1,5 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
-import { containers, csxPickupReleases, csxShipmentSnapshots, locations } from '../database/schema'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { containers, csxPickupReleases, locations } from '../database/schema'
 import type { DbExecutor } from '../utils/db'
 import { locationIdsAtSameAddress } from './location-sites'
 import { formatContainerNumber, normalizeContainerNumber } from '#shared/utils/iso6346'
@@ -254,30 +254,6 @@ export async function reopenCsxReleaseForTrip(
     .where(eq(csxPickupReleases.id, row.id))
     .returning()
   return updated ?? row
-}
-
-export async function latestSnapshotsForContainers(
-  db: DbExecutor,
-  companyId: string,
-  containerIds: string[],
-) {
-  if (!containerIds.length) return []
-  const rows = await db
-    .select()
-    .from(csxShipmentSnapshots)
-    .where(and(
-      eq(csxShipmentSnapshots.companyId, companyId),
-      inArray(csxShipmentSnapshots.containerId, containerIds),
-    ))
-    .orderBy(desc(csxShipmentSnapshots.checkedAt))
-
-  const seen = new Set<string>()
-  return rows.filter((row) => {
-    const key = row.containerId ?? row.containerNumberNormalized
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
 }
 
 export async function assertTerminusLocation(

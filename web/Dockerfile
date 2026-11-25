@@ -43,7 +43,6 @@ ENV OPENOCR_DET_MODEL=/opt/openocr/openocr_det_model.onnx
 ENV OPENOCR_REC_MODEL=/opt/openocr/openocr_rec_model.onnx
 ENV OPENOCR_WORKDIR=/tmp/openocr
 ENV DOCSCAN_WORKER=/app/docscan/docscan_worker.py
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
 
 # uid 1001: the base image already has `node` at uid 1000.
 RUN groupadd --system --gid 1001 nodejs \
@@ -85,16 +84,6 @@ COPY --chown=nuxt:nodejs server/docscan/docscan_worker.py /app/docscan/docscan_w
 RUN chmod +x ./entrypoint.sh \
   && mkdir -p /data/files \
   && chown -R nuxt:nodejs /opt/openocr /app/ocr /app/docscan /data
-
-# ShipCSX lookups need Chromium. Playwright is installed here (Debian)
-# because the Alpine builder never downloads browsers, and Nitro may omit the
-# dynamic `import('playwright')`. Lookups use an ephemeral browser context —
-# do not mkdir a profile directory.
-RUN mkdir -p /opt/playwright \
-  && cd /app/.output/server \
-  && npm install --omit=dev --no-audit --no-fund --no-package-lock playwright@1.55.0 \
-  && npx playwright install --with-deps chromium \
-  && chown -R nuxt:nodejs /opt/playwright /app/.output/server
 
 USER nuxt
 

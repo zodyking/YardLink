@@ -10,11 +10,10 @@ useHead({ title: 'Settings' })
 
 interface SettingsPayload {
   company: { id: string, name: string, legalName: string | null, usdotNumber: string | null, timezone: string, inviteCode: string }
-  settings: { publicUrl: string, shipcsxDefaultTerminal: string, shipcsxPoll: boolean, approveNewAccounts: boolean, bridgeCrossingTimesEnabled: boolean, timeCardOfficePhone: string, timeCardDispatchPhone: string, timeCardReportingLocation: string }
+  settings: { publicUrl: string, approveNewAccounts: boolean, bridgeCrossingTimesEnabled: boolean, timeCardOfficePhone: string, timeCardDispatchPhone: string, timeCardReportingLocation: string }
   email: { configured: boolean, host: string, port: number, user: string, fromName: string, fromEmail: string, hasPassword: boolean }
   push: { configured: boolean, keyId: string, teamId: string, bundleId: string, sandbox: boolean, hasKey: boolean }
   database: { source: 'builtin' | 'wizard' | 'env', external: boolean, label: string }
-  shipcsxTerminals: string[]
   counts: { containers: number, activeContainers: number, locations: number, drivers: number, trucks: number, admins: number }
   services: Array<{ key: string, name: string, healthy: boolean, detail: string, phase: string }>
 }
@@ -40,8 +39,6 @@ const form = reactive({
   usdotNumber: '',
   timezone: 'America/New_York',
   publicUrl: '',
-  shipcsxDefaultTerminal: '',
-  shipcsxPoll: false,
   approveNewAccounts: true,
   bridgeCrossingTimesEnabled: false,
   timeCardOfficePhone: '',
@@ -167,8 +164,6 @@ function fill() {
   form.usdotNumber = data.value.company.usdotNumber ?? ''
   form.timezone = data.value.company.timezone
   form.publicUrl = data.value.settings.publicUrl
-  form.shipcsxDefaultTerminal = data.value.settings.shipcsxDefaultTerminal
-  form.shipcsxPoll = data.value.settings.shipcsxPoll
   form.approveNewAccounts = data.value.settings.approveNewAccounts
   form.bridgeCrossingTimesEnabled = data.value.settings.bridgeCrossingTimesEnabled
   form.timeCardOfficePhone = data.value.settings.timeCardOfficePhone
@@ -218,10 +213,6 @@ const saveProfile = () => save('profile', {
 const saveAddress = () => save('address', { publicUrl: form.publicUrl })
 const saveAccounts = () => save('accounts', { approveNewAccounts: form.approveNewAccounts })
 const saveTools = () => save('tools', { bridgeCrossingTimesEnabled: form.bridgeCrossingTimesEnabled })
-const saveShipcsx = () => save('shipcsx', {
-  shipcsxDefaultTerminal: form.shipcsxDefaultTerminal,
-  shipcsxPoll: form.shipcsxPoll,
-})
 const saveTimeCard = () => save('timeCard', {
   timeCardOfficePhone: form.timeCardOfficePhone,
   timeCardDispatchPhone: form.timeCardDispatchPhone,
@@ -850,53 +841,6 @@ const countCards = computed(() => {
             Records are kept inside this installation. To keep them safe, install Yard Link again with your own PostgreSQL database chosen in the setup wizard. Records in the built-in database are not moved for you.
           </span>
         </p>
-      </section>
-
-      <!-- ── ShipCSX ─────────────────────────────────────────────── -->
-      <div class="section-label">
-        <span>ShipCSX</span>
-      </div>
-      <section class="card p-5 settings-form">
-        <div class="settings-grid">
-          <label class="field">
-            <span>Default terminal</span>
-            <select
-              v-model="form.shipcsxDefaultTerminal"
-              class="input"
-            >
-              <option value="">
-                None
-              </option>
-              <option
-                v-for="terminal in data.shipcsxTerminals"
-                :key="terminal"
-                :value="terminal"
-              >
-                {{ terminal }}
-              </option>
-            </select>
-            <small class="field-hint">Used when a container is not headed to a rail yard with its own terminal.</small>
-          </label>
-        </div>
-        <label class="yl-switch-row">
-          <span>
-            <b>Check ShipCSX automatically</b>
-            <small>Every 30 minutes between 5am and 10pm Eastern, for containers at customers.</small>
-          </span>
-          <input
-            v-model="form.shipcsxPoll"
-            class="yl-switch"
-            type="checkbox"
-          >
-        </label>
-        <button
-          class="btn-primary-action settings-save"
-          type="button"
-          :disabled="saving === 'shipcsx'"
-          @click="saveShipcsx"
-        >
-          {{ saving === 'shipcsx' ? 'Saving…' : saved === 'shipcsx' ? 'Saved' : 'Save ShipCSX' }}
-        </button>
       </section>
 
       <!-- ── Records ─────────────────────────────────────────────── -->

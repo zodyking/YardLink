@@ -178,13 +178,6 @@ export const csxReleaseStatusEnum = pgEnum('csx_release_status', [
   'CANCELLED',
 ])
 export const csxReleaseSourceEnum = pgEnum('csx_release_source', ['MANUAL', 'OCR'])
-export const csxLookupTabEnum = pgEnum('csx_lookup_tab', [
-  'NOTIFIED',
-  'ENROUTE',
-  'IN_GATE',
-  'OTHERS',
-  'NOT_FOUND',
-])
 
 /* ============================================================
    Tenancy and identity
@@ -887,7 +880,7 @@ export const dispatchTasks = pgTable('dispatch_tasks', {
 ])
 
 /* ============================================================
-   ShipCSX pickup releases and shipment snapshots
+   CSX pickup releases
    ============================================================ */
 
 export const csxPickupReleases = pgTable('csx_pickup_releases', {
@@ -912,27 +905,6 @@ export const csxPickupReleases = pgTable('csx_pickup_releases', {
     .where(sql`${t.status} in ('OPEN', 'CLAIMED')`),
 ])
 
-export const csxShipmentSnapshots = pgTable('csx_shipment_snapshots', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
-  containerId: uuid('container_id').references(() => containers.id, { onDelete: 'set null' }),
-  containerNumberNormalized: text('container_number_normalized').notNull(),
-  terminalName: text('terminal_name').notNull(),
-  equipmentNumber: text('equipment_number').notNull(),
-  referenceUsed: text('reference_used').notNull().default('00'),
-  resultTab: csxLookupTabEnum('result_tab').notNull().default('NOT_FOUND'),
-  loadEmpty: text('load_empty'),
-  waybillDate: text('waybill_date'),
-  inGateReadiness: text('in_gate_readiness'),
-  gateWindow: text('gate_window'),
-  rawPayload: jsonb('raw_payload').$type<Record<string, unknown>>().notNull().default({}),
-  error: text('error'),
-  checkedAt: utc('checked_at').notNull().defaultNow(),
-}, t => [
-  index('csx_shipment_snapshots_container_idx').on(t.containerId, t.checkedAt),
-  index('csx_shipment_snapshots_company_idx').on(t.companyId, t.checkedAt),
-])
-
 /* ============================================================
    Daily FMCSA short-haul time card (one row per driver per work date)
    ============================================================ */
@@ -953,16 +925,6 @@ export const driverTimeCards = pgTable('driver_time_cards', {
   uniqueIndex('driver_time_cards_driver_date_key').on(t.driverId, t.workDate),
   index('driver_time_cards_company_idx').on(t.companyId, t.workDate),
 ])
-
-export const csxPollState = pgTable('csx_poll_state', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
-  lastStartedAt: utc('last_started_at'),
-  lastFinishedAt: utc('last_finished_at'),
-  lastError: text('last_error'),
-  skipUntil: utc('skip_until'),
-  checkedCount: integer('checked_count').notNull().default(0),
-}, t => [uniqueIndex('csx_poll_state_company_key').on(t.companyId)])
 
 /* ============================================================
    Bridge crossing times (Port Authority of NY & NJ live feed)
@@ -1021,7 +983,6 @@ export type NewContainerEvent = typeof containerEvents.$inferInsert
 export type NewTrip = typeof trips.$inferInsert
 export type NewLocation = typeof locations.$inferInsert
 export type CsxPickupRelease = typeof csxPickupReleases.$inferSelect
-export type CsxShipmentSnapshot = typeof csxShipmentSnapshots.$inferSelect
 
 /* ============================================================
    Built-in messaging (replaces SMS; email is an optional copy)

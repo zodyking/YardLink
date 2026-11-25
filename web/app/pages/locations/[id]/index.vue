@@ -5,8 +5,6 @@ import { formatLocationExportList } from '#shared/utils/location-export'
 import { downloadLocationDirectoryCsv } from '~/utils/download-text'
 import { LOCATION_NOTE_BODY_MAX, locationNoteReviewIndex } from '#shared/utils/location-notes'
 import { formatPhoneDisplay, toE164 } from '#shared/utils/phone'
-import { SHIPCSX_CHECK_TIMEOUT_MS } from '#shared/utils/csx-lookup'
-import { shipcsxPublicError } from '#shared/utils/shipcsx-status'
 
 const { user } = useUserSession()
 setPageLayout(user.value?.role === 'ADMIN' ? 'admin' : 'default')
@@ -15,7 +13,6 @@ const route = useRoute()
 const locationId = computed(() => String(route.params.id))
 
 const { data, status, error, refresh } = await useFetch(() => `/api/locations/${locationId.value}`)
-const checkingCsx = ref(false)
 const csxError = ref('')
 
 const isTerminus = computed(() => {
@@ -23,29 +20,6 @@ const isTerminus = computed(() => {
   return type === 'MARINE_TERMINAL' || type === 'RAIL_TERMINAL'
 })
 const isCustomer = computed(() => data.value?.location.type === 'CUSTOMER')
-
-function snapshotFor(containerId: string) {
-  return data.value?.csxSnapshots?.find(row => row.containerId === containerId) ?? null
-}
-
-async function checkLocationCsx() {
-  if (checkingCsx.value) return
-  checkingCsx.value = true
-  csxError.value = ''
-  try {
-    await $fetch(`/api/locations/${locationId.value}/shipcsx`, {
-      method: 'POST',
-      timeout: SHIPCSX_CHECK_TIMEOUT_MS,
-    })
-    await refresh()
-  }
-  catch (err) {
-    csxError.value = shipcsxPublicError(apiErrorMessage(err, 'Could not check ShipCSX.'))
-  }
-  finally {
-    checkingCsx.value = false
-  }
-}
 
 async function cancelRelease(releaseId: string) {
   try {
@@ -327,15 +301,11 @@ async function confirmDelete() {
       >
         Upload CSX pickup list
       </NuxtLink>
-      <button
+      <ShipcsxLookupPanel
         v-if="isCustomer && data.containers.length"
-        type="button"
-        class="btn-ghost mt-2 w-full"
-        :disabled="checkingCsx"
-        @click="checkLocationCsx"
-      >
-        {{ checkingCsx ? 'Checking ShipCSX…' : 'Check CSX' }}
-      </button>
+        class="mt-2"
+        :containers="data.containers.map(item => item.number)"
+      />
 
       <template v-if="isTerminus">
         <div class="section-label mt-6">
@@ -406,9 +376,6 @@ async function confirmDelete() {
               · {{ EQUIPMENT_TYPE_SHORT[item.equipmentType] }}
               · {{ item.isLoaded ? 'Loaded' : 'Empty' }}
               <template v-if="item.chassisNumber"> · {{ formatChassisNumber(item.chassisNumber) }}</template>
-              <template v-if="snapshotFor(item.id)?.inGateReadiness">
-                · {{ snapshotFor(item.id)?.inGateReadiness }}
-              </template>
             </small>
           </span>
           <span

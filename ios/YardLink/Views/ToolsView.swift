@@ -113,23 +113,18 @@ struct ToolsView: View {
     }
 }
 
-/// Check CSX for the trip's container. Loads the container first so the
-/// terminal used last time is preselected, as on the container page.
+/// Check CSX for the trip's container, with the CSX location its site uses.
 private struct TripContainerCsxCheck: View {
     @EnvironmentObject private var model: AppModel
     let container: ToolsView.TripContainer
 
-    @State private var suggestedTerminal: String?
+    @State private var terminalHint: String?
     @State private var loaded = false
 
     var body: some View {
         Group {
             if loaded {
-                ShipcsxCheckView(
-                    containerId: container.id,
-                    containerNumber: container.number,
-                    suggestedTerminal: suggestedTerminal
-                ) {}
+                ShipcsxCheckView(containerNumbers: [container.number], terminalHint: terminalHint)
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -137,7 +132,7 @@ private struct TripContainerCsxCheck: View {
         .task {
             if let api = model.api {
                 let detail: ContainerDetail? = try? await api.get("/api/containers/\(container.id)")
-                suggestedTerminal = detail?.suggestedTerminal
+                terminalHint = detail?.suggestedTerminal
             }
             loaded = true
         }

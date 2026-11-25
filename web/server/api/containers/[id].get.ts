@@ -10,12 +10,10 @@ import {
   users,
 } from '../../database/schema'
 import { assertTenant, requireAuth } from '../../utils/session'
-import { latestSnapshotsForContainers } from '../../services/csx-releases'
-import { getShipcsxCheckJob } from '../../services/shipcsx-jobs'
 import { loadContainerHistory } from '../../services/duty-cycles'
 import { sliceCurrentServiceLife, summarizeServiceLife, effectiveContainerStatus } from '#shared/utils/service-life'
 import { normalizeContainerNumber } from '#shared/utils/iso6346'
-import { wizardShipcsxTerminal } from '#shared/utils/csx-lookup'
+import { shipcsxTerminalName } from '#shared/utils/csx-lookup'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -104,8 +102,8 @@ export default defineEventHandler(async (event) => {
     .where(and(eq(documents.companyId, auth.companyId), eq(documents.containerId, containerId), isNull(documents.deletedAt)))
     .orderBy(desc(documents.createdAt))
 
-  const [shipcsx] = await latestSnapshotsForContainers(db, auth.companyId, [containerId])
-  const suggestedTerminal = wizardShipcsxTerminal(shipcsx?.terminalName) ?? ''
+  // The CSX location to pick on ShipCSX, when the container sits at a CSX site.
+  const suggestedTerminal = shipcsxTerminalName(currentLocation?.shipcsxTerminal) ?? ''
 
   return {
     container: {
@@ -124,8 +122,6 @@ export default defineEventHandler(async (event) => {
     /** Every duty cycle, newest first — the current one and all earlier ones. */
     history: await loadContainerHistory(db, auth.companyId, containerId),
     documents: files,
-    shipcsx: shipcsx ?? null,
-    shipcsxCheck: getShipcsxCheckJob(containerId),
     suggestedTerminal,
   }
 })

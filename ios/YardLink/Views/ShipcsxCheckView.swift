@@ -1,260 +1,169 @@
 import SwiftUI
+import UIKit
+import WebKit
 
-/// Check a container on ShipCSX. The server drives the public lookup, so this
-/// screen picks the CSX facility, starts the check and follows its steps.
+/// Check containers on ShipCSX by hand, with the typing done for you.
+///
+/// This is the real ShipCSX page in a browser the driver works: they pass
+/// ShipCSX's own "verify you are human" check, pick the CSX location and tap
+/// Search. The app only fills the container's initial and number into the
+/// form when the driver taps Fill, the way a password manager fills a login.
 struct ShipcsxCheckView: View {
-    @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    let containerId: String
-    let containerNumber: String
-    let suggestedTerminal: String?
-    let onFinished: () -> Void
+    let containerNumbers: [String]
+    /// The CSX location to pick, when the container's site says.
+    let terminalHint: String?
 
-    @State private var terminal: String
-    @State private var reference = ""
-    @State private var check: ShipcsxCheck?
-    @State private var starting = false
-    @State private var errorMessage: String?
+    @State private var page = ShipcsxPage()
+    @State private var note: String?
 
-    init(containerId: String, containerNumber: String, suggestedTerminal: String?, onFinished: @escaping () -> Void) {
-        self.containerId = containerId
-        self.containerNumber = containerNumber
-        self.suggestedTerminal = suggestedTerminal
-        self.onFinished = onFinished
-        let suggestion = suggestedTerminal?.trimmingCharacters(in: .whitespaces) ?? ""
-        _terminal = State(initialValue: shipcsxTerminals.contains(suggestion) ? suggestion : shipcsxTerminals[0])
+    private static let lookupURL = URL(string: "https://next.shipcsx.com/#/shipment/lookup")!
+
+    private var fillTitle: String {
+        containerNumbers.count == 1
+            ? "Fill \(Marking.formatContainer(containerNumbers[0]))"
+            : "Fill \(containerNumbers.count) containers"
     }
-
-    private var running: Bool { check?.running ?? false }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    if let errorMessage { ErrorBanner(message: errorMessage) }
-
-                    Card {
-                        InfoRow(label: "Container", value: Marking.formatContainer(containerNumber))
-                    }
-
-                    if running, let check {
-                        Card {
-                            SectionTitle(text: "Checking ShipCSX")
-                            ProgressView(value: Double(check.stepIndex ?? 0), total: Double(max(check.stepCount ?? 1, 1)))
-                                .tint(Brand.linkBlue)
-                            Text(check.progressLine)
-                                .font(.subheadline)
-                                .foregroundColor(Brand.muted)
-                            Text("This takes up to two minutes. You can leave this screen; the check carries on.")
-                                .font(.footnote)
-                                .foregroundColor(Brand.muted)
-                        }
-                    } else if check?.status == "error" {
-                        Banner(kind: .error, title: "The check did not finish", message: check?.error ?? "ShipCSX could not be read.")
-                    } else if check?.status == "done" {
-                        Banner(kind: .success, message: "Done. The container page shows what ShipCSX said.")
-                    }
-
-                    FieldLabel(text: "Which CSX location?")
-                    ForEach(shipcsxTerminals, id: \.self) { name in
-                        OptionRow(
-                            symbol: "tram.fill",
-                            title: name,
-                            detail: name == suggestedTerminal ? "Used last time" : nil,
-                            selected: terminal == name
-                        ) { terminal = name }
-                        .disabled(running)
-                    }
-
-                    FieldLabel(text: "Reference (optional)")
-                    FieldBox {
-                        TextField("Leave empty to use 0000", text: $reference)
-                            .font(.system(.body, design: .monospaced))
-                            .textInputAutocapitalization(.characters)
-                            .autocorrectionDisabled()
-                    }
-                    .disabled(running)
+            VStack(spacing: 0) {
+                ShipcsxWebView(page: page, url: Self.lookupURL)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(note ?? instructions)
+                        .font(.footnote)
+                        .foregroundColor(Brand.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(fillTitle) { Task { await fill() } }
+                        .buttonStyle(PrimaryButtonStyle())
                 }
-                .padding(16)
+                .padding(14)
+                .background(Brand.paper.ignoresSafeArea(edges: .bottom))
             }
-            .scrollDismissesKeyboard(.interactively)
-            .screenBackground()
-            .navigationTitle("Check CSX")
+            .navigationTitle("ShipCSX")
             .navigationBarTitleDisplayMode(.inline)
-            .lightBar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
                 }
-            }
-            .safeAreaInset(edge: .bottom) {
-                BottomBar {
-                    Button(buttonLabel) { Task { await start() } }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .disabled(starting || running)
-                }
-            }
-            .task { await follow() }
-        }
-    }
-
-    private var buttonLabel: String {
-        if running { return "Checking…" }
-        if starting { return "Starting…" }
-        return check?.status == "done" ? "Check Again" : "Check ShipCSX"
-    }
-
-    private struct Request: Encodable {
-        let terminal: String
-        let equipmentNumber: String
-        let reference: String?
-    }
-
-    private func start() async {
-        guard let api = model.api else { return }
-        starting = true
-        errorMessage = nil
-        defer { starting = false }
-        let trimmed = reference.trimmingCharacters(in: .whitespaces)
-        do {
-            let result: ShipcsxCheckEnvelope = try await api.post("/api/containers/\(containerId)/shipcsx", body: Request(
-                terminal: terminal,
-                equipmentNumber: containerNumber,
-                reference: trimmed.isEmpty ? nil : trimmed
-            ))
-            check = result.check
-            await follow()
-        } catch {
-            errorMessage = model.handle(error)
-        }
-    }
-
-    /// Ask the server where the check has got to until it stops running. A
-    /// server that stops answering, or forgets the check (a restart), ends
-    /// the wait with a message instead of leaving the step frozen on screen.
-    private func follow() async {
-        guard let api = model.api else { return }
-        var misses = 0
-        while !Task.isCancelled, check?.running ?? false {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            do {
-                let latest: ShipcsxCheckEnvelope = try await api.get("/api/containers/\(containerId)/shipcsx")
-                misses = 0
-                guard let next = latest.check else {
-                    check = nil
-                    errorMessage = "The check stopped before it finished. Try again."
-                    return
-                }
-                check = next
-            } catch {
-                misses += 1
-                if misses >= 5 {
-                    check = nil
-                    errorMessage = model.handle(error)
-                    return
+                ToolbarItem(placement: .primaryAction) {
+                    Button { page.reload() } label: { Image(systemName: "arrow.clockwise") }
+                        .accessibilityLabel("Reload ShipCSX")
                 }
             }
         }
-        if check?.status == "done" || check?.status == "error" { onFinished() }
+    }
+
+    private var instructions: String {
+        let pick = terminalHint.map { "pick \($0)" } ?? "pick the CSX location"
+        return "If ShipCSX asks, tick \"Verify you are human\". Then \(pick), tap Fill, and tap Search on ShipCSX."
+    }
+
+    private func fill() async {
+        let filled = await page.fill(containerNumbers)
+        if filled == 0 {
+            UIPasteboard.general.string = containerNumbers.map { Marking.formatContainer($0) }.joined(separator: "\n")
+            note = "Couldn't find the container boxes on this page yet. The number is copied, so you can paste it."
+        } else if filled < containerNumbers.count {
+            note = "Filled \(filled) of \(containerNumbers.count). Add rows on ShipCSX, then tap Fill again for the rest."
+        } else {
+            note = "Filled. Check the location, then tap Search on ShipCSX."
+        }
     }
 }
 
-/// Clear the company's records, one kind at a time. A dispatcher's tool for
-/// a yard that is starting over; it cannot be undone.
-struct ClearRecordsView: View {
-    @EnvironmentObject private var model: AppModel
+/// The page the driver is looking at, so the Fill button can type into it.
+@MainActor
+final class ShipcsxPage {
+    fileprivate weak var webView: WKWebView?
 
-    @State private var counts: ResetCounts?
-    @State private var loading = true
-    @State private var clearing: String?
-    @State private var confirming: (id: String, label: String, count: Int)?
-    @State private var errorMessage: String?
-    @State private var note: String?
+    func reload() { webView?.reload() }
 
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                if let errorMessage { ErrorBanner(message: errorMessage) }
-                if let note { Banner(kind: .success, message: note) }
-
-                Banner(
-                    kind: .warning,
-                    title: "This cannot be undone",
-                    message: "Clearing a kind of record deletes it for the whole company. Export anything you want to keep first."
-                )
-
-                if loading {
-                    ProgressView().frame(maxWidth: .infinity, minHeight: 160)
-                } else if let counts {
-                    ForEach(resetTargets, id: \.id) { target in
-                        let count = counts.count(target.id)
-                        Card {
-                            HStack(alignment: .top) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(target.label).font(.body.weight(.semibold)).foregroundColor(Brand.navy)
-                                    Text(target.hint).font(.footnote).foregroundColor(Brand.muted)
-                                }
-                                Spacer(minLength: 8)
-                                Text("\(count)")
-                                    .font(.system(.title3, design: .rounded).weight(.bold))
-                                    .foregroundColor(count == 0 ? Brand.muted : Brand.navy)
-                            }
-                            Button(clearing == target.id ? "Clearing…" : "Clear \(target.label)") {
-                                confirming = (target.id, target.label, count)
-                            }
-                            .buttonStyle(SecondaryButtonStyle())
-                            .disabled(count == 0 || clearing != nil)
-                        }
-                    }
-                }
-            }
-            .padding(16)
-        }
-        .screenBackground()
-        .navigationTitle("Clear Records")
-        .navigationBarTitleDisplayMode(.inline)
-        .lightBar()
-        .confirmPrompt(
-            confirming.map { "Clear \($0.label.lowercased())?" } ?? "",
-            message: confirming.map { "\($0.count) \($0.label.lowercased()) will be deleted for everyone at your company. This cannot be undone." },
-            isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
-            cancelLabel: "Keep",
-            actions: [.destructive(confirming.map { "Delete \($0.count)" } ?? "Delete") {
-                if let target = confirming { Task { await clear(target.id, target.label) } }
-            }]
-        )
-        .refreshable { await load() }
-        .task { await load() }
+    /// Types each container's initial and number into the next empty row of
+    /// ShipCSX's lookup form and answers how many went in. Nothing is clicked.
+    func fill(_ containers: [String]) async -> Int {
+        guard let webView else { return 0 }
+        let rows = containers.compactMap(Self.parts)
+        guard !rows.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: rows),
+              let json = String(data: data, encoding: .utf8) else { return 0 }
+        let result = try? await webView.evaluateJavaScript("(\(Self.fillScript))(\(json))")
+        return (result as? NSNumber)?.intValue ?? 0
     }
 
-    private func load() async {
-        guard let api = model.api else { return }
-        do {
-            counts = try await api.get("/api/reset")
-            errorMessage = nil
-        } catch {
-            errorMessage = model.handle(error)
-        }
-        loading = false
+    /// ShipCSX asks for the 4-letter initial and the 6-digit number, no check digit.
+    private static func parts(_ container: String) -> [String: String]? {
+        let compact = Marking.normalize(container)
+        guard compact.count >= 10,
+              compact.prefix(4).allSatisfy(\.isLetter),
+              compact.dropFirst(4).prefix(6).allSatisfy(\.isNumber) else { return nil }
+        return ["initial": String(compact.prefix(4)), "number": String(compact.dropFirst(4).prefix(6))]
     }
 
-    private struct Request: Encodable {
-        let target: String
+    /// Fills rows the way typing would: sets each box's value and fires the
+    /// input events the page listens for. The reference box gets 0000 only
+    /// when it's empty, as ShipCSX expects for a lookup without one.
+    private static let fillScript = """
+    function (rows) {
+      const visible = (el) => !!(el && (el.offsetParent || el.getClientRects().length));
+      const field = (el) => (el && el.tagName === 'ION-INPUT' ? el.querySelector('input') : el);
+      const find = (selectors) => {
+        for (const selector of selectors) {
+          const found = [...document.querySelectorAll(selector)].map(field).filter(visible);
+          if (found.length) return found;
+        }
+        return [];
+      };
+      const type = (el, value) => {
+        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;
+        el.focus();
+        setter.call(el, value);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.blur();
+      };
+      const initials = find(['input[placeholder*="CSXU" i]', 'input[aria-label*="Initial" i]', 'ion-input[placeholder*="CSXU" i]', 'ion-input[label*="Initial" i]']);
+      const numbers = find(['input[placeholder*="123456"]', 'input[aria-label*="Equipment Number" i]', 'ion-input[placeholder*="123456"]', 'ion-input[label*="Number" i]']);
+      const refs = find(['input[placeholder*="Pickup" i]', 'input[aria-label*="Reference" i]', 'ion-input[placeholder*="Pickup" i]', 'ion-input[label*="Reference" i]']);
+      const already = new Set(initials.map((el, i) => (el.value || '') + '|' + ((numbers[i] && numbers[i].value) || '')));
+      let filled = 0;
+      let row = 0;
+      for (const box of rows) {
+        if (already.has(box.initial + '|' + box.number)) { filled++; continue; }
+        while (row < initials.length && initials[row].value) row++;
+        if (row >= initials.length) break;
+        if (numbers[row]) {
+          type(initials[row], box.initial);
+          type(numbers[row], box.number);
+        } else {
+          type(initials[row], box.initial + box.number);
+        }
+        if (refs[row] && !refs[row].value) type(refs[row], '0000');
+        filled++;
+        row++;
+      }
+      return filled;
+    }
+    """
+}
+
+private struct ShipcsxWebView: UIViewRepresentable {
+    let page: ShipcsxPage
+    let url: URL
+
+    func makeUIView(context: Context) -> WKWebView {
+        // The shared store keeps ShipCSX's cookies, so the human check isn't
+        // asked for again every time.
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .default()
+        let view = WKWebView(frame: .zero, configuration: config)
+        view.allowsBackForwardNavigationGestures = true
+        page.webView = view
+        view.load(URLRequest(url: url))
+        return view
     }
 
-    private func clear(_ id: String, _ label: String) async {
-        guard let api = model.api else { return }
-        confirming = nil
-        clearing = id
-        errorMessage = nil
-        note = nil
-        defer { clearing = nil }
-        do {
-            let _: OkResult = try await api.post("/api/reset", body: Request(target: id))
-            note = "\(label) cleared."
-            await load()
-        } catch {
-            errorMessage = model.handle(error)
-        }
+    func updateUIView(_ view: WKWebView, context: Context) {
+        page.webView = view
     }
 }

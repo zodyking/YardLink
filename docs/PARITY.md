@@ -94,7 +94,7 @@ Yard Link:
 | Email (SMTP) | Verification, email-change notice, task assignment mail, test send; configured by environment variables | All four kept, plus welcome, approval, new-message and new-sign-up emails in the Yard Link brand. Configured in the wizard and under Settings; optional | Carried + New |
 | Quo SMS | Settings page, inbound webhook → tasks | Removed | Changed |
 | OCR | On-server OpenOCR worker | Same | Carried |
-| ShipCSX public lookup | Manual check and 30-minute poll, enabled by environment variable | Same; terminal and on/off are in Settings | Changed |
+| ShipCSX public lookup | Manual check and 30-minute poll, enabled by environment variable | Checked by hand: ShipCSX opens in the person's own browser (in-app on the phone), Yard Link fills in or copies the container numbers. No server-side lookup or poll. | Changed |
 | Address search (Photon / Nominatim), map tiles | Same | Same | Carried |
 | File storage | Not implemented (SeaweedFS placeholder; no upload route) | Files on the server's data volume; upload, list, delete routes | New |
 | Deployment | External Postgres, SeaweedFS, required environment variables | One compose file with its own database; no environment variables | Changed |

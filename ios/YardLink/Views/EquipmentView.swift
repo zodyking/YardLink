@@ -46,31 +46,11 @@ struct ContainerDetailView: View {
                     }
                     SectionTitle(text: "ShipCSX")
                     Card {
-                        HStack {
-                            Text(detail.shipcsx?.statusLabel ?? "Not checked")
-                                .font(.body.weight(.semibold))
-                                .foregroundColor(Brand.navy)
-                            Spacer()
-                            if let checkedAt = detail.shipcsx?.checkedAt {
-                                Text(Format.dateTime(checkedAt))
-                                    .font(.caption)
-                                    .foregroundColor(Brand.muted)
-                            }
-                        }
-                        if let line = detail.shipcsx?.detailLine, !line.isEmpty {
-                            Text(line).font(.footnote).foregroundColor(Brand.muted)
-                        }
-                        if detail.shipcsxCheck?.running == true {
-                            HStack(spacing: 8) {
-                                ProgressView()
-                                Text(detail.shipcsxCheck?.progressLine ?? "Checking…")
-                                    .font(.footnote)
-                                    .foregroundColor(Brand.muted)
-                            }
-                        }
-                        Button(detail.shipcsx == nil ? "Check CSX" : "Check Again") { sheet = .shipcsx }
+                        Text("Open ShipCSX with this container ready to fill in.")
+                            .font(.footnote)
+                            .foregroundColor(Brand.muted)
+                        Button("Check CSX") { sheet = .shipcsx }
                             .buttonStyle(SecondaryButtonStyle())
-                            .disabled(detail.shipcsxCheck?.running == true)
                     }
 
                     SectionTitle(text: "This container")
@@ -119,10 +99,9 @@ struct ContainerDetailView: View {
                         DocumentsSheet(scope: .container(containerId), containerNumber: detail.container.number, chassisNumber: nil)
                     case .shipcsx:
                         ShipcsxCheckView(
-                            containerId: containerId,
-                            containerNumber: detail.container.number,
-                            suggestedTerminal: detail.suggestedTerminal
-                        ) { Task { await load() } }
+                            containerNumbers: [detail.container.number],
+                            terminalHint: detail.suggestedTerminal
+                        )
                     }
                 }
             }
