@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { PDFDocument } from 'pdf-lib'
 import {
+  alignTripStopsToGps,
   applyHeaderOverrides,
   blankTimeCardHeader,
   cdlLabel,
@@ -73,6 +74,7 @@ describe('stopsFromTrips', () => {
         source: 'TRIP',
         tripId: 'trip-1',
         locationId: 'loc-q',
+        customer: null,
       },
       {
         key: 'TRIP:trip-1:DROPOFF',
@@ -83,6 +85,7 @@ describe('stopsFromTrips', () => {
         source: 'TRIP',
         tripId: 'trip-1',
         locationId: 'loc-w',
+        customer: null,
       },
     ])
     expect(shiftTotals(stops)).toEqual({
@@ -186,7 +189,116 @@ describe('mergeIncomingPing', () => {
     const still = { at: '2026-10-28T12:10:00.000Z', latitude: 40.7001, longitude: -73.8001, locationId: 'a', locationName: 'Queens Yard' }
     const merged = mergeIncomingPing([first], still)
     expect(merged).toHaveLength(1)
-    expect(merged[0]?.at).toBe(still.at)
+    // The arrival time stays; the later fix only says the phone was still there.
+    expect(merged[0]?.at).toBe(first.at)
+    expect(merged[0]?.until).toBe(still.at)
+  })
+
+  it('never folds a site crossing into a nearby fix', () => {
+    const inside = { at: '2026-10-28T12:00:00.000Z', latitude: 40.7, longitude: -73.8, locationId: 'a', locationName: 'Queens Yard' }
+    const left = { ...inside, at: '2026-10-28T12:30:00.000Z', event: 'EXIT' as const }
+    expect(mergeIncomingPing([inside], left)).toHaveLength(2)
+  })
+})
+
+describe('stopsFromPings with site crossings', () => {
+  const site = { latitude: 1, longitude: 2, locationId: 'loc-q', locationName: 'Queens Yard' }
+
+  it('times a visit from the crossing in to the crossing out', () => {
+    const stops = stopsFromPings([
+      { ...site, at: '2026-10-28T12:03:00.000Z', event: 'ENTER' },
+      { ...site, at: '2026-10-28T12:10:00.000Z', until: '2026-10-28T12:20:00.000Z' },
+      { ...site, at: '2026-10-28T12:41:00.000Z', event: 'EXIT' },
+    ], ZONE)
+    expect(stops).toHaveLength(1)
+    expect(stops[0]).toMatchObject({ timeIn: '08:03', timeOut: '08:41', source: 'GPS' })
+  })
+
+  it('keeps only the time out when the day began on site', () => {
+    const stops = stopsFromPings([
+      { ...site, at: '2026-10-28T11:15:00.000Z', event: 'EXIT' },
+    ], ZONE)
+    expect(stops[0]).toMatchObject({ timeIn: '', timeOut: '07:15' })
+  })
+})
+
+describe('alignTripStopsToGps', () => {
+  it('gives a pickup the real gate in and out times', () => {
+    const trip = stopsFromTrips([
+      {
+        id: 'trip-1',
+        kind: 'CONTAINER',
+        isLoaded: false,
+        containerNumber: 'MSCU4521894',
+        originName: 'Queens Yard',
+        originLocationId: 'loc-q',
+        createdAt: '2026-10-28T12:15:00.000Z',
+        pickedUpAt: '2026-10-28T12:25:00.000Z',
+      },
+    ], ZONE)
+    const visit = stopsFromPings([
+      { at: '2026-10-28T12:03:00.000Z', latitude: 1, longitude: 2, locationId: 'loc-q', locationName: 'Queens Yard', event: 'ENTER' },
+      { at: '2026-10-28T12:41:00.000Z', latitude: 1, longitude: 2, locationId: 'loc-q', locationName: 'Queens Yard', event: 'EXIT' },
+    ], ZONE)
+    const aligned = alignTripStopsToGps(trip, visit)
+    expect(aligned[0]).toMatchObject({ timeIn: '08:03', timeOut: '08:41' })
+    // The visit is then covered by the trip stop, so it isn't listed twice.
+    expect(mergeTimeCardStops([...aligned, ...visit], [])).toHaveLength(1)
+  })
+
+  it('splits one visit across a drop-off and the next pickup at the same site', () => {
+    const trips = stopsFromTrips([
+      {
+        id: 'drop',
+        kind: 'CONTAINER',
+        isLoaded: true,
+        containerNumber: 'MSCU4521894',
+        destinationName: 'Queens Yard',
+        destinationLocationId: 'loc-q',
+        createdAt: '2026-10-28T11:00:00.000Z',
+        pickedUpAt: '2026-10-28T11:05:00.000Z',
+        droppedOffAt: '2026-10-28T12:10:00.000Z',
+      },
+      {
+        id: 'pick',
+        kind: 'CONTAINER',
+        isLoaded: false,
+        containerNumber: 'TGHU1234567',
+        originName: 'Queens Yard',
+        originLocationId: 'loc-q',
+        createdAt: '2026-10-28T12:15:00.000Z',
+        pickedUpAt: '2026-10-28T12:25:00.000Z',
+      },
+    ], ZONE)
+    const visit = stopsFromPings([
+      { at: '2026-10-28T12:03:00.000Z', latitude: 1, longitude: 2, locationId: 'loc-q', locationName: 'Queens Yard', event: 'ENTER' },
+      { at: '2026-10-28T12:41:00.000Z', latitude: 1, longitude: 2, locationId: 'loc-q', locationName: 'Queens Yard', event: 'EXIT' },
+    ], ZONE)
+    const aligned = alignTripStopsToGps(trips, visit)
+    const drop = aligned.find(stop => stop.key === 'TRIP:drop:DROPOFF')
+    const pick = aligned.find(stop => stop.key === 'TRIP:pick:PICKUP')
+    expect(drop).toMatchObject({ timeIn: '08:03', timeOut: '08:10' })
+    expect(pick).toMatchObject({ timeIn: '08:15', timeOut: '08:41' })
+  })
+
+  it('leaves a trip stop alone when the visit was another time of day', () => {
+    const trip = stopsFromTrips([
+      {
+        id: 'trip-1',
+        kind: 'CONTAINER',
+        isLoaded: false,
+        containerNumber: 'MSCU4521894',
+        originName: 'Queens Yard',
+        originLocationId: 'loc-q',
+        createdAt: '2026-10-28T12:15:00.000Z',
+        pickedUpAt: '2026-10-28T12:25:00.000Z',
+      },
+    ], ZONE)
+    const visit = stopsFromPings([
+      { at: '2026-10-28T20:00:00.000Z', latitude: 1, longitude: 2, locationId: 'loc-q', locationName: 'Queens Yard', event: 'ENTER' },
+      { at: '2026-10-28T20:30:00.000Z', latitude: 1, longitude: 2, locationId: 'loc-q', locationName: 'Queens Yard', event: 'EXIT' },
+    ], ZONE)
+    expect(alignTripStopsToGps(trip, visit)[0]).toMatchObject({ timeIn: '08:15', timeOut: '08:25' })
   })
 })
 

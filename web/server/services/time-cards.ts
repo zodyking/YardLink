@@ -17,6 +17,7 @@ import { correctTripDetails, LIVE_TRIP_STATUSES, type CorrectTripDetailsInput } 
 import { addIsoDays, calendarDateInZone } from '#shared/utils/sms-task'
 import { parseCoord } from '#shared/utils/geo'
 import {
+  alignTripStopsToGps,
   annotatePingsWithSites,
   applyHeaderOverrides,
   blankTimeCardHeader,
@@ -41,6 +42,7 @@ import {
   type TimeCardHeaderField,
   type TimeCardPing,
   type TimeCardSite,
+  type TimeCardSiteEvent,
   type TimeCardStatus,
   type TimeCardStop,
   type TimeCardTripInput,
@@ -88,6 +90,8 @@ function asPings(value: unknown): TimeCardPing[] {
       accuracyMeters: row.accuracyMeters == null ? null : Number(row.accuracyMeters),
       locationId: row.locationId ? String(row.locationId) : null,
       locationName: row.locationName ? String(row.locationName) : null,
+      ...(row.until ? { until: String(row.until) } : {}),
+      ...(row.event === 'ENTER' || row.event === 'EXIT' ? { event: row.event } : {}),
     })
   }
   return pings
@@ -151,6 +155,35 @@ async function loadSites(db: DbExecutor, companyId: string): Promise<TimeCardSit
     latitude: parseCoord(row.latitude),
     longitude: parseCoord(row.longitude),
   }))
+}
+
+/**
+ * Every pinned site the phone should watch for the time card, with its
+ * circle. The phone reports crossing in and out, which time-stamps the card.
+ */
+export async function listTimeCardWatchSites(db: DbExecutor, auth: AuthContext) {
+  const driverAuth = requireDriverAuth(auth)
+  const rows = await db
+    .select({
+      id: locations.id,
+      name: locations.name,
+      latitude: locations.latitude,
+      longitude: locations.longitude,
+      radiusM: locations.arrivalRadiusM,
+    })
+    .from(locations)
+    .where(and(
+      eq(locations.companyId, driverAuth.companyId),
+      isNull(locations.deletedAt),
+      isNotNull(locations.latitude),
+      isNotNull(locations.longitude),
+    ))
+  return rows.flatMap((row) => {
+    const latitude = parseCoord(row.latitude)
+    const longitude = parseCoord(row.longitude)
+    if (latitude == null || longitude == null) return []
+    return [{ id: row.id, name: row.name, latitude, longitude, radiusM: row.radiusM }]
+  })
 }
 
 /** This company's own active yards/terminals, for the time card PDF's page-2 directory. */
@@ -481,10 +514,7 @@ export async function syncDriverTimeCard(
   for (const ping of eventPings) pings = mergeIncomingPing(pings, ping)
   pings = annotatePingsWithSites(pings, sites)
 
-  const auto = mergeTimeCardStops(
-    [...stopsFromTrips(dayTrips, timeZone), ...stopsFromPings(pings, timeZone)],
-    [],
-  )
+  const auto = autoStops(dayTrips, pings, timeZone)
   const stops = mergeTimeCardStops(auto, asStops(row.stops))
   const bits = await loadDriverHeaderBits(db, driverAuth, dayTrips)
   const savedHeader = asHeader(row.header, workDate)
@@ -522,6 +552,19 @@ export async function syncDriverTimeCard(
   return toView(updated ?? { ...row, status, stops, pings, header, updatedAt: now }, live)
 }
 
+/** Trip stops with the phone's real site times, plus visits no trip explains. */
+function autoStops(
+  dayTrips: readonly TimeCardTripInput[],
+  pings: readonly TimeCardPing[],
+  timeZone: string,
+): TimeCardStop[] {
+  const visits = stopsFromPings(pings, timeZone)
+  return mergeTimeCardStops(
+    [...alignTripStopsToGps(stopsFromTrips(dayTrips, timeZone), visits), ...visits],
+    [],
+  )
+}
+
 async function driverIsLive(db: DbExecutor, companyId: string, driverId: string): Promise<boolean> {
   const [row] = await db
     .select({ id: trips.id })
@@ -546,7 +589,15 @@ export async function getDriverTimeCard(
 export async function recordTimeCardPing(
   db: Database,
   auth: AuthContext,
-  input: { latitude: number, longitude: number, accuracyMeters?: number | null, at?: string | Date | null },
+  input: {
+    latitude: number
+    longitude: number
+    accuracyMeters?: number | null
+    at?: string | Date | null
+    /** The phone crossed into or out of this company site's circle. */
+    event?: TimeCardSiteEvent | null
+    siteId?: string | null
+  },
 ): Promise<{ accepted: boolean, live: boolean, workDate: string, card: TimeCardView }> {
   const driverAuth = requireDriverAuth(auth)
   if (!Number.isFinite(input.latitude) || !Number.isFinite(input.longitude)) {
@@ -557,11 +608,14 @@ export async function recordTimeCardPing(
   const workDate = calendarDateInZone(Number.isNaN(at.getTime()) ? new Date() : at, timeZone)
   const row = await ensureRow(db, driverAuth, workDate)
   const sites = await loadSites(db, driverAuth.companyId)
+  // A crossing only counts for one of this company's own sites.
+  const crossedSite = input.event && input.siteId ? sites.find(site => site.id === input.siteId) : null
   const ping: TimeCardPing = {
     at: (Number.isNaN(at.getTime()) ? new Date() : at).toISOString(),
     latitude: input.latitude,
     longitude: input.longitude,
     accuracyMeters: input.accuracyMeters ?? null,
+    ...(crossedSite ? { event: input.event, locationId: crossedSite.id } : {}),
   }
   const pings = mergeIncomingPing(
     annotatePingsWithSites(asPings(row.pings), sites),
@@ -607,9 +661,12 @@ async function applyTripStopCorrections(
   auth: AuthContext & { driverId: string },
   submitted: readonly TimeCardStop[],
   auto: readonly TimeCardStop[],
+  /** The same stops from the trips' own times, before GPS set any of them. */
+  tripOnly: readonly TimeCardStop[],
   dayTrips: readonly TimeCardTripInput[],
 ): Promise<Set<string>> {
   const autoByKey = new Map(auto.map(stop => [stop.key, stop]))
+  const tripOnlyByKey = new Map(tripOnly.map(stop => [stop.key, stop]))
   const tripsById = new Map(dayTrips.map(trip => [trip.id, trip]))
   const corrected = new Set<string>()
 
@@ -623,15 +680,22 @@ async function applyTripStopCorrections(
     if (!isPickup && !isDropoff) continue
 
     const correction: CorrectTripDetailsInput = { tripId: stop.tripId }
+    // A time GPS supplied is when the phone crossed the site's edge, not when
+    // the driver tapped, so editing it says nothing about the tap: only times
+    // that came from the trip are pushed back to it.
+    const own = tripOnlyByKey.get(stop.key)
+    const outFromTrip = own != null && own.timeOut === base.timeOut
+    const inFromTrip = own != null && own.timeIn === base.timeIn
 
     if (isPickup) {
-      const delta = clockDeltaMinutes(stop.timeOut, base.timeOut)
+      const delta = outFromTrip ? clockDeltaMinutes(stop.timeOut, base.timeOut) : null
       const pickedUpAt = trip.pickedUpAt ? new Date(trip.pickedUpAt) : null
       if (delta != null && pickedUpAt) correction.pickedUpAt = new Date(pickedUpAt.getTime() + delta * 60_000)
       if (stop.locationId && stop.locationId !== base.locationId) correction.originLocationId = stop.locationId
     }
     else {
-      const delta = clockDeltaMinutes(stop.timeOut, base.timeOut) ?? clockDeltaMinutes(stop.timeIn, base.timeIn)
+      const delta = (outFromTrip ? clockDeltaMinutes(stop.timeOut, base.timeOut) : null)
+        ?? (inFromTrip ? clockDeltaMinutes(stop.timeIn, base.timeIn) : null)
       const droppedOffAt = trip.droppedOffAt ? new Date(trip.droppedOffAt) : null
       if (delta != null && droppedOffAt) correction.droppedOffAt = new Date(droppedOffAt.getTime() + delta * 60_000)
       if (stop.locationId && stop.locationId !== base.locationId) correction.destinationLocationId = stop.locationId
@@ -684,10 +748,7 @@ export async function patchDriverTimeCard(
   let dayTrips = await loadDayTrips(db, driverAuth, workDate, timeZone)
   const sites = await loadSites(db, driverAuth.companyId)
   const pings = annotatePingsWithSites(asPings(row.pings), sites)
-  let auto = mergeTimeCardStops(
-    [...stopsFromTrips(dayTrips, timeZone), ...stopsFromPings(pings, timeZone)],
-    [],
-  )
+  let auto = autoStops(dayTrips, pings, timeZone)
 
   const submittedStops = Array.isArray(body.stops)
     ? body.stops
@@ -701,13 +762,12 @@ export async function patchDriverTimeCard(
   // push it back so trip history and the time card never disagree about
   // what actually happened or where. Re-derive the auto baseline
   // afterward, since the trips it is built from just changed.
-  const correctedTrips = await applyTripStopCorrections(db, driverAuth, submittedStops, auto, dayTrips)
+  const correctedTrips = await applyTripStopCorrections(
+    db, driverAuth, submittedStops, auto, stopsFromTrips(dayTrips, timeZone), dayTrips,
+  )
   if (correctedTrips.size) {
     dayTrips = await loadDayTrips(db, driverAuth, workDate, timeZone)
-    auto = mergeTimeCardStops(
-      [...stopsFromTrips(dayTrips, timeZone), ...stopsFromPings(pings, timeZone)],
-      [],
-    )
+    auto = autoStops(dayTrips, pings, timeZone)
   }
 
   const stops = mergeTimeCardStops(auto, markStopCorrections(submittedStops, auto))

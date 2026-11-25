@@ -41,13 +41,21 @@ export type TimeCardStop = {
   corrected?: boolean
 }
 
+export const TIME_CARD_SITE_EVENTS = ['ENTER', 'EXIT'] as const
+export type TimeCardSiteEvent = (typeof TIME_CARD_SITE_EVENTS)[number]
+
 export type TimeCardPing = {
+  /** When the phone was first seen here. */
   at: string
+  /** When it was last seen here, once later fixes from the same spot are folded in. */
+  until?: string | null
   latitude: number
   longitude: number
   accuracyMeters?: number | null
   locationId?: string | null
   locationName?: string | null
+  /** The phone crossed into or out of this company site's circle at `at`. */
+  event?: TimeCardSiteEvent | null
 }
 
 export type TimeCardHeader = {
@@ -221,17 +229,25 @@ export function stopsFromTrips(trips: readonly TimeCardTripInput[], timeZone: st
   return sortTimeCardStops(stops).slice(0, TIME_CARD_STOP_MAX)
 }
 
-/** Consecutive GPS pings at the same site become one dwell stop. */
+function laterIso(a: string, b: string): string {
+  return a.localeCompare(b) >= 0 ? a : b
+}
+
+/**
+ * Time at each site from the phone: consecutive fixes at the same site, and
+ * the phone's own enter/exit crossings, become one stop. A crossing out with
+ * no crossing in that day (the day began on site) is a stop with only a time out.
+ */
 export function stopsFromPings(pings: readonly TimeCardPing[], timeZone: string): TimeCardStop[] {
   const ordered = [...pings].sort((a, b) => a.at.localeCompare(b.at))
   const dwells: TimeCardStop[] = []
-  let open: { locationId: string, locationName: string, first: string, last: string } | null = null
+  let open: { locationId: string, locationName: string, first: string | null, last: string } | null = null
 
   function close() {
     if (!open) return
     dwells.push({
-      key: `GPS:${open.locationId}:${open.first}`,
-      timeIn: formatTimeCardClock(open.first, timeZone),
+      key: `GPS:${open.locationId}:${open.first ?? open.last}`,
+      timeIn: open.first ? formatTimeCardClock(open.first, timeZone) : '',
       timeOut: formatTimeCardClock(open.last, timeZone),
       location: open.locationName,
       activity: 'On site',
@@ -244,19 +260,68 @@ export function stopsFromPings(pings: readonly TimeCardPing[], timeZone: string)
   for (const ping of ordered) {
     const locationId = ping.locationId?.trim()
     const locationName = ping.locationName?.trim()
+    const seenUntil = ping.until ? laterIso(ping.at, ping.until) : ping.at
     if (!locationId || !locationName) {
       close()
       continue
     }
-    if (open && open.locationId === locationId) {
-      open.last = ping.at
+    if (ping.event === 'EXIT') {
+      if (open?.locationId === locationId) {
+        open.last = laterIso(open.last, ping.at)
+      }
+      else {
+        close()
+        open = { locationId, locationName, first: null, last: ping.at }
+      }
+      close()
+      continue
+    }
+    if (ping.event !== 'ENTER' && open?.locationId === locationId) {
+      open.last = laterIso(open.last, seenUntil)
       continue
     }
     close()
-    open = { locationId, locationName, first: ping.at, last: ping.at }
+    open = { locationId, locationName, first: ping.at, last: seenUntil }
   }
   close()
   return dwells
+}
+
+/** Minutes either side of a site visit that a trip stop may sit and still belong to it. */
+const GPS_TRIP_SLACK_MIN = 20
+
+/**
+ * Give trip stops the phone's real times at the site. Taps happen whenever
+ * the driver gets to them; the crossing in and out of the site's circle is
+ * when they actually arrived and left. Every trip stop at the site during one
+ * visit shares it: the first takes the time in, the last the time out.
+ */
+export function alignTripStopsToGps(
+  tripStops: readonly TimeCardStop[],
+  gpsStops: readonly TimeCardStop[],
+): TimeCardStop[] {
+  const aligned = tripStops.map(stop => ({ ...stop }))
+  for (const visit of gpsStops) {
+    if (visit.source !== 'GPS' || !visit.locationId) continue
+    const visitOut = minutesFromClock(visit.timeOut)
+    const visitIn = minutesFromClock(visit.timeIn) ?? visitOut
+    if (visitIn == null || visitOut == null) continue
+    const during = aligned
+      .filter((stop) => {
+        if (stop.source !== 'TRIP' || stop.locationId !== visit.locationId) return false
+        const stopIn = minutesFromClock(stop.timeIn)
+        if (stopIn == null) return false
+        const stopOut = minutesFromClock(stop.timeOut) ?? stopIn
+        return stopIn <= visitOut + GPS_TRIP_SLACK_MIN && stopOut >= visitIn - GPS_TRIP_SLACK_MIN
+      })
+      .sort((a, b) => (minutesFromClock(a.timeIn) ?? 0) - (minutesFromClock(b.timeIn) ?? 0))
+    const first = during[0]
+    const last = during[during.length - 1]
+    if (!first || !last) continue
+    if (visit.timeIn) first.timeIn = visit.timeIn
+    last.timeOut = visit.timeOut
+  }
+  return aligned
 }
 
 /**
@@ -300,8 +365,8 @@ export function mergeTimeCardStops(
 }
 
 function clocksOverlap(a: TimeCardStop, b: TimeCardStop): boolean {
-  const a0 = minutesFromClock(a.timeIn)
-  const b0 = minutesFromClock(b.timeIn)
+  const a0 = minutesFromClock(a.timeIn || a.timeOut)
+  const b0 = minutesFromClock(b.timeIn || b.timeOut)
   if (a0 == null || b0 == null) return false
   const a1 = minutesFromClock(a.timeOut || a.timeIn) ?? a0
   const b1 = minutesFromClock(b.timeOut || b.timeIn) ?? b0
@@ -513,11 +578,12 @@ export function mergeIncomingPing(
   ping: TimeCardPing,
 ): TimeCardPing[] {
   const last = pings[pings.length - 1]
-  if (last && pingDistance(last, ping) < TIME_CARD_PING_MIN_GAP_M) {
+  // Crossings are never folded: their exact time is the point of them.
+  if (last && !last.event && !ping.event && pingDistance(last, ping) < TIME_CARD_PING_MIN_GAP_M) {
     const next = [...pings]
     next[next.length - 1] = {
       ...last,
-      at: ping.at,
+      until: laterIso(last.until ?? last.at, ping.until ?? ping.at),
       accuracyMeters: ping.accuracyMeters ?? last.accuracyMeters,
       locationId: ping.locationId ?? last.locationId,
       locationName: ping.locationName ?? last.locationName,
@@ -532,7 +598,13 @@ export function annotatePingsWithSites(
   pings: readonly TimeCardPing[],
   sites: readonly TimeCardSite[],
 ): TimeCardPing[] {
+  const byId = new Map(sites.map(site => [site.id, site]))
   return pings.map((ping) => {
+    // A crossing names its site: the phone was watching that site's circle.
+    const crossed = ping.event && ping.locationId ? byId.get(ping.locationId) : null
+    if (crossed) {
+      return { ...ping, locationName: formatTimeCardLocation(crossed.name, crossed.city, crossed.state) }
+    }
     if (ping.accuracyMeters != null && ping.accuracyMeters > TIME_CARD_GPS_ACCURACY_MAX_M) {
       return { ...ping, locationId: null, locationName: null }
     }

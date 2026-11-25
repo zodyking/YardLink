@@ -172,6 +172,7 @@ final class AppModel: ObservableObject {
 
     func signOut() async {
         await PushCenter.shared.forget()
+        SiteWatch.shared.stop()
         if let api {
             let _: OkResult? = try? await api.post("/api/auth/logout")
             api.clearCookies()

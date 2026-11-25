@@ -139,6 +139,11 @@ struct MainTabs: View {
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
             }
         }
+        .task {
+            // A driver's time card takes its in and out times from crossing
+            // the company's sites, so start watching them once signed in.
+            if user.isDriver { await SiteWatch.shared.start() }
+        }
         .task(id: scenePhase) {
             // While a driver has the app open, the phone's position fills in
             // today's time card. A declined permission just means no pings.

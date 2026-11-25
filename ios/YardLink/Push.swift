@@ -189,7 +189,11 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        MainActor.assumeIsolated { PushCenter.shared.start() }
+        MainActor.assumeIsolated {
+            PushCenter.shared.start()
+            // Ready before iOS hands over a site crossing it woke the app for.
+            SiteWatch.shared.resume()
+        }
         return true
     }
 

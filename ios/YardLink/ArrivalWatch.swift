@@ -241,6 +241,8 @@ extension ArrivalWatch: CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
+        // The time card's site circles belong to SiteWatch.
+        guard region.identifier == "yardlink.arrival" else { return }
         Task { @MainActor in await ArrivalWatch.shared.reportCrossing(at: nil) }
     }
 
@@ -257,7 +259,7 @@ extension ArrivalWatch: CLLocationManagerDelegate {
         didDetermineState state: CLRegionState,
         for region: CLRegion
     ) {
-        guard state == .inside else { return }
+        guard state == .inside, region.identifier == "yardlink.arrival" else { return }
         Task { @MainActor in await ArrivalWatch.shared.reportCrossing(at: nil) }
     }
 }
