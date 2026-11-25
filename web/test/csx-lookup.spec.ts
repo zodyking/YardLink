@@ -117,6 +117,7 @@ describe('ShipCSX page sniffers', () => {
     expect(shipcsxPageLooksHardBlocked('Sorry, you have been blocked')).toBe(true)
     expect(shipcsxPageLooksHardBlocked('Select Terminal\nEquipment Initial')).toBe(false)
     expect(shipcsxPageLooksLikeChallenge('Just a moment...')).toBe(true)
+    expect(shipcsxPageLooksLikeChallenge('next.shipcsx.com\nPerforming security verification')).toBe(true)
     expect(shipcsxPageLooksLikeLogin('Sign in\nPassword', 'https://next.shipcsx.com/#/login')).toBe(true)
     expect(shipcsxPageLooksLikeLogin('Equipment Lookup', 'https://next.shipcsx.com/#/shipment/lookup')).toBe(false)
   })

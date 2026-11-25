@@ -164,9 +164,15 @@ function assertLookupPage(text: string, url: string) {
   }
 }
 
+/** How long a Cloudflare check may run on its own before we give up on it. Its automatic pass takes a few seconds; an interactive checkbox never passes. */
+const CHALLENGE_GRACE_MS = 12_000
+const FORM_DEADLINE_MS = 25_000
+const HUMAN_CHECK_ERROR = 'ShipCSX asked for a Cloudflare human check. Backing off automatic checks.'
+
 async function waitForLookupForm(page: Page) {
-  const deadline = Date.now() + 45_000
-  while (Date.now() < deadline) {
+  const started = Date.now()
+  let challengeSince: number | null = null
+  while (Date.now() - started < FORM_DEADLINE_MS) {
     const text = await bodyText(page)
     const url = page.url()
     if (shipcsxPageLooksHardBlocked(text)) {
@@ -175,21 +181,24 @@ async function waitForLookupForm(page: Page) {
     if (shipcsxPageLooksLikeLogin(text, url)) {
       throw new Error('ShipCSX shipment lookup is not available without a login wall.')
     }
-    const form = page.locator('ion-input, ion-select, input, select, [role="combobox"]').first()
-    const search = searchButton(page)
-    if (await form.count() || await search.count()) {
-      if (await form.first().isVisible().catch(() => false) || await search.isVisible().catch(() => false)) {
-        return
+    const title = await page.title().catch(() => '')
+    if (shipcsxPageLooksLikeChallenge(`${title}\n${text}`)) {
+      challengeSince ??= Date.now()
+      if (Date.now() - challengeSince > CHALLENGE_GRACE_MS) {
+        console.warn('[shipcsx] cloudflare check did not clear', { url, title })
+        throw new Error(HUMAN_CHECK_ERROR)
       }
     }
-    await pause(400, 800)
+    else {
+      challengeSince = null
+      if (await searchButton(page).isVisible().catch(() => false)) return
+    }
+    await pause(250, 400)
   }
   const leftover = await bodyText(page)
   // What the server's browser actually saw, so a failure here can be diagnosed from the logs.
   console.warn('[shipcsx] lookup form missing', { url: page.url(), title: await page.title().catch(() => ''), snippet: leftover.slice(0, 400) })
-  if (shipcsxPageLooksLikeChallenge(leftover) || shipcsxPageLooksHardBlocked(leftover)) {
-    throw new Error('ShipCSX challenged this session. Backing off automatic checks.')
-  }
+  if (shipcsxPageLooksLikeChallenge(leftover)) throw new Error(HUMAN_CHECK_ERROR)
   throw new Error('ShipCSX lookup form did not load. The search button never became available.')
 }
 

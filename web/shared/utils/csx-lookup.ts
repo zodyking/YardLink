@@ -219,7 +219,7 @@ export function shipcsxPageLooksHardBlocked(text: string): boolean {
 }
 
 export function shipcsxPageLooksLikeChallenge(text: string): boolean {
-  return /just a moment|checking your browser|verify you are human/i.test(text ?? '')
+  return /just a moment|checking your browser|verify you are human|performing security verification|verifies you are not a bot/i.test(text ?? '')
 }
 
 export function shipcsxPageLooksLikeLogin(text: string, url = ''): boolean {

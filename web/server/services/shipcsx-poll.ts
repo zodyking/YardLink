@@ -259,7 +259,7 @@ export async function runShipcsxPoll(db: Database, now = new Date()) {
     }
     catch (error) {
       const message = error instanceof Error ? error.message : 'ShipCSX lookup failed.'
-      const backoff = /challenged|blocked|captcha|login wall|sign in/i.test(message)
+      const backoff = /challenged|blocked|captcha|human check|login wall|sign in/i.test(message)
       await recordPollOutcome(db, company.id, { error: message, backoff })
     }
   }

@@ -62,6 +62,9 @@ function describeShipcsxError(raw: string | null | undefined): string {
   if (/took too long/i.test(text)) {
     return 'ShipCSX took too long to answer. Try again in a few minutes.'
   }
+  if (/human check|cloudflare/i.test(text)) {
+    return 'ShipCSX asked for a Cloudflare "verify you are human" check, which the server can\'t pass. Try again later.'
+  }
   if (/challenged|captcha|blocked/i.test(text)) {
     return 'ShipCSX blocked this check. Try again later.'
   }
