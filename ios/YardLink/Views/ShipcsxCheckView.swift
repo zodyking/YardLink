@@ -256,7 +256,8 @@ final class ShipcsxPage {
     }
 
     /// Picks the CSX location and types each container ("TTRU 485022", the
-    /// form's own example format) into the next row, with the reference.
+    /// form's own example format) into the next empty row, with the
+    /// reference, waiting for ShipCSX to add a row after each one.
     /// Nothing is submitted: the driver taps Search.
     func fill(_ containers: [String], terminal: String, reference: String) async -> FillOutcome {
         guard let webView else { return FillOutcome(rows: 0, terminalPicked: false) }
@@ -338,32 +339,44 @@ final class ShipcsxPage {
     }
 
     // The rows: an equipment box on the left, a reference box on the right.
-    const inputs = [...document.querySelectorAll('input, textarea')].filter((el) =>
-      visible(el) && !el.readOnly && !el.disabled && !/^(hidden|checkbox|radio|submit|button|search)$/i.test(el.type || ''));
-    const groups = [];
-    for (const el of inputs) {
-      const box = el.getBoundingClientRect();
-      const group = groups.find((g) => Math.abs(g.top - box.top) < 8);
-      if (group) group.items.push({ el, left: box.left });
-      else groups.push({ top: box.top, items: [{ el, left: box.left }] });
-    }
-    const rows = groups
-      .filter((g) => g.items.length === 2)
-      .sort((a, b) => a.top - b.top)
-      .map((g) => g.items.sort((a, b) => a.left - b.left).map((item) => item.el));
+    // ShipCSX shows one row and adds the next once a container is typed in,
+    // so the rows are found again after each one.
+    const formRows = () => {
+      const inputs = [...document.querySelectorAll('input, textarea')].filter((el) =>
+        visible(el) && !el.readOnly && !el.disabled && !/^(hidden|checkbox|radio|submit|button|search)$/i.test(el.type || ''));
+      const groups = [];
+      for (const el of inputs) {
+        const box = el.getBoundingClientRect();
+        const group = groups.find((g) => Math.abs(g.top - box.top) < 8);
+        if (group) group.items.push({ el, left: box.left });
+        else groups.push({ top: box.top, items: [{ el, left: box.left }] });
+      }
+      return groups
+        .filter((g) => g.items.length === 2)
+        .sort((a, b) => a.top - b.top)
+        .map((g) => g.items.sort((a, b) => a.left - b.left).map((item) => item.el));
+    };
+    const compact = (value) => (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
     let filled = 0;
-    rows.forEach((row, i) => {
-      const [equipmentBox, referenceBox] = row;
-      if (i < equipment.length) {
-        type(equipmentBox, equipment[i]);
-        if (!referenceBox.value) type(referenceBox, reference);
-        filled++;
-      } else if (equipmentBox.value) {
-        type(equipmentBox, '');
-        type(referenceBox, '');
+    for (const container of equipment) {
+      let rows = formRows();
+      // Already typed in (a second Fill): count it and move on.
+      if (rows.some(([box]) => compact(box.value) === compact(container))) { filled++; continue; }
+      let row = rows.find(([box]) => !box.value);
+      // Give the page a moment to add the next row.
+      for (let wait = 0; !row && wait < 10; wait++) {
+        await sleep(200);
+        rows = formRows();
+        row = rows.find(([box]) => !box.value);
       }
-    });
+      if (!row) break;
+      const [equipmentBox, referenceBox] = row;
+      type(equipmentBox, container);
+      if (!referenceBox.value) type(referenceBox, reference);
+      filled++;
+      await sleep(300);
+    }
     return { rows: filled, terminal: picked };
     """
 }
