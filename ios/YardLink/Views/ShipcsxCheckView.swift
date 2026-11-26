@@ -52,7 +52,6 @@ struct ShipcsxCheckView: View {
     @State private var index = 0
     /// Containers typed into the current search.
     @State private var filled: [Box] = []
-    @State private var fillTries = 0
     @State private var working = false
     @State private var savedCount = 0
     @State private var finished = false
@@ -96,55 +95,108 @@ struct ShipcsxCheckView: View {
     // MARK: Before the check
 
     private func intro(_ plan: Plan) -> some View {
-        GeometryReader { proxy in
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                if plan.checks.isEmpty {
-                    Text("No loaded containers or containers at customers to check.")
+            VStack(spacing: 20) {
+                ZStack {
+                    Circle().fill(Brand.skyWash).frame(width: 72, height: 72)
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundColor(Brand.linkBlue)
+                }
+                .padding(.top, 24)
+
+                VStack(spacing: 8) {
+                    Text(plan.checks.isEmpty ? "Nothing to check" : "System-wide check")
+                        .font(.title2.weight(.bold))
+                        .foregroundColor(Brand.navy)
+                    Text(plan.checks.isEmpty
+                         ? "No loaded containers or containers at customers right now."
+                         : "You're about to check every container in the system on ShipCSX.")
                         .font(.subheadline)
                         .foregroundColor(Brand.muted)
-                } else {
-                    Text("System-wide check")
-                        .font(.title3.weight(.bold))
-                        .foregroundColor(Brand.navy)
-                    Text("You're about to check every container in the system on ShipCSX: \(plan.total) \(plan.total == 1 ? "container" : "containers") in \(plan.checks.count) \(plan.checks.count == 1 ? "check" : "checks").")
-                        .font(.subheadline)
-                        .foregroundColor(Brand.navy)
-                    Card {
-                        ForEach(locationCounts(plan), id: \.terminal) { line in
-                            HStack {
-                                Text(line.terminal).font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                }
+
+                if !plan.checks.isEmpty {
+                    HStack(spacing: 12) {
+                        stat("\(plan.total)", plan.total == 1 ? "Container" : "Containers")
+                        stat("\(plan.checks.count)", plan.checks.count == 1 ? "Check" : "Checks")
+                    }
+
+                    VStack(spacing: 0) {
+                        ForEach(Array(locationCounts(plan).enumerated()), id: \.element.terminal) { offset, line in
+                            if offset > 0 { Divider() }
+                            HStack(spacing: 12) {
+                                Image(systemName: "tram.fill")
+                                    .foregroundColor(Brand.linkBlue)
+                                    .frame(width: 24)
+                                Text(line.terminal)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundColor(Brand.navy)
                                 Spacer()
-                                Text("\(line.containers) · \(line.checks) \(line.checks == 1 ? "check" : "checks")")
+                                Text("\(line.containers) \(line.containers == 1 ? "container" : "containers")")
                                     .font(.footnote)
                                     .foregroundColor(Brand.muted)
                             }
-                            .foregroundColor(Brand.navy)
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 52)
                         }
                     }
-                    Text("For each check, tick \"Verify you are human\" if ShipCSX asks, then tap Search. The app fills in the containers, saves what ShipCSX shows to each one, and loads the next check.")
-                        .font(.footnote)
-                        .foregroundColor(Brand.muted)
-                    Button("Start Check") { start(plan) }
-                        .buttonStyle(PrimaryButtonStyle())
+                    .cardSurface()
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        step(1, "Tick \"Verify you are human\" if ShipCSX asks.")
+                        step(2, "The app fills in the location's containers. Tap Search.")
+                        step(3, "Results are saved and the next location loads.")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .padding()
-            .frame(minHeight: proxy.size.height)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 24)
         }
+        .safeAreaInset(edge: .bottom) {
+            if !plan.checks.isEmpty {
+                Button("Start Check") { start(plan) }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Brand.mist.ignoresSafeArea(edges: .bottom))
+            }
         }
     }
 
-    private func locationCounts(_ plan: Plan) -> [(terminal: String, containers: Int, checks: Int)] {
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.title.weight(.bold)).foregroundColor(Brand.navy)
+            Text(label).font(.footnote).foregroundColor(Brand.muted)
+        }
+        .frame(maxWidth: .infinity, minHeight: 80)
+        .cardSurface()
+    }
+
+    private func step(_ number: Int, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(number)")
+                .font(.caption.weight(.bold))
+                .foregroundColor(.white)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Brand.linkBlue))
+            Text(text)
+                .font(.subheadline)
+                .foregroundColor(Brand.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func locationCounts(_ plan: Plan) -> [(terminal: String, containers: Int)] {
         var order: [String] = []
         var containers: [String: Int] = [:]
-        var checks: [String: Int] = [:]
         for check in plan.checks {
             if containers[check.terminal] == nil { order.append(check.terminal) }
             containers[check.terminal, default: 0] += check.boxes.count
-            checks[check.terminal, default: 0] += 1
         }
-        return order.map { ($0, containers[$0] ?? 0, checks[$0] ?? 0) }
+        return order.map { ($0, containers[$0] ?? 0) }
     }
 
     private func start(_ plan: Plan) {
@@ -156,31 +208,36 @@ struct ShipcsxCheckView: View {
     // MARK: During the check
 
     private var panel: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if finished {
-                HStack {
-                    Text("All \(savedCount) checked and saved.")
-                        .font(.subheadline.weight(.semibold))
+        HStack(spacing: 12) {
+            Image(systemName: finished ? "checkmark.circle.fill" : "tram.fill")
+                .font(.title3)
+                .foregroundColor(finished ? Brand.ok : Brand.linkBlue)
+            VStack(alignment: .leading, spacing: 2) {
+                if finished {
+                    Text("All \(savedCount) checked and saved")
+                        .font(.subheadline.weight(.bold))
                         .foregroundColor(Brand.navy)
-                    Spacer()
-                    Button("Done") { dismiss() }.font(.subheadline.weight(.semibold))
-                }
-            } else if let current {
-                Text("\(current.terminal) check \(index + 1)/\(queue.count)")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundColor(Brand.navy)
-                if let note {
-                    Text(note)
+                } else if let current {
+                    Text("\(current.terminal) check \(index + 1)/\(queue.count)")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(Brand.navy)
+                    Text(note ?? "Filling in \(current.boxes.count) \(current.boxes.count == 1 ? "container" : "containers")…")
                         .font(.footnote)
                         .foregroundColor(Brand.muted)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(2)
                 }
             }
+            Spacer(minLength: 0)
+            if finished {
+                Button("Done") { dismiss() }.font(.subheadline.weight(.semibold))
+            } else if working {
+                ProgressView()
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .background(Brand.paper.ignoresSafeArea(edges: .bottom))
+        .overlay(Rectangle().fill(Brand.line).frame(height: 1), alignment: .top)
     }
 
     private func loadPlan() async {
@@ -204,6 +261,9 @@ struct ShipcsxCheckView: View {
                 note = "Tick \"Verify you are human\" on ShipCSX."
             case .form where filled.isEmpty:
                 await fill()
+            case .filled where filled.isEmpty:
+                note = "The containers didn't go in. Tap reload to try again."
+
             case .results where !filled.isEmpty:
                 await saveResults()
             default:
@@ -216,7 +276,6 @@ struct ShipcsxCheckView: View {
         guard let check = current else { return }
         working = true
         defer { working = false }
-        fillTries += 1
         let outcome = await page.fill(check.boxes.map(\.number), terminal: check.terminal)
         if let problem = outcome.problem {
             note = "Couldn't fill the form: \(problem)"
@@ -224,7 +283,7 @@ struct ShipcsxCheckView: View {
         }
         let typed = check.boxes.filter { box in outcome.filled.contains(ShipcsxPage.equipment(box.number)) }
         guard !typed.isEmpty else {
-            note = fillTries >= 3 ? "Waiting for the ShipCSX form…" : nil
+            note = "The containers didn't go in. Tap reload to try again."
             return
         }
         filled = typed
@@ -257,7 +316,6 @@ struct ShipcsxCheckView: View {
             return
         }
         filled = []
-        fillTries = 0
         if index + 1 < queue.count {
             index += 1
             note = "Saved. Loading the next check…"
@@ -274,7 +332,7 @@ struct ShipcsxCheckView: View {
 final class ShipcsxPage {
     static let lookupURL = URL(string: "https://next.shipcsx.com/#/shipment/lookup")!
 
-    enum State: String { case form, results, challenge, other }
+    enum State: String { case form, filled, results, challenge, other }
 
     struct FillOutcome {
         let filled: [String]
@@ -346,12 +404,15 @@ final class ShipcsxPage {
       const text = (document.body ? document.body.innerText : '') + ' ' + document.title;
       if (/shipment lookup results|(NOTIFIED|ENROUTE|IN-GATE|OTHERS)\\s*\\(\\d+\\)/i.test(text)) return 'results';
       if (/verify you are human|performing security verification|just a moment/i.test(text)) return 'challenge';
-      if (/equipment\\s*#/i.test(text) && document.querySelector('input')) return 'form';
+      if (/equipment\\s*#/i.test(text) && document.querySelector('input')) return window.__yardlinkFill ? 'filled' : 'form';
       return 'other';
     })()
     """
 
     private static let fillScript = """
+    // One fill per page load: a second one would type over the first.
+    if (window.__yardlinkFill) return JSON.stringify({ filled: [], picked: false, error: 'already filling' });
+    window.__yardlinkFill = true;
     try {
       const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
       const visible = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
@@ -372,10 +433,12 @@ final class ShipcsxPage {
         el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
         setter.call(el, '');
         el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+        let typed = '';
         for (const ch of value) {
           el.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }));
           el.dispatchEvent(new KeyboardEvent('keypress', { key: ch, bubbles: true }));
-          setter.call(el, el.value + ch);
+          typed += ch;
+          setter.call(el, typed);
           el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ch }));
           el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }));
           await sleep(45);
@@ -448,39 +511,17 @@ final class ShipcsxPage {
         return null;
       };
 
-      // Each container in its own row, in order, at a person's pace. Every
-      // row is read back after typing, because the form can redraw a row
-      // while it adds the next one.
+      // Each container in its own row, in order, at a person's pace: type
+      // it, then wait for ShipCSX to add the row below before the next one.
       const filled = [];
       for (let index = 0; index < equipment.length; index++) {
         const container = equipment[index];
-        let done = false;
-        for (let attempt = 0; attempt < 3 && !done; attempt++) {
-          const box = await rowAt(index);
-          if (!box) break;
-          if (compact(box.value) !== container) await typeIn(box, container);
-          await sleep(450);
-          const settled = equipmentBoxes()[index];
-          done = !!settled && compact(settled.value) === container;
-        }
-        if (!done) break;
+        const box = await rowAt(index);
+        if (!box) break;
+        if (!compact(box.value).startsWith(container)) await typeIn(box, container);
         filled.push(container);
-      }
-
-      // A last look: every row says what was typed, and no row repeats one.
-      await sleep(400);
-      const rows = equipmentBoxes();
-      for (let index = 0; index < filled.length; index++) {
-        if (rows[index] && compact(rows[index].value) !== filled[index]) {
-          await typeIn(rows[index], filled[index]);
-          await sleep(300);
-        }
-      }
-      for (let index = filled.length; index < rows.length; index++) {
-        if (rows[index].value) {
-          await typeIn(rows[index], '');
-          await sleep(200);
-        }
+        if (index + 1 < equipment.length && !(await rowAt(index + 1))) break;
+        await sleep(250);
       }
       return JSON.stringify({ filled, picked });
     } catch (error) {

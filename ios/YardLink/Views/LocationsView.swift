@@ -268,40 +268,55 @@ struct LocationDetailView: View {
         location.type == "RAIL_TERMINAL" && location.name.localizedCaseInsensitiveContains("csx")
     }
 
-    /// The location's actions, one short labelled icon each, on a single line.
+    /// The location's actions as one row of even tiles, icon over a word.
     private func actions(_ location: LocationRecord) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Button { addingEquipment = true } label: {
-                actionLabel("Add", symbol: "plus")
+                actionTile("Add", symbol: "plus", primary: true)
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(.plain)
 
             Button { editingLocation = true } label: {
-                actionLabel("Edit", symbol: "pencil")
+                actionTile("Edit", symbol: "pencil")
             }
-            .buttonStyle(SecondaryButtonStyle())
+            .buttonStyle(.plain)
 
             Button { exportingList = true } label: {
-                actionLabel("Export", symbol: "square.and.arrow.up")
+                actionTile("Export", symbol: "square.and.arrow.up")
             }
-            .buttonStyle(SecondaryButtonStyle())
+            .buttonStyle(.plain)
 
             NavigationLink {
                 LocationAuditView(locationId: locationId, locationName: location.name)
             } label: {
-                actionLabel("Audit", symbol: "checklist.checked")
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .foregroundColor(Brand.navy)
-                    .cardSurface(radius: Brand.controlRadius)
+                actionTile("Audit", symbol: "checklist.checked")
             }
             .buttonStyle(.plain)
         }
     }
 
+    private func actionTile(_ title: String, symbol: String, primary: Bool = false) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.system(size: 18, weight: .semibold))
+                .frame(height: 22)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+        }
+        .foregroundColor(primary ? .white : Brand.navy)
+        .frame(maxWidth: .infinity, minHeight: 68)
+        .background(primary ? Brand.linkBlue : Brand.paper)
+        .clipShape(RoundedRectangle(cornerRadius: Brand.controlRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Brand.controlRadius, style: .continuous).stroke(primary ? Color.clear : Brand.line))
+        .shadow(color: Brand.navy.opacity(primary ? 0.18 : 0.06), radius: 6, x: 0, y: 2)
+        .contentShape(Rectangle())
+    }
+
     private func actionLabel(_ title: String, symbol: String) -> some View {
         HStack(spacing: 4) {
             Image(systemName: symbol)
-            Text(title).lineLimit(1).minimumScaleFactor(0.8)
+            Text(title).lineLimit(1)
         }
         .font(.subheadline.weight(.semibold))
     }
@@ -337,26 +352,42 @@ struct LocationDetailView: View {
         }
     }
 
+    private func hasDetails(_ location: LocationRecord) -> Bool {
+        [location.hours, location.gateInstructions, location.driverNotes, location.mainPhone, location.contactPhone]
+            .contains { !($0 ?? "").isEmpty }
+    }
+
     @ViewBuilder
     private func about(_ location: LocationRecord) -> some View {
         Card {
-            HStack(spacing: 8) {
-                Image(systemName: Words.locationSymbol(location.type)).foregroundColor(Brand.linkBlue)
-                Text(Words.locationType(location.type))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(Brand.navy)
+            VStack(spacing: 10) {
+                ZStack {
+                    Circle().fill(Brand.skyWash).frame(width: 52, height: 52)
+                    Image(systemName: Words.locationSymbol(location.type))
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(Brand.linkBlue)
+                }
+                Text(Words.locationType(location.type).uppercased())
+                    .font(.caption2.weight(.bold))
+                    .tracking(0.8)
+                    .foregroundColor(Brand.linkBlue)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Brand.skyWash))
+                let cityLine = [location.city, [location.state, location.postalCode].compactMap { $0 }.joined(separator: " ")]
+                    .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+                let address = [location.addressLine1, cityLine].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
+                if !address.isEmpty {
+                    Text(address)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(Brand.navy)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                }
             }
             .frame(maxWidth: .infinity)
-            let cityLine = [location.city, [location.state, location.postalCode].compactMap { $0 }.joined(separator: " ")]
-                .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
-            let address = [location.addressLine1, cityLine].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
-            if !address.isEmpty {
-                Text(address)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(Brand.navy)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-            }
+            .padding(.vertical, 4)
+            if hasDetails(location) { Divider() }
             InfoRow(label: "Hours", value: location.hours)
             InfoRow(label: "Gate", value: location.gateInstructions)
             InfoRow(label: "Driver notes", value: location.driverNotes)
