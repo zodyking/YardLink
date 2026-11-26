@@ -1,4 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm'
+import { SHIPCSX_TERMINALS } from '#shared/utils/csx-lookup'
 import { companies, companyMemberships, containers, drivers, locations, trucks } from '../../database/schema'
 import { useGeocoder } from '../../services/geocoding'
 import { formatInviteCode } from '../../utils/company'
@@ -61,6 +62,7 @@ export default defineEventHandler(async (event) => {
       inviteCode: formatInviteCode(company.inviteCode),
     },
     settings: await loadCompanySettings(db, { fresh: true }),
+    shipcsxTerminals: SHIPCSX_TERMINALS,
     email: summarizeSmtp(smtp),
     push: summarizePush(apns),
     database: databaseStatus(currentDatabaseUrl()),

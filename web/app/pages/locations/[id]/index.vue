@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { shipcsxStatusLabel } from '#shared/utils/shipcsx-status'
 import { CONTAINER_TYPE_LABELS, EQUIPMENT_TYPE_SHORT, LOCATION_TYPE_LABELS } from '#shared/utils/domain'
 import { formatChassisNumber, formatContainerNumber } from '#shared/utils/iso6346'
 import { formatLocationExportList } from '#shared/utils/location-export'
@@ -20,6 +21,10 @@ const isTerminus = computed(() => {
   return type === 'MARINE_TERMINAL' || type === 'RAIL_TERMINAL'
 })
 const isCustomer = computed(() => data.value?.location.type === 'CUSTOMER')
+
+function snapshotFor(containerId: string) {
+  return data.value?.csxSnapshots?.find(row => row.containerId === containerId) ?? null
+}
 
 async function cancelRelease(releaseId: string) {
   try {
@@ -376,6 +381,9 @@ async function confirmDelete() {
               · {{ EQUIPMENT_TYPE_SHORT[item.equipmentType] }}
               · {{ item.isLoaded ? 'Loaded' : 'Empty' }}
               <template v-if="item.chassisNumber"> · {{ formatChassisNumber(item.chassisNumber) }}</template>
+              <template v-if="snapshotFor(item.id)">
+                · {{ shipcsxStatusLabel(snapshotFor(item.id)) }}
+              </template>
             </small>
           </span>
           <span

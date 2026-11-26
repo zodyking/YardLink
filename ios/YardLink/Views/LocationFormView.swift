@@ -108,7 +108,7 @@ struct LocationFormView: View {
                         SectionTitle(text: "CSX")
                         Card {
                             FieldLabel(text: "CSX facility")
-                            Text("Check CSX tells you to pick this on ShipCSX for containers here.")
+                            Text("Shown with containers here when copying them to ShipCSX on the web.")
                                 .font(.footnote)
                                 .foregroundColor(Brand.muted)
                             ForEach(shipcsxTerminals, id: \.self) { terminal in

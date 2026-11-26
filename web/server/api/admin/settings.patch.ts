@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { SHIPCSX_TERMINALS } from '#shared/utils/csx-lookup'
 import { companies } from '../../database/schema'
 import { formatInviteCode, generateInviteCode } from '../../utils/company'
 import { cleanPublicUrl, saveCompanySettings } from '../../utils/settings'
@@ -21,6 +22,7 @@ const schema = z.object({
   usdotNumber: z.string().trim().max(20).optional(),
   timezone: z.string().trim().max(60).refine(isTimezone, 'Choose a timezone.').optional(),
   publicUrl: z.string().trim().max(300).optional(),
+  shipcsxDefaultTerminal: z.string().trim().max(80).optional(),
   approveNewAccounts: z.boolean().optional(),
   bridgeCrossingTimesEnabled: z.boolean().optional(),
   timeCardOfficePhone: z.string().trim().max(40).optional(),
@@ -36,6 +38,9 @@ export default defineEventHandler(async (event) => {
   const body = await readValidatedJson(event, schema)
   const db = useDb()
 
+  if (body.shipcsxDefaultTerminal && !(SHIPCSX_TERMINALS as readonly string[]).includes(body.shipcsxDefaultTerminal)) {
+    throw createError({ statusCode: 422, statusMessage: 'Choose a CSX location from the list.' })
+  }
   if (body.publicUrl && !cleanPublicUrl(body.publicUrl)) {
     throw createError({ statusCode: 422, statusMessage: 'Enter the server address like https://yard.example.com' })
   }
@@ -53,6 +58,7 @@ export default defineEventHandler(async (event) => {
 
   const settings = await saveCompanySettings(db, auth.companyId, {
     publicUrl: body.publicUrl,
+    shipcsxDefaultTerminal: body.shipcsxDefaultTerminal,
     approveNewAccounts: body.approveNewAccounts,
     bridgeCrossingTimesEnabled: body.bridgeCrossingTimesEnabled,
     timeCardOfficePhone: body.timeCardOfficePhone,

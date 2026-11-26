@@ -11,6 +11,9 @@ const props = defineProps<{
   containers: string[]
   /** The CSX location to pick, when the site says. */
   terminal?: string | null
+  /** What the last lookup said, for a single container's page. */
+  status?: string
+  meta?: string
 }>()
 
 const rows = computed(() => props.containers.flatMap((number) => {
@@ -28,10 +31,17 @@ async function copy(text: string) {
   <div class="csx-block">
     <div class="csx-block-head">
       <span class="eyebrow">ShipCSX</span>
-      <strong>{{ terminal ? `Pick ${terminal} on ShipCSX` : 'Check on ShipCSX' }}</strong>
+      <strong>{{ status || (terminal ? `Pick ${terminal} on ShipCSX` : 'Check on ShipCSX') }}</strong>
     </div>
+    <p
+      v-if="meta"
+      class="csx-block-meta"
+    >
+      {{ meta }}
+    </p>
     <p class="csx-block-note">
-      Open ShipCSX, tick "Verify you are human" if it asks, then copy each box below into the form.
+      Open ShipCSX, tick "Verify you are human" if it asks{{ status && terminal ? `, pick ${terminal}` : '' }}, then copy each box below into the form.
+      The phone app's Check CSX fills these in and saves the results for you.
       Reference: {{ SHIPCSX_REFERENCE }}.
     </p>
     <ul

@@ -620,8 +620,8 @@ struct ContainerDetail: Decodable {
     let currentChassis: NumberedEquipment?
     let currentDriver: PersonRef?
     let history: ContainerHistory?
-    /// The CSX location to pick on ShipCSX, from the site the container is at.
-    let suggestedTerminal: String?
+    /// What ShipCSX said the last time anyone checked.
+    let shipcsx: ShipcsxSnapshot?
 }
 
 struct ChassisPairing: Decodable, Identifiable, Hashable {
@@ -894,6 +894,39 @@ struct TimeCardEnvelope: Decodable {
 }
 
 // MARK: - ShipCSX
+
+/// What ShipCSX said about a container the last time someone checked it.
+struct ShipcsxSnapshot: Decodable, Hashable {
+    let terminalName: String?
+    let loadEmpty: String?
+    let waybillDate: String?
+    let gateWindow: String?
+    let inGateReadiness: String?
+    let resultTab: String?
+    let error: String?
+    let checkedAt: Date?
+
+    /// The same wording the web app shows.
+    var statusLabel: String {
+        if let readiness = inGateReadiness?.trimmingCharacters(in: .whitespaces), !readiness.isEmpty { return readiness }
+        if error != nil { return "Couldn't check" }
+        switch resultTab?.replacingOccurrences(of: "-", with: "_") {
+        case "NOTIFIED": return "Notified"
+        case "ENROUTE": return "En route"
+        case "IN_GATE": return "In-gate"
+        case "OTHERS": return "Other"
+        case "NOT_FOUND": return "Not on CSX"
+        default: return "Checked"
+        }
+    }
+
+    var detailLine: String {
+        [terminalName, loadEmpty, waybillDate.map { "Waybill \($0)" }, gateWindow]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+}
 
 /// CSX facilities Yard Link can look up. Fixed list, as on the server.
 let shipcsxTerminals = ["North Bergen", "Little Ferry", "South Kearny", "Elizabeth", "Newark"]

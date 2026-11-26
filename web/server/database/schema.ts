@@ -52,6 +52,14 @@ export const activePoolStateEnum = pgEnum('active_pool_state', [
   'EXCEPTION',
 ])
 
+export const csxLookupTabEnum = pgEnum('csx_lookup_tab', [
+  'NOTIFIED',
+  'ENROUTE',
+  'IN_GATE',
+  'OTHERS',
+  'NOT_FOUND',
+])
+
 export const containerTypeEnum = pgEnum('container_type', ['TROPICAL', 'ZIM', 'CMA', 'KING_OCEAN'])
 
 export const containerStatusEnum = pgEnum('container_status', [
@@ -880,7 +888,7 @@ export const dispatchTasks = pgTable('dispatch_tasks', {
 ])
 
 /* ============================================================
-   CSX pickup releases
+   CSX pickup releases and what ShipCSX said about each container
    ============================================================ */
 
 export const csxPickupReleases = pgTable('csx_pickup_releases', {
@@ -903,6 +911,28 @@ export const csxPickupReleases = pgTable('csx_pickup_releases', {
   uniqueIndex('csx_pickup_releases_open_key')
     .on(t.companyId, t.locationId, t.containerNumberNormalized)
     .where(sql`${t.status} in ('OPEN', 'CLAIMED')`),
+])
+
+/** What ShipCSX said about a container, read from a lookup a person ran. */
+export const csxShipmentSnapshots = pgTable('csx_shipment_snapshots', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
+  containerId: uuid('container_id').references(() => containers.id, { onDelete: 'set null' }),
+  containerNumberNormalized: text('container_number_normalized').notNull(),
+  terminalName: text('terminal_name').notNull(),
+  equipmentNumber: text('equipment_number').notNull(),
+  referenceUsed: text('reference_used').notNull().default('00'),
+  resultTab: csxLookupTabEnum('result_tab').notNull().default('NOT_FOUND'),
+  loadEmpty: text('load_empty'),
+  waybillDate: text('waybill_date'),
+  inGateReadiness: text('in_gate_readiness'),
+  gateWindow: text('gate_window'),
+  rawPayload: jsonb('raw_payload').$type<Record<string, unknown>>().notNull().default({}),
+  error: text('error'),
+  checkedAt: utc('checked_at').notNull().defaultNow(),
+}, t => [
+  index('csx_shipment_snapshots_container_idx').on(t.containerId, t.checkedAt),
+  index('csx_shipment_snapshots_company_idx').on(t.companyId, t.checkedAt),
 ])
 
 /* ============================================================
@@ -983,6 +1013,7 @@ export type NewContainerEvent = typeof containerEvents.$inferInsert
 export type NewTrip = typeof trips.$inferInsert
 export type NewLocation = typeof locations.$inferInsert
 export type CsxPickupRelease = typeof csxPickupReleases.$inferSelect
+export type CsxShipmentSnapshot = typeof csxShipmentSnapshots.$inferSelect
 
 /* ============================================================
    Built-in messaging (replaces SMS; email is an optional copy)

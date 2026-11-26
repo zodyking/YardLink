@@ -46,10 +46,21 @@ struct ContainerDetailView: View {
                     }
                     SectionTitle(text: "ShipCSX")
                     Card {
-                        Text("Open ShipCSX with this container ready to fill in.")
-                            .font(.footnote)
-                            .foregroundColor(Brand.muted)
-                        Button("Check CSX") { sheet = .shipcsx }
+                        HStack {
+                            Text(detail.shipcsx?.statusLabel ?? "Not checked")
+                                .font(.body.weight(.semibold))
+                                .foregroundColor(Brand.navy)
+                            Spacer()
+                            if let checkedAt = detail.shipcsx?.checkedAt {
+                                Text(Format.dateTime(checkedAt))
+                                    .font(.caption)
+                                    .foregroundColor(Brand.muted)
+                            }
+                        }
+                        if let line = detail.shipcsx?.detailLine, !line.isEmpty {
+                            Text(line).font(.footnote).foregroundColor(Brand.muted)
+                        }
+                        Button(detail.shipcsx == nil ? "Check CSX" : "Check Again") { sheet = .shipcsx }
                             .buttonStyle(SecondaryButtonStyle())
                     }
 
@@ -98,10 +109,9 @@ struct ContainerDetailView: View {
                     case .photos:
                         DocumentsSheet(scope: .container(containerId), containerNumber: detail.container.number, chassisNumber: nil)
                     case .shipcsx:
-                        ShipcsxCheckView(
-                            containerNumbers: [detail.container.number],
-                            terminalHint: detail.suggestedTerminal
-                        )
+                        ShipcsxCheckView(firstContainerId: containerId) {
+                            Task { await load() }
+                        }
                     }
                 }
             }

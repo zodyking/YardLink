@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { shipcsxMetaLine, shipcsxStatusLabel } from '#shared/utils/shipcsx-status'
 import {
   CONTAINER_TYPE_LABELS,
   EQUIPMENT_TYPE_SHORT,
@@ -190,6 +191,8 @@ const situation = computed(() => {
         <ShipcsxLookupPanel
           :containers="[data.container.number]"
           :terminal="data.suggestedTerminal"
+          :status="shipcsxStatusLabel(data.shipcsx)"
+          :meta="shipcsxMetaLine(data.shipcsx)"
         />
 
         <div class="cd-media px-4 pb-4">

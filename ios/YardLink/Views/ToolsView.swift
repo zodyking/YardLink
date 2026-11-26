@@ -6,15 +6,15 @@ import SwiftUI
 struct ToolsView: View {
     @Environment(\.dismiss) private var dismiss
     let bridgeCrossingTimesEnabled: Bool
-    /// The container on the trip in hand, if there is one, for Check CSX.
+    /// The container on the trip in hand, if there is one; Check CSX puts it first.
     let tripContainer: TripContainer?
 
-    struct TripContainer: Identifiable {
+    struct TripContainer {
         let id: String
         let number: String
     }
 
-    @State private var checking: TripContainer?
+    @State private var checking = false
 
     var body: some View {
         NavigationStack {
@@ -59,8 +59,8 @@ struct ToolsView: View {
                     Button("Close") { dismiss() }
                 }
             }
-            .sheet(item: $checking) { box in
-                TripContainerCsxCheck(container: box)
+            .sheet(isPresented: $checking) {
+                ShipcsxCheckView(firstContainerId: tripContainer?.id)
                     .sheetChrome()
             }
         }
@@ -68,18 +68,16 @@ struct ToolsView: View {
 
     private var checkCsxRow: some View {
         Button {
-            checking = tripContainer
+            checking = true
         } label: {
             rowLabel(
                 icon: "tram.fill",
                 title: "Check CSX",
-                detail: tripContainer.map { "Look up \(Marking.formatContainer($0.number)) on ShipCSX." }
-                    ?? "Start a trip with a container to check it on ShipCSX."
+                detail: tripContainer.map { "\(Marking.formatContainer($0.number)), every loaded container and every one at a customer." }
+                    ?? "Every loaded container and every one at a customer."
             )
         }
         .buttonStyle(.plain)
-        .disabled(tripContainer == nil)
-        .opacity(tripContainer == nil ? 0.55 : 1)
     }
 
     private func row<Destination: View>(
@@ -110,31 +108,5 @@ struct ToolsView: View {
         }
         .padding(14)
         .cardSurface()
-    }
-}
-
-/// Check CSX for the trip's container, with the CSX location its site uses.
-private struct TripContainerCsxCheck: View {
-    @EnvironmentObject private var model: AppModel
-    let container: ToolsView.TripContainer
-
-    @State private var terminalHint: String?
-    @State private var loaded = false
-
-    var body: some View {
-        Group {
-            if loaded {
-                ShipcsxCheckView(containerNumbers: [container.number], terminalHint: terminalHint)
-            } else {
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .task {
-            if let api = model.api {
-                let detail: ContainerDetail? = try? await api.get("/api/containers/\(container.id)")
-                terminalHint = detail?.suggestedTerminal
-            }
-            loaded = true
-        }
     }
 }

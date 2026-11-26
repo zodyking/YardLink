@@ -232,6 +232,13 @@
       "when": 1796400000000,
       "tag": "0032_drop_shipcsx_lookups",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1796500000000,
+      "tag": "0033_shipcsx_snapshots_by_hand",
+      "breakpoints": true
     }
   ]
 }

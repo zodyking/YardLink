@@ -11,6 +11,8 @@ import { loadPrimaryCompany } from './company'
 export interface CompanySettings {
   /** Address phones use to reach this server, e.g. https://yard.example.com */
   publicUrl: string
+  /** The CSX location Check CSX picks on ShipCSX. */
+  shipcsxDefaultTerminal: string
   /** New accounts wait for a dispatcher to approve them. */
   approveNewAccounts: boolean
   /** Shows Bridge Crossing Times under Tools, for the Hudson River crossings. */
@@ -28,6 +30,7 @@ export interface CompanySettings {
 
 const DEFAULTS: CompanySettings = {
   publicUrl: '',
+  shipcsxDefaultTerminal: '',
   approveNewAccounts: true,
   bridgeCrossingTimesEnabled: false,
   timeCardOfficePhone: '',
@@ -60,6 +63,7 @@ export function settingsFromRow(raw: Record<string, unknown> | null | undefined)
   const row = raw ?? {}
   return {
     publicUrl: cleanPublicUrl(row.publicUrl),
+    shipcsxDefaultTerminal: text(row.shipcsxDefaultTerminal) || text(process.env.NUXT_SHIPCSX_DEFAULT_TERMINAL),
     approveNewAccounts: typeof row.approveNewAccounts === 'boolean' ? row.approveNewAccounts : DEFAULTS.approveNewAccounts,
     bridgeCrossingTimesEnabled: typeof row.bridgeCrossingTimesEnabled === 'boolean'
       ? row.bridgeCrossingTimesEnabled
@@ -91,8 +95,8 @@ export async function saveCompanySettings(
   const [row] = await db.select({ settings: companies.settings }).from(companies).where(eq(companies.id, companyId)).limit(1)
   const next: Record<string, unknown> = { ...(row?.settings ?? {}) }
   if (patch.publicUrl !== undefined) next.publicUrl = cleanPublicUrl(patch.publicUrl)
-  // Left from the retired server-side ShipCSX checker.
-  delete next.shipcsxDefaultTerminal
+  if (patch.shipcsxDefaultTerminal !== undefined) next.shipcsxDefaultTerminal = text(patch.shipcsxDefaultTerminal)
+  // Left from the retired automatic ShipCSX checker.
   delete next.shipcsxPoll
   if (patch.approveNewAccounts !== undefined) next.approveNewAccounts = patch.approveNewAccounts
   if (patch.bridgeCrossingTimesEnabled !== undefined) next.bridgeCrossingTimesEnabled = patch.bridgeCrossingTimesEnabled

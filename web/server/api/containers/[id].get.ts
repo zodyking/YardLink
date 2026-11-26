@@ -9,6 +9,7 @@ import {
   trips,
   users,
 } from '../../database/schema'
+import { latestSnapshotsForContainers } from '../../services/shipcsx'
 import { assertTenant, requireAuth } from '../../utils/session'
 import { loadContainerHistory } from '../../services/duty-cycles'
 import { sliceCurrentServiceLife, summarizeServiceLife, effectiveContainerStatus } from '#shared/utils/service-life'
@@ -104,6 +105,7 @@ export default defineEventHandler(async (event) => {
 
   // The CSX location to pick on ShipCSX, when the container sits at a CSX site.
   const suggestedTerminal = shipcsxTerminalName(currentLocation?.shipcsxTerminal) ?? ''
+  const [shipcsx] = await latestSnapshotsForContainers(db, auth.companyId, [containerId])
 
   return {
     container: {
@@ -122,6 +124,7 @@ export default defineEventHandler(async (event) => {
     /** Every duty cycle, newest first — the current one and all earlier ones. */
     history: await loadContainerHistory(db, auth.companyId, containerId),
     documents: files,
+    shipcsx: shipcsx ?? null,
     suggestedTerminal,
   }
 })
