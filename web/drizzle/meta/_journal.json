@@ -239,6 +239,13 @@
       "when": 1796500000000,
       "tag": "0033_shipcsx_snapshots_by_hand",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1796600000000,
+      "tag": "0034_shipcsx_snapshot_cycle",
+      "breakpoints": true
     }
   ]
 }

@@ -3,7 +3,7 @@ import {
   chunkShipcsxEquipment,
   matchLookupCard,
   parseShipcsxLookupText,
-  shipcsxEquipmentParts,
+  shipcsxEquipment,
   shipcsxTerminalName,
   SHIPCSX_TERMINALS,
 } from '../shared/utils/csx-lookup'
@@ -37,22 +37,45 @@ describe('ShipCSX lookup parse', () => {
     expect(matchLookupCard(parsed.cards, 'TTRU4850221')).toBeNull()
   })
 
+  it('reads every card on the page as ShipCSX lays it out, label above value', () => {
+    const page = [
+      'Shipment Lookup Results', 'As of 20:23 on 11/25/26', 'Modify Search', 'North Bergen',
+      'NOTIFIED (0)', 'ENROUTE (0)', 'IN-GATE (2)', 'OTHERS (0)',
+      'TTRU 485022', 'Load / Empty', 'Load', 'Waybill Date', '11/24/26',
+      'In-Gate Readiness', 'Reservation Required', 'Gate Window', 'N/A', 'Add Reservation',
+      'BSIU 819372', 'Load / Empty', 'Load', 'Waybill Date', '11/23/26',
+      'In-Gate Readiness', 'Equipment In-Gated', 'Gate Window', 'N/A',
+    ].join('\n')
+    const parsed = parseShipcsxLookupText(page)
+    expect(parsed.asOf).toBe('20:23 on 11/25/26')
+    expect(parsed.cards.map(card => card.equipmentNumber)).toEqual(['TTRU485022', 'BSIU819372'])
+    expect(matchLookupCard(parsed.cards, 'TTRU4850221')?.inGateReadiness).toBe('Reservation Required')
+    expect(matchLookupCard(parsed.cards, 'BSIU8193726')?.inGateReadiness).toBe('Equipment In-Gated')
+    expect(parsed.cards[0]?.fields['Waybill Date']).toBe('11/24/26')
+    expect(parsed.cards[0]?.resultTab).toBe('IN_GATE')
+  })
+
+  it('files cards under the tab they were read from', () => {
+    const parsed = parseShipcsxLookupText('NOTIFIED (1)\nIN-GATE (1)\nKOSU 495338\nWaybill Date\n09/03/26', 'NOTIFIED')
+    expect(parsed.cards[0]?.resultTab).toBe('NOTIFIED')
+  })
+
   it('ignores reservation success copy', () => {
     const parsed = parseShipcsxLookupText('Reservation Successful\nReservation ID: NBDLNQ\nSubmit')
     expect(parsed.cards).toEqual([])
   })
 
-  it('batches equipment three at a time', () => {
-    expect(chunkShipcsxEquipment(['a', 'b', 'c', 'd']).map(batch => batch.length)).toEqual([3, 1])
+  it('batches equipment by the search size', () => {
+    expect(chunkShipcsxEquipment(['a', 'b', 'c', 'd'], 3).map(batch => batch.length)).toEqual([3, 1])
   })
 })
 
-describe('ShipCSX equipment parts', () => {
-  it('splits ISO numbers into the 4-letter initial and 6-digit serial', () => {
-    expect(shipcsxEquipmentParts('KOSU496803-5')).toEqual({ initial: 'KOSU', number: '496803' })
-    expect(shipcsxEquipmentParts('KOSU4968035')).toEqual({ initial: 'KOSU', number: '496803' })
-    expect(shipcsxEquipmentParts('kosu 496803')).toEqual({ initial: 'KOSU', number: '496803' })
-    expect(shipcsxEquipmentParts('ABC')).toBeNull()
+describe('ShipCSX equipment string', () => {
+  it('gives initial and serial as one string, no check digit', () => {
+    expect(shipcsxEquipment('KOSU496803-5')).toBe('KOSU496803')
+    expect(shipcsxEquipment('KOSU4968035')).toBe('KOSU496803')
+    expect(shipcsxEquipment('kosu 496803')).toBe('KOSU496803')
+    expect(shipcsxEquipment('ABC')).toBeNull()
   })
 })
 

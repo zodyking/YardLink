@@ -918,6 +918,8 @@ export const csxShipmentSnapshots = pgTable('csx_shipment_snapshots', {
   id: uuid('id').primaryKey().defaultRandom(),
   companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
   containerId: uuid('container_id').references(() => containers.id, { onDelete: 'set null' }),
+  /** The container's duty cycle when it was checked. */
+  dutyCycleId: uuid('duty_cycle_id').references(() => containerDutyCycles.id, { onDelete: 'set null' }),
   containerNumberNormalized: text('container_number_normalized').notNull(),
   terminalName: text('terminal_name').notNull(),
   equipmentNumber: text('equipment_number').notNull(),
@@ -932,6 +934,7 @@ export const csxShipmentSnapshots = pgTable('csx_shipment_snapshots', {
   checkedAt: utc('checked_at').notNull().defaultNow(),
 }, t => [
   index('csx_shipment_snapshots_container_idx').on(t.containerId, t.checkedAt),
+  index('csx_shipment_snapshots_cycle_idx').on(t.dutyCycleId, t.checkedAt),
   index('csx_shipment_snapshots_company_idx').on(t.companyId, t.checkedAt),
 ])
 

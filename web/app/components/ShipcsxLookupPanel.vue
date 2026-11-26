@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { SHIPCSX_LOOKUP_URL, SHIPCSX_REFERENCE, shipcsxEquipmentParts } from '#shared/utils/csx-lookup'
+import { SHIPCSX_LOOKUP_URL, shipcsxEquipment } from '#shared/utils/csx-lookup'
 import { copyTextToClipboard } from '~/utils/share-trip-sms'
 
 /**
@@ -17,8 +17,8 @@ const props = defineProps<{
 }>()
 
 const rows = computed(() => props.containers.flatMap((number) => {
-  const parts = shipcsxEquipmentParts(number)
-  return parts ? [{ key: number, ...parts }] : []
+  const equipment = shipcsxEquipment(number)
+  return equipment ? [equipment] : []
 }))
 const copied = ref('')
 
@@ -40,9 +40,9 @@ async function copy(text: string) {
       {{ meta }}
     </p>
     <p class="csx-block-note">
-      Open ShipCSX, tick "Verify you are human" if it asks{{ status && terminal ? `, pick ${terminal}` : '' }}, then copy each box below into the form.
+      Open ShipCSX, tick "Verify you are human" if it asks{{ status && terminal ? `, pick ${terminal}` : '' }}, then copy each container below into the form as one string.
       The phone app's Check CSX fills these in and saves the results for you.
-      Reference: {{ SHIPCSX_REFERENCE }}.
+      Leave Reference blank.
     </p>
     <ul
       v-if="rows.length"
@@ -50,26 +50,18 @@ async function copy(text: string) {
     >
       <li
         v-for="row in rows"
-        :key="row.key"
+        :key="row"
       >
         <button
           type="button"
           class="csx-copy mono"
-          :aria-label="`Copy initial ${row.initial}`"
-          @click="copy(row.initial)"
+          :aria-label="`Copy ${row}`"
+          @click="copy(row)"
         >
-          {{ row.initial }}
-        </button>
-        <button
-          type="button"
-          class="csx-copy mono"
-          :aria-label="`Copy number ${row.number}`"
-          @click="copy(row.number)"
-        >
-          {{ row.number }}
+          {{ row }}
         </button>
         <span
-          v-if="copied === row.initial || copied === row.number"
+          v-if="copied === row"
           class="csx-block-meta"
           role="status"
         >Copied</span>

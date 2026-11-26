@@ -1,18 +1,18 @@
 import SwiftUI
 import WebKit
 
-/// Check containers on ShipCSX, with the typing done for you.
+/// A system-wide Check CSX, run on the real ShipCSX page.
 ///
-/// This is the real ShipCSX page in a browser the driver can see and use.
-/// They pass ShipCSX's own "verify you are human" check and tap Search;
-/// the app picks the company's CSX location, types in three containers at a
-/// time (the form's three rows), then reads the results page and saves each
-/// container's status. Every loaded container and every container at a
-/// customer is covered, so one run brings them all up to date.
+/// Every loaded container and every container at a customer is queued by
+/// the CSX location it came out of (Settings' location when there's no
+/// history). For each check the driver passes ShipCSX's own "verify you are
+/// human" check if asked and taps Search; the app selects the terminal,
+/// types the containers in, reads every results tab, saves what it says to
+/// each container, and loads the next check.
 struct ShipcsxCheckView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    /// The container Check CSX was opened from; it goes in the first search.
+    /// The container Check CSX was opened from; it leads its location's queue.
     let firstContainerId: String?
     /// Called after results are saved, so the screen underneath can refresh.
     var onSaved: () -> Void = {}
@@ -20,6 +20,11 @@ struct ShipcsxCheckView: View {
     struct Box: Decodable, Hashable {
         let containerId: String
         let number: String
+    }
+
+    struct Check: Decodable, Hashable {
+        let terminal: String
+        let boxes: [Box]
     }
 
     struct Saved: Decodable, Hashable, Identifiable {
@@ -30,9 +35,8 @@ struct ShipcsxCheckView: View {
     }
 
     private struct Plan: Decodable {
-        let terminal: String
-        let reference: String
-        let boxes: [Box]
+        let total: Int
+        let checks: [Check]
     }
 
     private struct SavedPayload: Decodable { let results: [Saved] }
@@ -40,31 +44,25 @@ struct ShipcsxCheckView: View {
     private struct ResultsBody: Encodable {
         let terminal: String
         let containerIds: [String]
-        let pageText: String
+        let tabs: [ShipcsxPage.ResultsTab]
     }
 
     @State private var page = ShipcsxPage()
     @State private var plan: Plan?
     @State private var loadError: String?
-    @State private var batchIndex = 0
-    @State private var filled = false
+    @State private var started = false
+    @State private var queue: [Check] = []
+    @State private var index = 0
+    /// Containers typed into the current search.
+    @State private var filled: [Box] = []
     @State private var fillTries = 0
     @State private var working = false
-    @State private var batchSaved = false
-    @State private var saved: [Saved] = []
+    @State private var lastSaved: [Saved] = []
+    @State private var savedCount = 0
+    @State private var finished = false
     @State private var note: String?
 
-    private static let rowsPerSearch = 3
-
-    private var batches: [[Box]] {
-        guard let plan else { return [] }
-        return stride(from: 0, to: plan.boxes.count, by: Self.rowsPerSearch).map {
-            Array(plan.boxes[$0 ..< min($0 + Self.rowsPerSearch, plan.boxes.count)])
-        }
-    }
-
-    private var batch: [Box] { batchIndex < batches.count ? batches[batchIndex] : [] }
-    private var isLastBatch: Bool { batchIndex >= batches.count - 1 }
+    private var current: Check? { index < queue.count ? queue[index] : nil }
 
     var body: some View {
         NavigationStack {
@@ -72,13 +70,9 @@ struct ShipcsxCheckView: View {
                 if let loadError {
                     ErrorBanner(message: loadError).padding()
                     Spacer()
-                } else if let plan, plan.boxes.isEmpty {
-                    Text("No loaded containers or containers at customers to check.")
-                        .font(.subheadline)
-                        .foregroundColor(Brand.muted)
-                        .padding()
-                    Spacer()
-                } else if plan != nil {
+                } else if let plan, !started {
+                    intro(plan)
+                } else if started {
                     ShipcsxWebView(page: page, url: ShipcsxPage.lookupURL)
                     panel
                 } else {
@@ -91,55 +85,112 @@ struct ShipcsxCheckView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button { page.load() } label: { Image(systemName: "arrow.clockwise") }
-                        .accessibilityLabel("Reload ShipCSX")
-                        .disabled(plan == nil)
+                if started && !finished {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button { page.restart() } label: { Image(systemName: "arrow.clockwise") }
+                            .accessibilityLabel("Reload ShipCSX")
+                    }
                 }
             }
             .task { await loadPlan() }
-            .task(id: plan == nil) { await watch() }
+            .task(id: started) { await watch() }
         }
     }
 
+    // MARK: Before the check
+
+    private func intro(_ plan: Plan) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                if plan.checks.isEmpty {
+                    Text("No loaded containers or containers at customers to check.")
+                        .font(.subheadline)
+                        .foregroundColor(Brand.muted)
+                } else {
+                    Text("System-wide check")
+                        .font(.title3.weight(.bold))
+                        .foregroundColor(Brand.navy)
+                    Text("You're about to check every container in the system on ShipCSX: \(plan.total) \(plan.total == 1 ? "container" : "containers") in \(plan.checks.count) \(plan.checks.count == 1 ? "check" : "checks").")
+                        .font(.subheadline)
+                        .foregroundColor(Brand.navy)
+                    Card {
+                        ForEach(locationCounts(plan), id: \.terminal) { line in
+                            HStack {
+                                Text(line.terminal).font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Text("\(line.containers) · \(line.checks) \(line.checks == 1 ? "check" : "checks")")
+                                    .font(.footnote)
+                                    .foregroundColor(Brand.muted)
+                            }
+                            .foregroundColor(Brand.navy)
+                        }
+                    }
+                    Text("For each check, tick \"Verify you are human\" if ShipCSX asks, then tap Search. The app fills in the containers, saves what ShipCSX shows to each one, and loads the next check.")
+                        .font(.footnote)
+                        .foregroundColor(Brand.muted)
+                    Button("Start Check") { start(plan) }
+                        .buttonStyle(PrimaryButtonStyle())
+                }
+            }
+            .padding()
+        }
+    }
+
+    private func locationCounts(_ plan: Plan) -> [(terminal: String, containers: Int, checks: Int)] {
+        var order: [String] = []
+        var containers: [String: Int] = [:]
+        var checks: [String: Int] = [:]
+        for check in plan.checks {
+            if containers[check.terminal] == nil { order.append(check.terminal) }
+            containers[check.terminal, default: 0] += check.boxes.count
+            checks[check.terminal, default: 0] += 1
+        }
+        return order.map { ($0, containers[$0] ?? 0, checks[$0] ?? 0) }
+    }
+
+    private func start(_ plan: Plan) {
+        queue = plan.checks
+        index = 0
+        started = true
+    }
+
+    // MARK: During the check
+
     private var panel: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(batches.count > 1 ? "Search \(batchIndex + 1) of \(batches.count)" : "Search")
-                    .font(.caption.weight(.bold))
+            if finished {
+                Text("All \(savedCount) checked and saved.")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(Brand.navy)
+                Button("Done") { dismiss() }
+                    .buttonStyle(PrimaryButtonStyle())
+            } else if let current {
+                Text("\(current.terminal) check \(index + 1)/\(queue.count)")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(Brand.navy)
+                Text(current.boxes.map { Marking.formatContainer($0.number) }.joined(separator: "  ·  "))
+                    .font(.system(.footnote, design: .monospaced))
                     .foregroundColor(Brand.muted)
-                Spacer()
-                Text(plan?.terminal ?? "")
-                    .font(.caption.weight(.bold))
+                    .lineLimit(3)
+                Text(note ?? "If ShipCSX asks, tick \"Verify you are human\". The containers fill in once the form shows.")
+                    .font(.footnote)
                     .foregroundColor(Brand.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                if filled.isEmpty && fillTries >= 8 {
+                    Button("Fill Containers") { Task { await fill() } }
+                        .buttonStyle(PrimaryButtonStyle())
+                }
             }
-            Text(batch.map { Marking.formatContainer($0.number) }.joined(separator: "  ·  "))
-                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
-                .foregroundColor(Brand.navy)
-            Text(note ?? "If ShipCSX asks, tick \"Verify you are human\". The containers fill in once the form shows.")
-                .font(.footnote)
-                .foregroundColor(Brand.muted)
-                .fixedSize(horizontal: false, vertical: true)
-            if batchSaved {
-                ForEach(saved.suffix(batch.count)) { row in
+            if !lastSaved.isEmpty {
+                ForEach(lastSaved) { row in
                     HStack {
                         Text(Marking.formatContainer(row.number))
-                            .font(.system(.footnote, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced))
                         Spacer()
-                        Text(row.status).font(.footnote.weight(.semibold))
+                        Text(row.status).font(.caption.weight(.semibold))
                     }
                     .foregroundColor(Brand.navy)
                 }
-                if isLastBatch {
-                    Button("Done") { dismiss() }
-                        .buttonStyle(PrimaryButtonStyle())
-                } else {
-                    Button("Next \(batches[batchIndex + 1].count) Containers") { nextBatch() }
-                        .buttonStyle(PrimaryButtonStyle())
-                }
-            } else if fillTries >= 8 && !filled {
-                Button("Fill Containers") { Task { await fill() } }
-                    .buttonStyle(PrimaryButtonStyle())
             }
         }
         .padding(14)
@@ -148,9 +199,9 @@ struct ShipcsxCheckView: View {
 
     private func loadPlan() async {
         guard plan == nil, let api = model.api else { return }
-        let query = firstContainerId.map { "?containerId=\($0)" } ?? ""
+        let query = firstContainerId.map { ["containerId": $0] } ?? [:]
         do {
-            plan = try await api.get("/api/shipcsx/plan\(query)")
+            plan = try await api.get("/api/shipcsx/plan", query: query)
         } catch {
             loadError = model.handle(error)
         }
@@ -158,16 +209,16 @@ struct ShipcsxCheckView: View {
 
     /// Follow the page: fill the form when it shows, save the results when they do.
     private func watch() async {
-        guard plan != nil else { return }
-        while !Task.isCancelled {
+        guard started else { return }
+        while !Task.isCancelled && !finished {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
-            guard !working, !batch.isEmpty, !batchSaved else { continue }
+            guard !working, current != nil else { continue }
             switch await page.state() {
             case .challenge:
                 note = "Tick \"Verify you are human\" on ShipCSX."
-            case .form where !filled && fillTries < 8:
+            case .form where filled.isEmpty && fillTries < 8:
                 await fill()
-            case .results where filled:
+            case .results where !filled.isEmpty:
                 await saveResults()
             default:
                 break
@@ -176,53 +227,60 @@ struct ShipcsxCheckView: View {
     }
 
     private func fill() async {
-        guard let plan else { return }
+        guard let check = current else { return }
         working = true
         defer { working = false }
         fillTries += 1
-        let outcome = await page.fill(batch.map(\.number), terminal: plan.terminal, reference: plan.reference)
-        guard outcome.rows > 0 else {
-            note = fillTries >= 8
-                ? "Couldn't find the container boxes on this page. Tap Fill Containers to try again."
-                : nil
+        let outcome = await page.fill(check.boxes.map(\.number), terminal: check.terminal)
+        if let problem = outcome.problem {
+            note = "Couldn't fill the form: \(problem)"
             return
         }
-        filled = true
-        let place = outcome.terminalPicked ? "" : " Pick \(plan.terminal) as the location first."
-        note = outcome.rows < batch.count
-            ? "Filled \(outcome.rows) of \(batch.count).\(place) Tap Search on ShipCSX."
-            : "Filled.\(place) Tap Search on ShipCSX."
+        let typed = check.boxes.filter { box in outcome.filled.contains(ShipcsxPage.equipment(box.number)) }
+        guard !typed.isEmpty else {
+            note = fillTries >= 8 ? "Couldn't find the container boxes on this page. Tap Fill Containers to try again." : nil
+            return
+        }
+        filled = typed
+        // Any the form had no room for go into a check of their own, next.
+        let left = check.boxes.filter { !typed.contains($0) }
+        if !left.isEmpty {
+            queue[index] = Check(terminal: check.terminal, boxes: typed)
+            queue.insert(Check(terminal: check.terminal, boxes: left), at: index + 1)
+        }
+        note = outcome.terminalPicked
+            ? "Filled. Tap Search on ShipCSX."
+            : "Filled. Select \(check.terminal) as the terminal, then tap Search."
     }
 
     private func saveResults() async {
-        guard let plan, let api = model.api else { return }
+        guard let check = current, let api = model.api else { return }
         working = true
         defer { working = false }
-        note = "Saving what ShipCSX shows…"
-        let text = await page.text()
+        note = "Reading what ShipCSX shows…"
+        let tabs = await page.resultsTabs()
         do {
             let payload: SavedPayload = try await api.post(
                 "/api/shipcsx/results",
-                body: ResultsBody(terminal: plan.terminal, containerIds: batch.map(\.containerId), pageText: text)
+                body: ResultsBody(terminal: check.terminal, containerIds: filled.map(\.containerId), tabs: tabs)
             )
-            saved += payload.results
-            batchSaved = true
-            note = isLastBatch
-                ? "All \(plan.boxes.count) checked and saved."
-                : "Saved. \(plan.boxes.count - saved.count) left to check."
+            lastSaved = payload.results
+            savedCount += payload.results.count
             onSaved()
         } catch {
             note = model.handle(error)
+            return
         }
-    }
-
-    private func nextBatch() {
-        batchIndex += 1
-        filled = false
+        filled = []
         fillTries = 0
-        batchSaved = false
-        note = nil
-        page.load()
+        if index + 1 < queue.count {
+            index += 1
+            note = "Saved. Loading the next check…"
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            page.restart()
+        } else {
+            finished = true
+        }
     }
 }
 
@@ -234,14 +292,28 @@ final class ShipcsxPage {
     enum State: String { case form, results, challenge, other }
 
     struct FillOutcome {
-        let rows: Int
+        let filled: [String]
         let terminalPicked: Bool
+        let problem: String?
+    }
+
+    /// One results tab's page text. Encoded straight into the results upload.
+    struct ResultsTab: Codable {
+        let tab: String?
+        let text: String
     }
 
     fileprivate weak var webView: WKWebView?
 
-    func load() {
-        webView?.load(URLRequest(url: Self.lookupURL))
+    /// How ShipCSX wants the container: initial and serial as one string,
+    /// no check digit ("TTRU485022").
+    static func equipment(_ number: String) -> String {
+        String(Marking.normalize(number).prefix(10))
+    }
+
+    /// A fresh lookup form for the next check.
+    func restart() {
+        webView?.evaluateJavaScript("location.replace('\(Self.lookupURL.absoluteString)'); location.reload();")
     }
 
     func state() async -> State {
@@ -250,33 +322,38 @@ final class ShipcsxPage {
         return State(rawValue: raw) ?? .other
     }
 
-    func text() async -> String {
-        guard let webView else { return "" }
-        return (try? await webView.evaluateJavaScript("document.body ? document.body.innerText : ''") as? String) ?? ""
+    /// Selects the terminal and types the containers in, one row at a time,
+    /// the way a person does, so ShipCSX turns Search on. The reference stays
+    /// blank. Nothing is submitted: the driver taps Search.
+    func fill(_ containers: [String], terminal: String) async -> FillOutcome {
+        struct Reply: Decodable {
+            let filled: [String]
+            let picked: Bool
+            let error: String?
+        }
+        guard let webView,
+              let json = try? await webView.callAsyncJavaScript(
+                  Self.fillScript,
+                  arguments: ["equipment": containers.map(Self.equipment), "terminal": terminal],
+                  in: nil,
+                  in: .page
+              ) as? String,
+              let reply = try? JSONDecoder().decode(Reply.self, from: Data(json.utf8)) else {
+            return FillOutcome(filled: [], terminalPicked: false, problem: nil)
+        }
+        return FillOutcome(filled: reply.filled, terminalPicked: reply.picked, problem: reply.error)
     }
 
-    /// Picks the CSX location and types each container ("TTRU 485022", the
-    /// form's own example format) into the next empty row, with the
-    /// reference, waiting for ShipCSX to add a row after each one.
-    /// Nothing is submitted: the driver taps Search.
-    func fill(_ containers: [String], terminal: String, reference: String) async -> FillOutcome {
-        guard let webView else { return FillOutcome(rows: 0, terminalPicked: false) }
-        let equipment = containers.compactMap { number -> String? in
-            let compact = Marking.normalize(number)
-            guard compact.count >= 10 else { return nil }
-            return "\(compact.prefix(4)) \(compact.dropFirst(4).prefix(6))"
+    /// The results page, tab by tab: ShipCSX shows one tab's cards at a time,
+    /// so each tab with containers in it is opened and read.
+    func resultsTabs() async -> [ResultsTab] {
+        guard let webView else { return [] }
+        if let json = try? await webView.callAsyncJavaScript(Self.resultsScript, arguments: [:], in: nil, in: .page) as? String,
+           let tabs = try? JSONDecoder().decode([ResultsTab].self, from: Data(json.utf8)), !tabs.isEmpty {
+            return tabs
         }
-        let result = try? await webView.callAsyncJavaScript(
-            Self.fillScript,
-            arguments: ["equipment": equipment, "terminal": terminal, "reference": reference],
-            in: nil,
-            in: .page
-        )
-        let values = result as? [String: Any]
-        return FillOutcome(
-            rows: (values?["rows"] as? NSNumber)?.intValue ?? 0,
-            terminalPicked: (values?["terminal"] as? Bool) ?? false
-        )
+        let text = (try? await webView.evaluateJavaScript("document.body ? document.body.innerText : ''") as? String) ?? ""
+        return [ResultsTab(tab: nil, text: text)]
     }
 
     private static let stateScript = """
@@ -290,94 +367,129 @@ final class ShipcsxPage {
     """
 
     private static let fillScript = """
+    try {
+      const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+      const visible = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+      const norm = (text) => (text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+      const compact = (value) => (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const press = (el) => {
+        for (const kind of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+          el.dispatchEvent(new MouseEvent(kind, { bubbles: true, cancelable: true, view: window }));
+        }
+      };
+      // A tap, then each character keyed in, then leaving the box: the
+      // events ShipCSX waits for before it lets Search be tapped.
+      const typeIn = async (el, value) => {
+        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;
+        el.scrollIntoView({ block: 'center' });
+        press(el);
+        el.focus();
+        el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+        setter.call(el, '');
+        el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+        for (const ch of value) {
+          el.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }));
+          el.dispatchEvent(new KeyboardEvent('keypress', { key: ch, bubbles: true }));
+          setter.call(el, el.value + ch);
+          el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ch }));
+          el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }));
+          await sleep(20);
+        }
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.blur();
+        el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+      };
+
+      // The terminal. A plain list if the page has one, otherwise the
+      // "Select Terminal" box: open it and choose the option.
+      const wanted = norm(terminal);
+      let picked = false;
+      for (const select of document.querySelectorAll('select')) {
+        const option = [...select.options].find((o) => norm(o.textContent).includes(wanted));
+        if (!option) continue;
+        select.selectedIndex = option.index;
+        select.dispatchEvent(new Event('input', { bubbles: true }));
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        picked = true;
+        break;
+      }
+      if (!picked) {
+        const shows = (el) => norm(el.innerText || el.value || el.getAttribute('placeholder'));
+        const candidates = [...document.querySelectorAll('ion-select, mat-select, ng-select, p-dropdown, [role="combobox"], [aria-haspopup], button, div, input')]
+          .filter((el) => visible(el) && /select terminal|terminal \\(required\\)/.test(shows(el)));
+        // The innermost box saying "Select Terminal".
+        const trigger = candidates.find((el) => !candidates.some((other) => other !== el && el.contains(other)));
+        if (trigger) {
+          press(trigger);
+          await sleep(700);
+          const leaves = [...document.querySelectorAll('body *')]
+            .filter((el) => visible(el) && norm(el.innerText) === wanted && ![...el.children].some((child) => norm(child.innerText) === wanted));
+          const option = leaves.find((el) => !trigger.contains(el));
+          if (option) {
+            press(option);
+            await sleep(400);
+            const ok = [...document.querySelectorAll('button, .alert-button')].filter(visible)
+              .find((b) => /^(ok|done|select|apply)$/i.test((b.innerText || '').trim()));
+            if (ok) { press(ok); await sleep(400); }
+            picked = true;
+          }
+        }
+      }
+
+      // The rows: the equipment box on the left, the reference on the right.
+      // ShipCSX shows one row and adds the next once one is typed in.
+      const equipmentBoxes = () => {
+        const inputs = [...document.querySelectorAll('input, textarea')].filter((el) =>
+          visible(el) && !el.readOnly && !el.disabled && !/^(hidden|checkbox|radio|submit|button|search)$/i.test(el.type || ''));
+        const groups = [];
+        for (const el of inputs) {
+          const box = el.getBoundingClientRect();
+          const group = groups.find((g) => Math.abs(g.top - box.top) < 8);
+          if (group) group.items.push({ el, left: box.left });
+          else groups.push({ top: box.top, items: [{ el, left: box.left }] });
+        }
+        return groups
+          .filter((g) => g.items.length === 2)
+          .sort((a, b) => a.top - b.top)
+          .map((g) => g.items.sort((a, b) => a.left - b.left)[0].el);
+      };
+
+      const filled = [];
+      for (const container of equipment) {
+        let boxes = equipmentBoxes();
+        if (boxes.some((box) => compact(box.value) === container)) { filled.push(container); continue; }
+        let empty = boxes.find((box) => !box.value);
+        for (let wait = 0; !empty && wait < 10; wait++) {
+          await sleep(200);
+          boxes = equipmentBoxes();
+          empty = boxes.find((box) => !box.value);
+        }
+        if (!empty) break;
+        await typeIn(empty, container);
+        filled.push(container);
+        await sleep(250);
+      }
+      return JSON.stringify({ filled, picked });
+    } catch (error) {
+      return JSON.stringify({ filled: [], picked: false, error: String((error && error.message) || error) });
+    }
+    """
+
+    private static let resultsScript = """
     const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
-    const visible = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
-    const norm = (text) => (text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
-    const type = (el, value) => {
-      const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-      el.focus();
-      Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-      el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-      el.blur();
-    };
-
-    // The CSX location.
-    const wanted = norm(terminal);
-    let picked = false;
-    const select = [...document.querySelectorAll('select')].find(visible);
-    if (select) {
-      const option = [...select.options].find((o) => norm(o.textContent) === wanted);
-      if (option) {
-        if (select.value !== option.value) {
-          select.value = option.value;
-          select.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        picked = true;
-      }
-    } else {
-      const trigger = [...document.querySelectorAll('ion-select, mat-select, ng-select, p-dropdown, [role="combobox"], [aria-haspopup="listbox"]')].find(visible);
-      if (trigger && norm(trigger.innerText || trigger.getAttribute('value')) === wanted) {
-        picked = true;
-      } else if (trigger) {
-        trigger.click();
-        await sleep(600);
-        const options = [...document.querySelectorAll('[role="option"], [role="radio"], ion-select-option, mat-option, .alert-radio-button, ion-item, li')].filter(visible);
-        const match = options.find((o) => norm(o.innerText) === wanted);
-        if (match) {
-          match.click();
-          await sleep(300);
-          const ok = [...document.querySelectorAll('.alert-button, button')].filter(visible)
-            .find((b) => /^(ok|done|select)$/i.test((b.innerText || '').trim()));
-          if (ok) { ok.click(); await sleep(300); }
-          picked = true;
-        } else {
-          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-        }
-      }
+    const pattern = /^(NOTIFIED|ENROUTE|EN-ROUTE|IN-GATE|OTHERS)\\s*\\((\\d+)\\)$/i;
+    const label = (el) => (el.innerText || '').replace(/\\s+/g, ' ').trim();
+    const tabs = [...document.querySelectorAll('body *')]
+      .filter((el) => pattern.test(label(el)) && ![...el.children].some((child) => pattern.test(label(child))));
+    const pages = [];
+    for (const tab of tabs) {
+      const [, name, count] = label(tab).match(pattern);
+      if (Number(count) === 0) continue;
+      tab.click();
+      await sleep(700);
+      pages.push({ tab: name.toUpperCase(), text: document.body.innerText });
     }
-
-    // The rows: an equipment box on the left, a reference box on the right.
-    // ShipCSX shows one row and adds the next once a container is typed in,
-    // so the rows are found again after each one.
-    const formRows = () => {
-      const inputs = [...document.querySelectorAll('input, textarea')].filter((el) =>
-        visible(el) && !el.readOnly && !el.disabled && !/^(hidden|checkbox|radio|submit|button|search)$/i.test(el.type || ''));
-      const groups = [];
-      for (const el of inputs) {
-        const box = el.getBoundingClientRect();
-        const group = groups.find((g) => Math.abs(g.top - box.top) < 8);
-        if (group) group.items.push({ el, left: box.left });
-        else groups.push({ top: box.top, items: [{ el, left: box.left }] });
-      }
-      return groups
-        .filter((g) => g.items.length === 2)
-        .sort((a, b) => a.top - b.top)
-        .map((g) => g.items.sort((a, b) => a.left - b.left).map((item) => item.el));
-    };
-    const compact = (value) => (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-    let filled = 0;
-    for (const container of equipment) {
-      let rows = formRows();
-      // Already typed in (a second Fill): count it and move on.
-      if (rows.some(([box]) => compact(box.value) === compact(container))) { filled++; continue; }
-      let row = rows.find(([box]) => !box.value);
-      // Give the page a moment to add the next row.
-      for (let wait = 0; !row && wait < 10; wait++) {
-        await sleep(200);
-        rows = formRows();
-        row = rows.find(([box]) => !box.value);
-      }
-      if (!row) break;
-      const [equipmentBox, referenceBox] = row;
-      type(equipmentBox, container);
-      if (!referenceBox.value) type(referenceBox, reference);
-      filled++;
-      await sleep(300);
-    }
-    return { rows: filled, terminal: picked };
+    return JSON.stringify(pages);
     """
 }
 

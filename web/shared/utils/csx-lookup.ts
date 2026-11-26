@@ -3,8 +3,6 @@
  * Yard Link opens the page and supplies the numbers, it never drives the site.
  */
 export const SHIPCSX_LOOKUP_URL = 'https://next.shipcsx.com/#/shipment/lookup'
-/** What goes in the lookup's reference box when there is no pickup number. */
-export const SHIPCSX_REFERENCE = '0000'
 
 /** CSX facilities a location can be mapped to, as named in ShipCSX's list. */
 export const SHIPCSX_TERMINALS = [
@@ -15,8 +13,11 @@ export const SHIPCSX_TERMINALS = [
   'Newark',
 ] as const
 export type ShipcsxTerminalName = (typeof SHIPCSX_TERMINALS)[number]
-/** Equipment rows on ShipCSX's lookup form, so containers go in threes. */
-export const SHIPCSX_BATCH_SIZE = 3
+/**
+ * Containers per search. ShipCSX adds an equipment row each time one is
+ * filled; the phone puts back any it couldn't fit for the next search.
+ */
+export const SHIPCSX_BATCH_SIZE = 10
 
 export function chunkShipcsxEquipment<T>(items: readonly T[], size = SHIPCSX_BATCH_SIZE): T[][] {
   const chunks: T[][] = []
@@ -34,11 +35,15 @@ export interface CsxLookupCard {
   inGateReadiness: string | null
   gateWindow: string | null
   resultTab: CsxLookupTab
+  /** Every label and value the card showed, as ShipCSX worded them. */
+  fields: Record<string, string>
 }
 
 export interface CsxLookupParseResult {
   cards: CsxLookupCard[]
   tabCounts: Partial<Record<Exclude<CsxLookupTab, 'NOT_FOUND'>, number>>
+  /** "As of 20:23 on 11/25/26": when ShipCSX's own data is from. */
+  asOf: string | null
 }
 
 const TAB_ALIASES: Record<string, Exclude<CsxLookupTab, 'NOT_FOUND'>> = {
@@ -55,63 +60,65 @@ function compactEquip(value: string): string {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
-function labelValue(block: string, labels: string[]): string | null {
-  for (const label of labels) {
-    const match = block.match(new RegExp(`${label}\\s*[:\\-]?\\s*([^\\n]+)`, 'i'))
-    const value = match?.[1]?.trim()
-    if (value) return value.replace(/\s+/g, ' ')
-  }
-  return null
+/** The labels a results card shows, value on the same line or the next. */
+const CARD_LABELS = ['Load / Empty', 'Waybill Date', 'In-Gate Readiness', 'Gate Window', 'Out-Gate Readiness', 'Storage', 'Last Free Day', 'Status']
+
+function labelValue(block: string, label: string): string | null {
+  const pattern = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s*\/\s*/g, '\\s*/\\s*').replace(/-/g, '[-\\s]?')
+  const match = block.match(new RegExp(`${pattern}[ \\t]*[:\\-]?[ \\t]*(?:\\n[ \\t]*)*([^\\n]+)`, 'i'))
+  const value = match?.[1]?.replace(/\s+/g, ' ').trim()
+  return value || null
 }
 
-function tabFromHeading(heading: string): Exclude<CsxLookupTab, 'NOT_FOUND'> | null {
+/** A results tab name as ShipCSX shows it ("IN-GATE") to our tab. */
+export function shipcsxTabFromHeading(heading: string): Exclude<CsxLookupTab, 'NOT_FOUND'> | null {
   const key = heading.toUpperCase().replace(/\s+/g, ' ').trim()
   return TAB_ALIASES[key] ?? TAB_ALIASES[key.replace(/[^A-Z]/g, '')] ?? null
 }
 
 /**
- * Parse ShipCSX "Shipment Lookup Results" page text. Never used to book
- * a reservation — availability / Submit copy is ignored.
+ * Read ShipCSX's "Shipment Lookup Results" page text. The page shows one
+ * tab's cards at a time, so `tab` says which tab this text is from; without
+ * it the cards take the only tab with containers in it. Booking copy
+ * (reservations, Submit) is never read as a card.
  */
-export function parseShipcsxLookupText(text: string): CsxLookupParseResult {
+export function parseShipcsxLookupText(text: string, tab?: Exclude<CsxLookupTab, 'NOT_FOUND'> | null): CsxLookupParseResult {
   const source = text ?? ''
   const tabCounts: CsxLookupParseResult['tabCounts'] = {}
 
   for (const match of source.matchAll(/(NOTIFIED|ENROUTE|EN-ROUTE|IN-GATE|IN GATE|OTHERS)\s*\((\d+)\)/gi)) {
-    const tab = tabFromHeading(match[1] ?? '')
-    if (tab) tabCounts[tab] = Number(match[2])
+    const found = shipcsxTabFromHeading(match[1] ?? '')
+    if (found) tabCounts[found] = Number(match[2])
   }
+  const asOf = source.match(/As of\s+([^\n]+)/i)?.[1]?.trim() ?? null
+  const withCards = Object.entries(tabCounts).filter(([, count]) => (count ?? 0) > 0)
+  const pageTab: CsxLookupTab = tab ?? (withCards.length === 1 ? withCards[0]![0] as CsxLookupTab : 'OTHERS')
 
   const cards: CsxLookupCard[] = []
-  const cardBlocks = source.split(/(?=[A-Z]{4}\s?\d{6,7})/g)
-
-  for (const block of cardBlocks) {
-    const equipMatch = block.match(/\b([A-Z]{4})\s?(\d{6,7})\b/)
+  for (const block of source.split(/(?=\b[A-Z]{4}\s?\d{6,7}\b)/g)) {
+    const equipMatch = block.match(/^([A-Z]{4})\s?(\d{6,7})\b/)
     if (!equipMatch) continue
     const equipmentNumber = compactEquip(`${equipMatch[1]}${equipMatch[2]}`)
-    if (equipmentNumber.length < 10) continue
-    if (/RESERVATION|SUBMIT|AVAILABLE/.test(block.toUpperCase()) && !/WAYBILL|IN-GATE|LOAD/.test(block.toUpperCase())) {
-      continue
+    const upper = block.toUpperCase()
+    if (!/WAYBILL|READINESS|LOAD \/ EMPTY|LOAD\/EMPTY/.test(upper)) continue
+
+    const fields: Record<string, string> = {}
+    for (const label of CARD_LABELS) {
+      const value = labelValue(block, label)
+      if (value) fields[label] = value
     }
-
-    let resultTab: CsxLookupTab = 'NOT_FOUND'
-    const active = Object.entries(tabCounts).find(([, count]) => (count ?? 0) > 0)?.[0] as CsxLookupTab | undefined
-    if (active) resultTab = active
-    if (/READY TO IN-GATE|READY TO INGATE/i.test(block)) resultTab = 'IN_GATE'
-    else if (/ENROUTE|EN-ROUTE/i.test(block) && !/IN-GATE/i.test(block)) resultTab = 'ENROUTE'
-    else if (/NOTIFIED/i.test(block) && !/IN-GATE/i.test(block)) resultTab = 'NOTIFIED'
-
     cards.push({
       equipmentNumber,
-      loadEmpty: labelValue(block, ['Load / Empty', 'Load/Empty']),
-      waybillDate: labelValue(block, ['Waybill Date']),
-      inGateReadiness: labelValue(block, ['In-Gate Readiness', 'In Gate Readiness']),
-      gateWindow: labelValue(block, ['Gate Window']),
-      resultTab,
+      loadEmpty: fields['Load / Empty'] ?? null,
+      waybillDate: fields['Waybill Date'] ?? null,
+      inGateReadiness: fields['In-Gate Readiness'] ?? null,
+      gateWindow: fields['Gate Window'] ?? null,
+      resultTab: pageTab,
+      fields,
     })
   }
 
-  return { cards, tabCounts }
+  return { cards, tabCounts, asOf }
 }
 
 /** The card for a container. ShipCSX shows the initial and serial, sometimes without the check digit. */
@@ -121,17 +128,10 @@ export function matchLookupCard(cards: CsxLookupCard[], equipmentNumber: string)
 }
 
 
-/** ShipCSX's lookup asks for a 4-letter initial and 6-digit serial (no check digit). */
-export interface ShipcsxEquipmentParts {
-  initial: string
-  number: string
-}
-
-export function shipcsxEquipmentParts(equipmentNumber: string): ShipcsxEquipmentParts | null {
-  const compact = compactEquip(equipmentNumber)
-  const match = compact.match(/^([A-Z]{4})(\d{6})/)
-  if (!match?.[1] || !match[2]) return null
-  return { initial: match[1], number: match[2] }
+/** How ShipCSX wants a container: initial and serial as one string, no check digit (TTRU485022). */
+export function shipcsxEquipment(equipmentNumber: string): string | null {
+  const match = compactEquip(equipmentNumber).match(/^[A-Z]{4}\d{6}/)
+  return match ? match[0] : null
 }
 
 /** The CSX facility a stored or typed name means, if it plainly means one. */
