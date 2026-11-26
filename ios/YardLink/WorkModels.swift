@@ -546,6 +546,7 @@ struct LocationDetail: Decodable {
     let containers: [SiteContainer]?
     let chassis: [SiteChassis]?
     let notes: [LocationNote]?
+    let csxReleases: [CsxRelease]?
 }
 
 /// Preformatted "Export list" text for a location — generated server-side

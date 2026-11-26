@@ -223,51 +223,10 @@ struct LocationDetailView: View {
                 if let detail {
                     about(detail.location)
 
-                    Button {
-                        addingEquipment = true
-                    } label: {
-                        Label("Add Equipment", systemImage: "plus")
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
+                    actions(detail.location)
 
-                    Button {
-                        editingLocation = true
-                    } label: {
-                        Label("Edit This Location", systemImage: "pencil")
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-
-                    Button {
-                        exportingList = true
-                    } label: {
-                        Label("Export List", systemImage: "square.and.arrow.up")
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-
-                    NavigationLink {
-                        LocationAuditView(locationId: locationId, locationName: detail.location.name)
-                    } label: {
-                        Label("Audit This Location", systemImage: "checklist.checked")
-                            .frame(maxWidth: .infinity, minHeight: 52)
-                            .font(.headline)
-                            .foregroundColor(Brand.navy)
-                            .cardSurface(radius: Brand.controlRadius)
-                    }
-                    .buttonStyle(.plain)
-
-                    // The CSX list only makes sense for a location that's actually
-                    // mapped to a ShipCSX terminal — not every marine/rail site is.
-                    if let terminal = detail.location.shipcsxTerminal, !terminal.isEmpty {
-                        NavigationLink {
-                            CsxListView(locationId: locationId)
-                        } label: {
-                            Label("CSX Pickup List", systemImage: "list.bullet.clipboard.fill")
-                                .frame(maxWidth: .infinity, minHeight: 52)
-                                .font(.headline)
-                                .foregroundColor(Brand.navy)
-                                .cardSurface(radius: Brand.controlRadius)
-                        }
-                        .buttonStyle(.plain)
+                    if isCsxYard(detail.location) {
+                        pickupList(detail)
                     }
 
                     equipment(detail)
@@ -300,6 +259,82 @@ struct LocationDetailView: View {
         }
         .refreshable { await load() }
         .task { await load() }
+        // Back from the pickup list, show what was added.
+        .onAppear { if detail != nil { Task { await load() } } }
+    }
+
+    /// A rail yard with CSX in its name keeps a list of pickup numbers.
+    private func isCsxYard(_ location: LocationRecord) -> Bool {
+        location.type == "RAIL_TERMINAL" && location.name.localizedCaseInsensitiveContains("csx")
+    }
+
+    /// The location's actions, one short labelled icon each, on a single line.
+    private func actions(_ location: LocationRecord) -> some View {
+        HStack(spacing: 8) {
+            Button { addingEquipment = true } label: {
+                actionLabel("Add", symbol: "plus")
+            }
+            .buttonStyle(PrimaryButtonStyle())
+
+            Button { editingLocation = true } label: {
+                actionLabel("Edit", symbol: "pencil")
+            }
+            .buttonStyle(SecondaryButtonStyle())
+
+            Button { exportingList = true } label: {
+                actionLabel("Export", symbol: "square.and.arrow.up")
+            }
+            .buttonStyle(SecondaryButtonStyle())
+
+            NavigationLink {
+                LocationAuditView(locationId: locationId, locationName: location.name)
+            } label: {
+                actionLabel("Audit", symbol: "checklist.checked")
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .foregroundColor(Brand.navy)
+                    .cardSurface(radius: Brand.controlRadius)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func actionLabel(_ title: String, symbol: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol)
+            Text(title).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .font(.subheadline.weight(.semibold))
+    }
+
+    @ViewBuilder
+    private func pickupList(_ detail: LocationDetail) -> some View {
+        let releases = detail.csxReleases ?? []
+        HStack {
+            SectionTitle(text: "CSX pickup list (\(releases.count))")
+            Spacer()
+            NavigationLink {
+                CsxListView(locationId: locationId)
+            } label: {
+                actionLabel("Add", symbol: "plus").foregroundColor(Brand.linkBlue)
+            }
+        }
+        Card {
+            if releases.isEmpty {
+                Text("No pickup numbers yet.").font(.subheadline).foregroundColor(Brand.muted)
+            }
+            ForEach(releases) { release in
+                HStack {
+                    Text(Marking.formatContainer(release.containerNumber))
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundColor(Brand.navy)
+                    Spacer()
+                    Text(release.pickupNumber ?? "")
+                        .font(.subheadline)
+                        .foregroundColor(Brand.muted)
+                }
+                .frame(minHeight: 36)
+            }
+        }
     }
 
     @ViewBuilder
@@ -311,9 +346,17 @@ struct LocationDetailView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(Brand.navy)
             }
+            .frame(maxWidth: .infinity)
             let cityLine = [location.city, [location.state, location.postalCode].compactMap { $0 }.joined(separator: " ")]
                 .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
-            InfoRow(label: "Address", value: [location.addressLine1, cityLine].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n"))
+            let address = [location.addressLine1, cityLine].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
+            if !address.isEmpty {
+                Text(address)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(Brand.navy)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+            }
             InfoRow(label: "Hours", value: location.hours)
             InfoRow(label: "Gate", value: location.gateInstructions)
             InfoRow(label: "Driver notes", value: location.driverNotes)
