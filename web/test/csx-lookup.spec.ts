@@ -98,3 +98,13 @@ describe('ShipCSX terminal names', () => {
     expect(shipcsxTerminalName('')).toBeNull()
   })
 })
+
+describe('ShipCSX equipment not found', () => {
+  it('reads not-found cards with their reason', () => {
+    const text = 'Shipment Lookup Results\nAs of 05:35 on 11/26/26\nEquipment Not Found (1)\nTroubleshooting tips\nBSIU 800700\nTerminal\nNorth Bergen\nReference Number\n---\nReason\nNo Waybill Found\nCSX.com'
+    const [card] = parseShipcsxLookupText(text).cards
+    expect(card?.equipmentNumber).toBe('BSIU800700')
+    expect(card?.resultTab).toBe('NOT_FOUND')
+    expect(card?.fields.Reason).toBe('No Waybill Found')
+  })
+})

@@ -57,6 +57,8 @@ struct ShipcsxCheckView: View {
     @State private var savedCount = 0
     /// These results were read already; wait for the page to change.
     @State private var resultsRead = false
+    /// Reads of this results page that found none of the check's containers.
+    @State private var emptyReads = 0
     @State private var finished = false
     @State private var note: String?
 
@@ -321,6 +323,13 @@ struct ShipcsxCheckView: View {
                     listedOnly: filled.isEmpty
                 )
             )
+            if payload.results.isEmpty && emptyReads < 3 {
+                emptyReads += 1
+                note = "Waiting for ShipCSX's results to load…"
+                resultsRead = false
+                return
+            }
+            emptyReads = 0
             savedCount += payload.results.count
             note = "Saved \(payload.results.count) of \(check.boxes.count)."
             onSaved()
@@ -388,16 +397,23 @@ final class ShipcsxPage {
             let error: String?
         }
         guard let webView,
-              let json = try? await webView.callAsyncJavaScript(
+              (try? await webView.callAsyncJavaScript(
                   Self.fillScript,
                   arguments: ["equipment": containers.map(Self.equipment), "terminal": terminal],
                   in: nil,
                   in: .page
-              ) as? String,
-              let reply = try? JSONDecoder().decode(Reply.self, from: Data(json.utf8)) else {
+              ) as? String) == "started" else {
             return FillOutcome(filled: [], terminalPicked: false, problem: nil)
         }
-        return FillOutcome(filled: reply.filled, terminalPicked: reply.picked, problem: reply.error)
+        // A person's pace: about a second a container. Give it plenty.
+        for _ in 0..<(40 + containers.count * 8) {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard let json = try? await webView.evaluateJavaScript("window.__yardlinkFillResult || ''") as? String,
+                  !json.isEmpty else { continue }
+            guard let reply = try? JSONDecoder().decode(Reply.self, from: Data(json.utf8)) else { break }
+            return FillOutcome(filled: reply.filled, terminalPicked: reply.picked, problem: reply.error)
+        }
+        return FillOutcome(filled: [], terminalPicked: false, problem: nil)
     }
 
     /// The results page, tab by tab: ShipCSX shows one tab's cards at a time,
@@ -423,9 +439,12 @@ final class ShipcsxPage {
     """
 
     private static let fillScript = """
-    // One fill per page load: a second one would type over the first.
-    if (window.__yardlinkFill) return JSON.stringify({ filled: [], picked: false, error: 'already filling' });
+    // One fill per page load: a second one would type over the first. It
+    // runs on its own; the app reads how it went from the page.
+    if (window.__yardlinkFill) return 'busy';
     window.__yardlinkFill = true;
+    window.__yardlinkFillResult = null;
+    (async () => {
     try {
       const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
       const visible = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
@@ -536,14 +555,25 @@ final class ShipcsxPage {
         if (index + 1 < equipment.length && !(await rowAt(index + 1))) break;
         await sleep(250);
       }
-      return JSON.stringify({ filled, picked });
+      window.__yardlinkFillResult = JSON.stringify({ filled, picked });
     } catch (error) {
-      return JSON.stringify({ filled: [], picked: false, error: String((error && error.message) || error) });
+      window.__yardlinkFillResult = JSON.stringify({ filled: [], picked: false, error: String((error && error.message) || error) });
     }
+    })();
+    return 'started';
     """
 
     private static let resultsScript = """
     const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+    // The heading shows before the cards: wait for container numbers, then
+    // for the page to stop changing.
+    const cardsShown = () => /\\b[A-Z]{4}\\s?\\d{6}/.test(document.body.innerText.split(/lookup results/i)[1] || '');
+    for (let wait = 0; wait < 30 && !cardsShown(); wait++) await sleep(500);
+    let last = '';
+    for (let wait = 0; wait < 10 && document.body.innerText !== last; wait++) {
+      last = document.body.innerText;
+      await sleep(400);
+    }
     const pattern = /^(NOTIFIED|ENROUTE|EN-ROUTE|IN-GATE|OTHERS)\\s*\\((\\d+)\\)$/i;
     const label = (el) => (el.innerText || '').replace(/\\s+/g, ' ').trim();
     const tabs = [...document.querySelectorAll('body *')]

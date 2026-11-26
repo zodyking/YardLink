@@ -62,7 +62,7 @@ function compactEquip(value: string): string {
 }
 
 /** The labels a results card shows, value on the same line or the next. */
-const CARD_LABELS = ['Load / Empty', 'Waybill Date', 'In-Gate Readiness', 'Gate Window', 'Out-Gate Readiness', 'Storage', 'Last Free Day', 'Status']
+const CARD_LABELS = ['Load / Empty', 'Waybill Date', 'In-Gate Readiness', 'Gate Window', 'Out-Gate Readiness', 'Storage', 'Last Free Day', 'Status', 'Reason']
 
 function labelValue(block: string, label: string): string | null {
   const pattern = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s*\/\s*/g, '\\s*/\\s*').replace(/-/g, '[-\\s]?')
@@ -108,13 +108,15 @@ export function parseShipcsxLookupText(text: string, tab?: Exclude<CsxLookupTab,
       const value = labelValue(block, label)
       if (value) fields[label] = value
     }
+    // An "Equipment Not Found" card: ShipCSX's reason, no shipment fields.
+    const notFound = Boolean(fields.Reason) && !fields['Load / Empty'] && !fields['Waybill Date']
     cards.push({
       equipmentNumber,
       loadEmpty: fields['Load / Empty'] ?? null,
       waybillDate: fields['Waybill Date'] ?? null,
       inGateReadiness: fields['In-Gate Readiness'] ?? null,
       gateWindow: fields['Gate Window'] ?? null,
-      resultTab: pageTab,
+      resultTab: notFound ? 'NOT_FOUND' : pageTab,
       fields,
     })
   }
