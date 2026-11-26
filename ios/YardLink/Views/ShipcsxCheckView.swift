@@ -269,7 +269,7 @@ struct ShipcsxCheckView: View {
             case .form where filled.isEmpty:
                 await fill()
             case .filled where filled.isEmpty:
-                note = "The containers didn't go in. Tap reload to try again."
+                await fill()
 
             case .results where !resultsRead:
                 await saveResults()
@@ -398,24 +398,30 @@ final class ShipcsxPage {
             let picked: Bool
             let error: String?
         }
-        guard let webView,
-              (try? await webView.callAsyncJavaScript(
-                  Self.fillScript,
-                  arguments: ["equipment": containers.map(Self.equipment), "terminal": terminal],
-                  in: nil,
-                  in: .page
-              ) as? String) == "started" else {
-            return FillOutcome(filled: [], terminalPicked: false, problem: nil)
-        }
-        // A person's pace: about a second a container. Give it plenty.
+        guard let webView else { return FillOutcome(filled: [], terminalPicked: false, problem: nil) }
+        _ = try? await webView.callAsyncJavaScript(
+            Self.fillScript,
+            arguments: ["equipment": containers.map(Self.equipment), "terminal": terminal],
+            in: nil,
+            in: .page
+        )
+        // A person's pace: about a second a container. Give it plenty, and
+        // stop early if the boxes stop changing.
+        var lastSeen: [String] = []
+        var still = 0
         for _ in 0..<(40 + containers.count * 8) {
             try? await Task.sleep(nanoseconds: 500_000_000)
-            guard let json = try? await webView.evaluateJavaScript("window.__yardlinkFillResult || ''") as? String,
-                  !json.isEmpty else { continue }
-            guard let reply = try? JSONDecoder().decode(Reply.self, from: Data(json.utf8)) else { break }
-            return FillOutcome(filled: reply.filled, terminalPicked: reply.picked, problem: reply.error)
+            if let json = try? await webView.evaluateJavaScript("window.__yardlinkFillResult || ''") as? String,
+               !json.isEmpty,
+               let reply = try? JSONDecoder().decode(Reply.self, from: Data(json.utf8)) {
+                return FillOutcome(filled: reply.filled, terminalPicked: reply.picked, problem: reply.error)
+            }
+            let seen = await formEquipment()
+            still = (seen == lastSeen && !seen.isEmpty) ? still + 1 : 0
+            lastSeen = seen
+            if still >= 16 { break }
         }
-        return FillOutcome(filled: [], terminalPicked: false, problem: nil)
+        return FillOutcome(filled: lastSeen, terminalPicked: !lastSeen.isEmpty, problem: nil)
     }
 
     /// The containers typed in the form's equipment boxes, as one string each.
@@ -494,6 +500,8 @@ final class ShipcsxPage {
         el.scrollIntoView({ block: 'center' });
         press(el);
         el.focus();
+        // iOS only focuses a box the person tapped, so say it was entered.
+        el.dispatchEvent(new FocusEvent('focus'));
         el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
         if (el.value) {
           el.select();
@@ -515,6 +523,7 @@ final class ShipcsxPage {
         el.dispatchEvent(new Event('change', { bubbles: true }));
         await sleep(150);
         el.blur();
+        el.dispatchEvent(new FocusEvent('blur'));
         el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
       };
 
@@ -590,7 +599,19 @@ final class ShipcsxPage {
         if (!box) break;
         if (!compact(box.value).startsWith(container)) await typeIn(box, container);
         filled.push(container);
-        if (index + 1 < equipment.length && !(await rowAt(index + 1))) break;
+        if (index + 1 < equipment.length && !(await rowAt(index + 1))) {
+          // Some forms add a row when the last box is entered or left.
+          const last = equipmentBoxes()[index];
+          if (last) {
+            press(last);
+            last.dispatchEvent(new FocusEvent('focus'));
+            last.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+            last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+            last.dispatchEvent(new FocusEvent('blur'));
+            last.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+          }
+          if (!(await rowAt(index + 1))) break;
+        }
         await sleep(250);
       }
       window.__yardlinkFillResult = JSON.stringify({ filled, picked });
