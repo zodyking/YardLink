@@ -14,10 +14,11 @@ export const SHIPCSX_TERMINALS = [
 ] as const
 export type ShipcsxTerminalName = (typeof SHIPCSX_TERMINALS)[number]
 /**
- * Containers per search. ShipCSX adds an equipment row each time one is
- * filled; the phone puts back any it couldn't fit for the next search.
+ * Containers per search: a location's whole list goes in one search.
+ * ShipCSX adds an equipment row each time one is filled; the phone puts back
+ * any the form wouldn't take for a search of their own.
  */
-export const SHIPCSX_BATCH_SIZE = 10
+export const SHIPCSX_BATCH_SIZE = 50
 
 export function chunkShipcsxEquipment<T>(items: readonly T[], size = SHIPCSX_BATCH_SIZE): T[][] {
   const chunks: T[][] = []

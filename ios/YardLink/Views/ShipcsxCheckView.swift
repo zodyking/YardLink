@@ -27,11 +27,8 @@ struct ShipcsxCheckView: View {
         let boxes: [Box]
     }
 
-    struct Saved: Decodable, Hashable, Identifiable {
+    struct Saved: Decodable {
         let containerId: String
-        let number: String
-        let status: String
-        var id: String { containerId }
     }
 
     private struct Plan: Decodable {
@@ -57,7 +54,6 @@ struct ShipcsxCheckView: View {
     @State private var filled: [Box] = []
     @State private var fillTries = 0
     @State private var working = false
-    @State private var lastSaved: [Saved] = []
     @State private var savedCount = 0
     @State private var finished = false
     @State private var note: String?
@@ -100,6 +96,7 @@ struct ShipcsxCheckView: View {
     // MARK: Before the check
 
     private func intro(_ plan: Plan) -> some View {
+        GeometryReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 if plan.checks.isEmpty {
@@ -133,6 +130,8 @@ struct ShipcsxCheckView: View {
                 }
             }
             .padding()
+            .frame(minHeight: proxy.size.height)
+        }
         }
     }
 
@@ -157,43 +156,30 @@ struct ShipcsxCheckView: View {
     // MARK: During the check
 
     private var panel: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             if finished {
-                Text("All \(savedCount) checked and saved.")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(Brand.navy)
-                Button("Done") { dismiss() }
-                    .buttonStyle(PrimaryButtonStyle())
+                HStack {
+                    Text("All \(savedCount) checked and saved.")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(Brand.navy)
+                    Spacer()
+                    Button("Done") { dismiss() }.font(.subheadline.weight(.semibold))
+                }
             } else if let current {
                 Text("\(current.terminal) check \(index + 1)/\(queue.count)")
                     .font(.subheadline.weight(.bold))
                     .foregroundColor(Brand.navy)
-                Text(current.boxes.map { Marking.formatContainer($0.number) }.joined(separator: "  ·  "))
-                    .font(.system(.footnote, design: .monospaced))
-                    .foregroundColor(Brand.muted)
-                    .lineLimit(3)
-                Text(note ?? "If ShipCSX asks, tick \"Verify you are human\". The containers fill in once the form shows.")
-                    .font(.footnote)
-                    .foregroundColor(Brand.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                if filled.isEmpty && fillTries >= 8 {
-                    Button("Fill Containers") { Task { await fill() } }
-                        .buttonStyle(PrimaryButtonStyle())
-                }
-            }
-            if !lastSaved.isEmpty {
-                ForEach(lastSaved) { row in
-                    HStack {
-                        Text(Marking.formatContainer(row.number))
-                            .font(.system(.caption, design: .monospaced))
-                        Spacer()
-                        Text(row.status).font(.caption.weight(.semibold))
-                    }
-                    .foregroundColor(Brand.navy)
+                if let note {
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundColor(Brand.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
-        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(Brand.paper.ignoresSafeArea(edges: .bottom))
     }
 
@@ -216,7 +202,7 @@ struct ShipcsxCheckView: View {
             switch await page.state() {
             case .challenge:
                 note = "Tick \"Verify you are human\" on ShipCSX."
-            case .form where filled.isEmpty && fillTries < 8:
+            case .form where filled.isEmpty:
                 await fill()
             case .results where !filled.isEmpty:
                 await saveResults()
@@ -238,7 +224,7 @@ struct ShipcsxCheckView: View {
         }
         let typed = check.boxes.filter { box in outcome.filled.contains(ShipcsxPage.equipment(box.number)) }
         guard !typed.isEmpty else {
-            note = fillTries >= 8 ? "Couldn't find the container boxes on this page. Tap Fill Containers to try again." : nil
+            note = fillTries >= 3 ? "Waiting for the ShipCSX form…" : nil
             return
         }
         filled = typed
@@ -264,7 +250,6 @@ struct ShipcsxCheckView: View {
                 "/api/shipcsx/results",
                 body: ResultsBody(terminal: check.terminal, containerIds: filled.map(\.containerId), tabs: tabs)
             )
-            lastSaved = payload.results
             savedCount += payload.results.count
             onSaved()
         } catch {
@@ -393,7 +378,7 @@ final class ShipcsxPage {
           setter.call(el, el.value + ch);
           el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ch }));
           el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }));
-          await sleep(20);
+          await sleep(45);
         }
         el.dispatchEvent(new Event('change', { bubbles: true }));
         el.blur();
@@ -453,21 +438,49 @@ final class ShipcsxPage {
           .sort((a, b) => a.top - b.top)
           .map((g) => g.items.sort((a, b) => a.left - b.left)[0].el);
       };
-
-      const filled = [];
-      for (const container of equipment) {
-        let boxes = equipmentBoxes();
-        if (boxes.some((box) => compact(box.value) === container)) { filled.push(container); continue; }
-        let empty = boxes.find((box) => !box.value);
-        for (let wait = 0; !empty && wait < 10; wait++) {
+      // Row `index`, once ShipCSX has put it on the page.
+      const rowAt = async (index) => {
+        for (let wait = 0; wait < 25; wait++) {
+          const boxes = equipmentBoxes();
+          if (boxes[index]) return boxes[index];
           await sleep(200);
-          boxes = equipmentBoxes();
-          empty = boxes.find((box) => !box.value);
         }
-        if (!empty) break;
-        await typeIn(empty, container);
+        return null;
+      };
+
+      // Each container in its own row, in order, at a person's pace. Every
+      // row is read back after typing, because the form can redraw a row
+      // while it adds the next one.
+      const filled = [];
+      for (let index = 0; index < equipment.length; index++) {
+        const container = equipment[index];
+        let done = false;
+        for (let attempt = 0; attempt < 3 && !done; attempt++) {
+          const box = await rowAt(index);
+          if (!box) break;
+          if (compact(box.value) !== container) await typeIn(box, container);
+          await sleep(450);
+          const settled = equipmentBoxes()[index];
+          done = !!settled && compact(settled.value) === container;
+        }
+        if (!done) break;
         filled.push(container);
-        await sleep(250);
+      }
+
+      // A last look: every row says what was typed, and no row repeats one.
+      await sleep(400);
+      const rows = equipmentBoxes();
+      for (let index = 0; index < filled.length; index++) {
+        if (rows[index] && compact(rows[index].value) !== filled[index]) {
+          await typeIn(rows[index], filled[index]);
+          await sleep(300);
+        }
+      }
+      for (let index = filled.length; index < rows.length; index++) {
+        if (rows[index].value) {
+          await typeIn(rows[index], '');
+          await sleep(200);
+        }
       }
       return JSON.stringify({ filled, picked });
     } catch (error) {
