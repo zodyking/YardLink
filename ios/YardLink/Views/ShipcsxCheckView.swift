@@ -288,7 +288,9 @@ struct ShipcsxCheckView: View {
             note = "Couldn't fill the form: \(problem)"
             return
         }
-        let typed = check.boxes.filter { box in outcome.filled.contains(ShipcsxPage.equipment(box.number)) }
+        // What the boxes say, as well as what the fill reported.
+        let inForm = Set(outcome.filled + (await page.formEquipment()))
+        let typed = check.boxes.filter { box in inForm.contains(ShipcsxPage.equipment(box.number)) }
         guard !typed.isEmpty else {
             note = "The containers didn't go in. Tap reload to try again."
             return
@@ -416,6 +418,20 @@ final class ShipcsxPage {
         return FillOutcome(filled: [], terminalPicked: false, problem: nil)
     }
 
+    /// The containers typed in the form's equipment boxes, as one string each.
+    func formEquipment() async -> [String] {
+        let script = """
+        JSON.stringify([...document.querySelectorAll('input')]
+          .map((el) => (el.value || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
+          .filter((value) => /^[A-Z]{4}\\d{6}/.test(value))
+          .map((value) => value.slice(0, 10)))
+        """
+        guard let webView,
+              let json = try? await webView.evaluateJavaScript(script) as? String,
+              let values = try? JSONDecoder().decode([String].self, from: Data(json.utf8)) else { return [] }
+        return values
+    }
+
     /// The results page, tab by tab: ShipCSX shows one tab's cards at a time,
     /// so each tab with containers in it is opened and read.
     func resultsTabs() async -> [ResultsTab] {
@@ -457,25 +473,47 @@ final class ShipcsxPage {
       };
       // A tap, then each character keyed in, then leaving the box: the
       // events ShipCSX waits for before it lets Search be tapped.
+      // A key as the keyboard sends it, key codes included: the page's
+      // handlers read those to decide when to add the next row.
+      const key = (el, kind, ch) => {
+        const code = ch.toUpperCase().charCodeAt(0);
+        const event = new KeyboardEvent(kind, {
+          key: ch, code: /[0-9]/.test(ch) ? `Digit${ch}` : `Key${ch.toUpperCase()}`,
+          bubbles: true, cancelable: true, composed: true,
+        });
+        for (const name of ['keyCode', 'which']) Object.defineProperty(event, name, { get: () => code });
+        if (kind === 'keypress') Object.defineProperty(event, 'charCode', { get: () => ch.charCodeAt(0) });
+        return el.dispatchEvent(event);
+      };
+      // A tap, then each character put in through the browser's own text
+      // editing, which fires the same input events the keyboard does, then
+      // leaving the box: what ShipCSX waits for before it adds a row and
+      // lets Search be tapped.
       const typeIn = async (el, value) => {
         const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;
         el.scrollIntoView({ block: 'center' });
         press(el);
         el.focus();
         el.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-        setter.call(el, '');
-        el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
-        let typed = '';
+        if (el.value) {
+          el.select();
+          if (!document.execCommand('delete')) {
+            setter.call(el, '');
+            el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+          }
+        }
         for (const ch of value) {
-          el.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }));
-          el.dispatchEvent(new KeyboardEvent('keypress', { key: ch, bubbles: true }));
-          typed += ch;
-          setter.call(el, typed);
-          el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ch }));
-          el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }));
-          await sleep(45);
+          key(el, 'keydown', ch);
+          key(el, 'keypress', ch);
+          if (!document.execCommand('insertText', false, ch)) {
+            setter.call(el, el.value + ch);
+            el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ch }));
+          }
+          key(el, 'keyup', ch);
+          await sleep(60);
         }
         el.dispatchEvent(new Event('change', { bubbles: true }));
+        await sleep(150);
         el.blur();
         el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
       };
