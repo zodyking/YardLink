@@ -42,8 +42,8 @@ function terminalFor(start: { shipcsxTerminal: string | null, name: string | nul
 }
 
 /**
- * A system-wide Check CSX: every loaded container in the pool and every
- * container at a customer, queued by the CSX location each came out of
+ * A system-wide Check CSX: every container that is loaded, at a customer or
+ * at a company yard, queued by the CSX location each came out of
  * (Settings' location when there's no history), one search per batch. A
  * container the person opened Check CSX from leads its location's queue.
  */
@@ -73,8 +73,10 @@ export async function shipcsxCheckPlan(db: DbExecutor, auth: AuthContext, firstC
       isNull(containers.deletedAt),
       or(
         firstContainerId ? eq(containers.id, firstContainerId) : undefined,
-        and(eq(containers.isLoaded, true), ne(containers.activePoolState, 'INACTIVE')),
-        and(eq(containers.activePoolState, 'AT_LOCATION'), eq(here.type, 'CUSTOMER')),
+        and(
+          ne(containers.activePoolState, 'INACTIVE'),
+          or(eq(containers.isLoaded, true), inArray(here.type, ['CUSTOMER', 'COMPANY_YARD'])),
+        ),
       ),
     ))
     .orderBy(asc(containers.number))
@@ -111,12 +113,19 @@ function looksLikeResults(text: string): boolean {
  * text comes from the person's own lookup in the app, one entry per results
  * tab (ShipCSX shows one tab's cards at a time). Every card's fields are
  * kept, filed under the container's current duty cycle; a container no tab
- * listed is saved as not on CSX.
+ * listed is saved as not on CSX, unless the person typed the search
+ * themselves, when only the listed containers are saved.
  */
 export async function saveShipcsxResults(
   db: DbExecutor,
   auth: AuthContext,
-  input: { terminal: string, containerIds: string[], tabs: Array<{ tab?: string | null, text: string }> },
+  input: {
+    terminal: string
+    containerIds: string[]
+    tabs: Array<{ tab?: string | null, text: string }>
+    /** The person typed the search: only containers the results list are saved. */
+    listedOnly?: boolean
+  },
 ) {
   if (!input.tabs.some(page => looksLikeResults(page.text))) {
     throw createError({ statusCode: 422, statusMessage: 'That page isn\'t ShipCSX search results yet.' })
@@ -150,6 +159,7 @@ export async function saveShipcsxResults(
   const results = []
   for (const box of boxes) {
     const card = matchLookupCard(cards, box.number)
+    if (!card && input.listedOnly) continue
     const [row] = await db
       .insert(csxShipmentSnapshots)
       .values({

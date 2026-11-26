@@ -10,6 +10,7 @@ const body = z.object({
     tab: z.string().trim().max(20).nullish(),
     text: z.string().max(200_000),
   })).min(1).max(6),
+  listedOnly: z.boolean().optional(),
 })
 
 /** Save the statuses a ShipCSX results page showed, after a person's search in the app. */

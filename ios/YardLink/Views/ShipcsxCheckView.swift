@@ -42,6 +42,7 @@ struct ShipcsxCheckView: View {
         let terminal: String
         let containerIds: [String]
         let tabs: [ShipcsxPage.ResultsTab]
+        let listedOnly: Bool
     }
 
     @State private var page = ShipcsxPage()
@@ -54,6 +55,8 @@ struct ShipcsxCheckView: View {
     @State private var filled: [Box] = []
     @State private var working = false
     @State private var savedCount = 0
+    /// These results were read already; wait for the page to change.
+    @State private var resultsRead = false
     @State private var finished = false
     @State private var note: String?
 
@@ -110,7 +113,7 @@ struct ShipcsxCheckView: View {
                         .font(.title2.weight(.bold))
                         .foregroundColor(Brand.navy)
                     Text(plan.checks.isEmpty
-                         ? "No loaded containers or containers at customers right now."
+                         ? "No loaded containers, or containers at customers or company yards, right now."
                          : "You're about to check every container in the system on ShipCSX.")
                         .font(.subheadline)
                         .foregroundColor(Brand.muted)
@@ -256,7 +259,9 @@ struct ShipcsxCheckView: View {
         while !Task.isCancelled && !finished {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard !working, current != nil else { continue }
-            switch await page.state() {
+            let state = await page.state()
+            if state != .results { resultsRead = false }
+            switch state {
             case .challenge:
                 note = "Tick \"Verify you are human\" on ShipCSX."
             case .form where filled.isEmpty:
@@ -264,7 +269,7 @@ struct ShipcsxCheckView: View {
             case .filled where filled.isEmpty:
                 note = "The containers didn't go in. Tap reload to try again."
 
-            case .results where !filled.isEmpty:
+            case .results where !resultsRead:
                 await saveResults()
             default:
                 break
@@ -301,24 +306,32 @@ struct ShipcsxCheckView: View {
     private func saveResults() async {
         guard let check = current, let api = model.api else { return }
         working = true
+        resultsRead = true
         defer { working = false }
         note = "Reading what ShipCSX shows…"
         let tabs = await page.resultsTabs()
         do {
             let payload: SavedPayload = try await api.post(
                 "/api/shipcsx/results",
-                body: ResultsBody(terminal: check.terminal, containerIds: filled.map(\.containerId), tabs: tabs)
+                // Typed by hand: save what the results list, from this check's containers.
+                body: ResultsBody(
+                    terminal: check.terminal,
+                    containerIds: (filled.isEmpty ? check.boxes : filled).map(\.containerId),
+                    tabs: tabs,
+                    listedOnly: filled.isEmpty
+                )
             )
             savedCount += payload.results.count
+            note = "Saved \(payload.results.count) of \(check.boxes.count)."
             onSaved()
         } catch {
-            note = model.handle(error)
+            note = "Couldn't save: \(model.handle(error)) Tap Search again to retry."
             return
         }
         filled = []
         if index + 1 < queue.count {
             index += 1
-            note = "Saved. Loading the next check…"
+            note = "\(note ?? "Saved.") Loading the next check…"
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             page.restart()
         } else {
