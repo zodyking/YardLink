@@ -57,8 +57,10 @@ struct ContainerDetailView: View {
                                     .foregroundColor(Brand.muted)
                             }
                         }
-                        if let line = detail.shipcsx?.detailLine, !line.isEmpty {
-                            Text(line).font(.footnote).foregroundColor(Brand.muted)
+                        if let snapshot = detail.shipcsx {
+                            ForEach(snapshot.rows, id: \.label) { row in
+                                InfoRow(label: row.label, value: row.value)
+                            }
                         }
                         Button(detail.shipcsx == nil ? "Check CSX" : "Check Again") { sheet = .shipcsx }
                             .buttonStyle(SecondaryButtonStyle())

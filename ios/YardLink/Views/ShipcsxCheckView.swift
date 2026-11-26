@@ -34,6 +34,8 @@ struct ShipcsxCheckView: View {
     private struct Plan: Decodable {
         let total: Int
         let checks: [Check]
+        /// On a trip: only the trip's container is checked.
+        let tripOnly: Bool?
     }
 
     private struct SavedPayload: Decodable { let results: [Saved] }
@@ -111,12 +113,14 @@ struct ShipcsxCheckView: View {
                 .padding(.top, 24)
 
                 VStack(spacing: 8) {
-                    Text(plan.checks.isEmpty ? "Nothing to check" : "System-wide check")
+                    Text(plan.checks.isEmpty ? "Nothing to check" : plan.tripOnly == true ? "Trip check" : "System-wide check")
                         .font(.title2.weight(.bold))
                         .foregroundColor(Brand.navy)
                     Text(plan.checks.isEmpty
                          ? "No loaded containers, or containers at customers or company yards, right now."
-                         : "You're about to check every container in the system on ShipCSX.")
+                         : plan.tripOnly == true
+                            ? "You're on a trip, so only its container is checked on ShipCSX."
+                            : "You're about to check every container in the system on ShipCSX.")
                         .font(.subheadline)
                         .foregroundColor(Brand.muted)
                         .multilineTextAlignment(.center)
@@ -336,6 +340,12 @@ struct ShipcsxCheckView: View {
             note = "Saved \(payload.results.count) of \(check.boxes.count)."
             onSaved()
         } catch {
+            if emptyReads < 5 {
+                emptyReads += 1
+                note = "Waiting for ShipCSX's results to load…"
+                resultsRead = false
+                return
+            }
             note = "Couldn't save: \(model.handle(error)) Tap Search again to retry."
             return
         }
@@ -626,8 +636,13 @@ final class ShipcsxPage {
     const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
     // The heading shows before the cards: wait for container numbers, then
     // for the page to stop changing.
-    const cardsShown = () => /\\b[A-Z]{4}\\s?\\d{6}/.test(document.body.innerText.split(/lookup results/i)[1] || '');
-    for (let wait = 0; wait < 30 && !cardsShown(); wait++) await sleep(500);
+    const cardsShown = () => {
+      const text = document.body.innerText.split(/lookup results/i)[1] || '';
+      return /as of \\d/i.test(text)
+        && /\\((\\d+)\\)/.test(text)
+        && /\\b[A-Z]{4}\\s?\\d{6}/.test(text);
+    };
+    for (let wait = 0; wait < 40 && !cardsShown(); wait++) await sleep(500);
     let last = '';
     for (let wait = 0; wait < 10 && document.body.innerText !== last; wait++) {
       last = document.body.innerText;

@@ -906,6 +906,13 @@ struct ShipcsxSnapshot: Decodable, Hashable {
     let resultTab: String?
     let error: String?
     let checkedAt: Date?
+    let rawPayload: Raw?
+
+    /// Everything the ShipCSX card said, as saved.
+    struct Raw: Decodable, Hashable {
+        let asOf: String?
+        let fields: [String: String]?
+    }
 
     /// The same wording the web app shows.
     var statusLabel: String {
@@ -921,11 +928,20 @@ struct ShipcsxSnapshot: Decodable, Hashable {
         }
     }
 
-    var detailLine: String {
-        [terminalName, loadEmpty, waybillDate.map { "Waybill \($0)" }, gateWindow]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-            .joined(separator: " · ")
+    /// What ShipCSX showed, label and value, in the order its card lists them.
+    var rows: [(label: String, value: String)] {
+        let order = ["Load / Empty", "Waybill Date", "In-Gate Readiness", "Gate Window",
+                     "Out-Gate Readiness", "Last Free Day", "Storage", "Status", "Reason"]
+        let fields = rawPayload?.fields ?? [:]
+        var rows: [(label: String, value: String)] = []
+        if let terminalName, !terminalName.isEmpty { rows.append(("Terminal", terminalName)) }
+        for label in order {
+            if let value = fields[label]?.trimmingCharacters(in: .whitespaces), !value.isEmpty, value != "---" {
+                rows.append((label, value))
+            }
+        }
+        if let asOf = rawPayload?.asOf, !asOf.isEmpty { rows.append(("ShipCSX as of", asOf)) }
+        return rows
     }
 }
 

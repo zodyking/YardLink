@@ -1,9 +1,10 @@
-import { and, asc, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import { containerDutyCycles, containers, csxShipmentSnapshots, locations } from '../database/schema'
+import { containerDutyCycles, containers, csxShipmentSnapshots, locations, trips } from '../database/schema'
 import type { DbExecutor } from '../utils/db'
 import type { AuthContext } from '../utils/session'
 import { loadCompanySettings } from '../utils/settings'
+import { LIVE_TRIP_STATUSES } from './movements'
 import {
   SHIPCSX_BATCH_SIZE,
   SHIPCSX_TERMINALS,
@@ -53,6 +54,22 @@ export async function shipcsxCheckPlan(db: DbExecutor, auth: AuthContext, firstC
   const here = alias(locations, 'here')
   const start = alias(locations, 'start')
 
+  // A driver on a trip checks just the trip's container.
+  const [liveTrip] = auth.driverId
+    ? await db
+      .select({ containerId: trips.containerId })
+      .from(trips)
+      .where(and(
+        eq(trips.companyId, auth.companyId),
+        eq(trips.driverId, auth.driverId),
+        inArray(trips.status, [...LIVE_TRIP_STATUSES]),
+        isNotNull(trips.containerId),
+      ))
+      .limit(1)
+    : []
+  const tripContainerId = liveTrip?.containerId ?? null
+  if (tripContainerId) firstContainerId = tripContainerId
+
   const rows = await db
     .select({
       containerId: containers.id,
@@ -71,7 +88,7 @@ export async function shipcsxCheckPlan(db: DbExecutor, auth: AuthContext, firstC
     .where(and(
       eq(containers.companyId, auth.companyId),
       isNull(containers.deletedAt),
-      or(
+      tripContainerId ? eq(containers.id, tripContainerId) : or(
         firstContainerId ? eq(containers.id, firstContainerId) : undefined,
         and(
           ne(containers.activePoolState, 'INACTIVE'),
@@ -93,14 +110,15 @@ export async function shipcsxCheckPlan(db: DbExecutor, auth: AuthContext, firstC
 
   // The opened container's location first, then the list's own order.
   const firstTerminal = [...byTerminal].find(([, list]) => list[0]?.containerId === firstContainerId)?.[0]
-  const order = [...SHIPCSX_TERMINALS].sort((a, b) => Number(b === firstTerminal) - Number(a === firstTerminal))
+  const known = [...SHIPCSX_TERMINALS, ...[...byTerminal.keys()].filter(name => !(SHIPCSX_TERMINALS as readonly string[]).includes(name))]
+  const order = known.sort((a, b) => Number(b === firstTerminal) - Number(a === firstTerminal))
   const checks: ShipcsxCheck[] = []
   for (const terminal of order) {
     for (const boxes of chunkShipcsxEquipment(byTerminal.get(terminal) ?? [], SHIPCSX_BATCH_SIZE)) {
       checks.push({ terminal, boxes })
     }
   }
-  return { total: rows.length, checks }
+  return { total: rows.length, checks, tripOnly: Boolean(tripContainerId) }
 }
 
 /** ShipCSX's results page, as opposed to the form, a challenge or an error. */
@@ -142,6 +160,12 @@ export async function saveShipcsxResults(
     for (const card of parsed.cards) {
       if (!cards.some(seen => seen.equipmentNumber === card.equipmentNumber)) cards.push(card)
     }
+  }
+
+  // Every container searched comes back as a card, found or not; none
+  // means the page hadn't finished loading.
+  if (!cards.length) {
+    throw createError({ statusCode: 422, statusMessage: 'ShipCSX\'s results haven\'t loaded yet.' })
   }
 
   const boxes = input.containerIds.length
