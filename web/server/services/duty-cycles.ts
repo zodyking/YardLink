@@ -302,7 +302,9 @@ async function timelineRows(db: DbExecutor, companyId: string, where: ReturnType
     locationName: row.locationName,
     locationType: row.locationType as LocationType | null,
     actorDriverId: row.actorDriverId,
-    driverName: fullName(row.driverFirstName, row.driverLastName),
+    // A return Yard Link logged from ShipCSX has no driver to name.
+    driverName: fullName(row.driverFirstName, row.driverLastName)
+      ?? (row.payload?.unknownDriver === true ? 'Unknown driver' : null),
     notes: row.notes,
     isLoaded: typeof row.payload?.isLoaded === 'boolean' ? row.payload.isLoaded : null,
     sealNumber: typeof row.payload?.sealNumber === 'string' ? row.payload.sealNumber : null,

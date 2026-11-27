@@ -1,10 +1,11 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { containerDutyCycles, containers, csxShipmentSnapshots, locations, trips } from '../database/schema'
-import type { DbExecutor } from '../utils/db'
+import type { Database, DbExecutor } from '../utils/db'
 import type { AuthContext } from '../utils/session'
 import { loadCompanySettings } from '../utils/settings'
 import { LIVE_TRIP_STATUSES } from './movements'
+import { recordUnloggedCsxReturn } from './shipcsx-ingate'
 import {
   SHIPCSX_BATCH_SIZE,
   SHIPCSX_TERMINALS,
@@ -135,7 +136,7 @@ function looksLikeResults(text: string): boolean {
  * themselves, when only the listed containers are saved.
  */
 export async function saveShipcsxResults(
-  db: DbExecutor,
+  db: Database,
   auth: AuthContext,
   input: {
     terminal: string
@@ -203,7 +204,11 @@ export async function saveShipcsxResults(
         checkedAt,
       })
       .returning()
-    results.push({ containerId: box.containerId, number: box.number, status: shipcsxStatusLabel(row) })
+    // In-gated on ShipCSX but still parked in Yard Link: log the return.
+    const moved = card
+      ? await recordUnloggedCsxReturn(db, { companyId: auth.companyId, containerId: box.containerId, terminal, card, seenAt: checkedAt })
+      : false
+    results.push({ containerId: box.containerId, number: box.number, status: shipcsxStatusLabel(row), moved })
   }
   return { results }
 }

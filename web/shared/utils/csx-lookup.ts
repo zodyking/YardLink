@@ -149,3 +149,22 @@ export function shipcsxTerminalName(wanted?: string | null): ShipcsxTerminalName
   })
   return close.length === 1 ? (close[0] ?? null) : null
 }
+
+/** ShipCSX says the box has been in-gated at the terminal. */
+export function shipcsxShowsInGated(card: Pick<CsxLookupCard, 'inGateReadiness' | 'resultTab'>): boolean {
+  const readiness = card.inGateReadiness?.trim() ?? ''
+  return /\bin-?\s?gated\b/i.test(readiness) || (card.resultTab === 'IN_GATE' && !readiness)
+}
+
+/**
+ * The waybill (MM/DD/YY) was cut during the cycle that began at `since`, so
+ * an in-gate belongs to this trip and not a box's earlier visit. A day of
+ * slack covers time zones.
+ */
+export function waybillDuringCycle(waybillDate: string | null | undefined, since: Date): boolean {
+  const match = waybillDate?.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/)
+  if (!match) return false
+  const year = Number(match[3]!.length === 2 ? `20${match[3]}` : match[3])
+  const day = Date.UTC(year, Number(match[1]) - 1, Number(match[2]))
+  return day >= since.getTime() - 24 * 60 * 60 * 1000 - (since.getTime() % (24 * 60 * 60 * 1000))
+}

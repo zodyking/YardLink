@@ -4,6 +4,8 @@ import {
   matchLookupCard,
   parseShipcsxLookupText,
   shipcsxEquipment,
+  shipcsxShowsInGated,
+  waybillDuringCycle,
   shipcsxTerminalName,
   SHIPCSX_TERMINALS,
 } from '../shared/utils/csx-lookup'
@@ -106,5 +108,19 @@ describe('ShipCSX equipment not found', () => {
     expect(card?.equipmentNumber).toBe('BSIU800700')
     expect(card?.resultTab).toBe('NOT_FOUND')
     expect(card?.fields.Reason).toBe('No Waybill Found')
+  })
+})
+
+describe('ShipCSX in-gate', () => {
+  it('reads an in-gated card', () => {
+    expect(shipcsxShowsInGated({ inGateReadiness: 'Equipment In-Gated', resultTab: 'IN_GATE' })).toBe(true)
+    expect(shipcsxShowsInGated({ inGateReadiness: 'Reservation Required', resultTab: 'NOTIFIED' })).toBe(false)
+  })
+  it('only trusts a waybill cut during the cycle', () => {
+    const pickedUp = new Date('2026-11-24T17:21:00Z')
+    expect(waybillDuringCycle('11/24/26', pickedUp)).toBe(true)
+    expect(waybillDuringCycle('11/26/26', pickedUp)).toBe(true)
+    expect(waybillDuringCycle('11/20/26', pickedUp)).toBe(false)
+    expect(waybillDuringCycle(null, pickedUp)).toBe(false)
   })
 })

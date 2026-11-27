@@ -29,6 +29,8 @@ struct ShipcsxCheckView: View {
 
     struct Saved: Decodable {
         let containerId: String
+        /// In-gated on ShipCSX but still parked here: its return was logged.
+        let moved: Bool?
     }
 
     private struct Plan: Decodable {
@@ -337,7 +339,9 @@ struct ShipcsxCheckView: View {
             }
             emptyReads = 0
             savedCount += payload.results.count
+            let moved = payload.results.filter { $0.moved == true }.count
             note = "Saved \(payload.results.count) of \(check.boxes.count)."
+                + (moved > 0 ? " \(moved) in-gated at CSX, moved there." : "")
             onSaved()
         } catch {
             if emptyReads < 5 {
