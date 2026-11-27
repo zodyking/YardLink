@@ -18,6 +18,7 @@ import { formatChassisNumber, formatContainerNumber } from '#shared/utils/iso634
 interface HistoryEvent {
   id: string
   eventType: EventType
+  title: string
   occurredAt: string
   tripId: string | null
   tripReference: string | null
@@ -88,22 +89,6 @@ watch(
 )
 const selected = computed(() => cycles.value.find(cycle => cycle.id === selectedId.value) ?? null)
 
-const TITLES: Partial<Record<EventType, string>> = {
-  PICKUP_STARTED: 'Pickup started',
-  PICKUP_CONFIRMED: 'Picked up',
-  DROPOFF_CONFIRMED: 'Dropped off',
-  CHASSIS_ATTACH: 'Paired with chassis',
-  CHASSIS_DETACH: 'Separated from chassis',
-  YARD_MOVE: 'Moved',
-  ACTIVATED: 'Added to the yard',
-  RELEASED: 'Returned and released',
-  PICKUP_CANCELLED: 'Pickup cancelled',
-  CORRECTION: 'Correction',
-  DAMAGE_REPORTED: 'Damage reported',
-  DOCUMENT_ADDED: 'Document added',
-  LOADED: 'Loaded',
-  EMPTIED: 'Emptied',
-}
 /** What a driver or dispatcher needs to follow the equipment; the rest is noise. */
 const SHOWN = new Set<EventType>([
   'PICKUP_CONFIRMED',
@@ -122,20 +107,6 @@ const SHOWN = new Set<EventType>([
 
 function shown(events: HistoryEvent[] | undefined) {
   return (events ?? []).filter(event => SHOWN.has(event.eventType))
-}
-
-function title(event: HistoryEvent) {
-  if (props.subject === 'chassis') {
-    if (event.eventType === 'CHASSIS_ATTACH') return 'Paired with container'
-    if (event.eventType === 'CHASSIS_DETACH') return 'Separated from container'
-    if (!event.containerId && event.eventType === 'PICKUP_CONFIRMED') return 'Picked up bare'
-    if (!event.containerId && event.eventType === 'DROPOFF_CONFIRMED') return 'Dropped off bare'
-  }
-  // Hooking up to a box already on a chassis moves both, and is not a pairing.
-  if (event.eventType === 'PICKUP_CONFIRMED' && event.containerId && event.chassisId) {
-    return 'Container and chassis picked up'
-  }
-  return TITLES[event.eventType] ?? event.eventType.toLowerCase().replace(/_/g, ' ')
 }
 
 function tone(event: HistoryEvent) {
@@ -246,7 +217,7 @@ function box(pairing: Pairing) {
             :class="tone(event)"
           >
             <div class="eh-node">
-              <b>{{ title(event) }}</b>
+              <b>{{ event.title }}</b>
               <time>{{ when(event.occurredAt) }}</time>
             </div>
             <p>
@@ -285,7 +256,7 @@ function box(pairing: Pairing) {
             class="note"
           >
             <div class="eh-node">
-              <b>{{ title(event) }}</b>
+              <b>{{ event.title }}</b>
               <time>{{ when(event.occurredAt) }}</time>
             </div>
             <p>
@@ -346,7 +317,7 @@ function box(pairing: Pairing) {
           :class="tone(event)"
         >
           <div class="eh-node">
-            <b>{{ title(event) }}</b>
+            <b>{{ event.title }}</b>
             <time>{{ when(event.occurredAt) }}</time>
           </div>
           <p>

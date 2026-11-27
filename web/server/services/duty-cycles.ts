@@ -11,6 +11,8 @@ import {
 } from '../database/schema'
 import type { EventType, LocationType } from '#shared/utils/domain'
 import { chassisPairings, cycleStep, replayDutyCycles } from '#shared/utils/duty-cycle'
+import { equipmentEventTitle, withoutRedundantHangs } from '#shared/utils/timeline'
+import type { TimelineSubject } from '#shared/utils/timeline'
 
 export type DutyCycle = typeof containerDutyCycles.$inferSelect
 
@@ -254,7 +256,12 @@ function fullName(first?: string | null, last?: string | null): string | null {
   return name || null
 }
 
-async function timelineRows(db: DbExecutor, companyId: string, where: ReturnType<typeof and>) {
+async function timelineRows(
+  db: DbExecutor,
+  companyId: string,
+  where: ReturnType<typeof and>,
+  subject: TimelineSubject,
+) {
   const rows = await db
     .select({
       id: containerEvents.id,
@@ -287,9 +294,25 @@ async function timelineRows(db: DbExecutor, companyId: string, where: ReturnType
     .orderBy(asc(containerEvents.occurredAt), asc(containerEvents.createdAt))
     .limit(2000)
 
-  return rows.map(row => ({
+  // A container hung on a chassis the driver already had is one step, said once.
+  const named = rows.map(row => ({ ...row, occurredAtIso: row.occurredAt.toISOString() }))
+  const display = withoutRedundantHangs(named.map(row => ({
+    ...row,
+    occurredAt: row.occurredAtIso,
+    payload: row.payload as Record<string, unknown> | null,
+  })))
+  const keep = new Set(display.map(row => row.id))
+
+  const events = rows.map(row => ({
     id: row.id,
     eventType: row.eventType as EventType,
+    title: equipmentEventTitle(row.eventType as EventType, {
+      id: row.id,
+      eventType: row.eventType as EventType,
+      containerId: row.containerId,
+      chassisNumber: row.chassisNumber,
+      payload: row.payload as Record<string, unknown> | null,
+    }, subject),
     occurredAt: row.occurredAt,
     tripId: row.tripId,
     tripReference: row.tripReference,
@@ -308,7 +331,10 @@ async function timelineRows(db: DbExecutor, companyId: string, where: ReturnType
     notes: row.notes,
     isLoaded: typeof row.payload?.isLoaded === 'boolean' ? row.payload.isLoaded : null,
     sealNumber: typeof row.payload?.sealNumber === 'string' ? row.payload.sealNumber : null,
+    /** The same step recorded twice; shown once. */
+    merged: !keep.has(row.id),
   }))
+  return events
 }
 
 export type HistoryEvent = Awaited<ReturnType<typeof timelineRows>>[number]
@@ -321,7 +347,7 @@ export async function loadContainerHistory(db: DbExecutor, companyId: string, co
       .from(containerDutyCycles)
       .where(and(eq(containerDutyCycles.companyId, companyId), eq(containerDutyCycles.containerId, containerId)))
       .orderBy(desc(containerDutyCycles.sequence)),
-    timelineRows(db, companyId, eq(containerEvents.containerId, containerId)),
+    timelineRows(db, companyId, eq(containerEvents.containerId, containerId), 'container'),
   ])
 
   const locationIds = [...new Set(cycles.flatMap(cycle => [cycle.startLocationId, cycle.endLocationId]).filter(Boolean) as string[])]
@@ -332,7 +358,7 @@ export async function loadContainerHistory(db: DbExecutor, companyId: string, co
 
   const byCycle = new Map<string, HistoryEvent[]>()
   const unfiled: HistoryEvent[] = []
-  for (const event of events) {
+  for (const event of events.filter(row => !row.merged)) {
     if (!event.dutyCycleId) {
       unfiled.push(event)
       continue
@@ -370,7 +396,7 @@ export async function loadContainerHistory(db: DbExecutor, companyId: string, co
 
 /** One chassis: its full event trail and the containers it has carried. */
 export async function loadChassisHistory(db: DbExecutor, companyId: string, chassisId: string) {
-  const events = await timelineRows(db, companyId, eq(containerEvents.chassisId, chassisId))
+  const events = await timelineRows(db, companyId, eq(containerEvents.chassisId, chassisId), 'chassis')
 
   const pairings = chassisPairings(events.map(event => ({
     id: event.id,
@@ -394,7 +420,7 @@ export async function loadChassisHistory(db: DbExecutor, companyId: string, chas
   const cycleById = new Map(cycles.map(cycle => [cycle.id, cycle]))
 
   return {
-    events: events.slice().reverse(),
+    events: events.filter(event => !event.merged).reverse(),
     pairings: pairings.reverse().map((pairing) => {
       const paired = byId.get(pairing.pairedEventId)
       const separated = pairing.separatedEventId ? byId.get(pairing.separatedEventId) : null

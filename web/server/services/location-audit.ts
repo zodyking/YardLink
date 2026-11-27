@@ -202,13 +202,14 @@ export async function runLocationAudit(
     const holdBoxes = [...new Set(input.uncategorizedContainerIds ?? [])]
     const holdChassis = [...new Set(input.uncategorizedChassisIds ?? [])]
     const ids = [...new Set(input.containerIds ?? [])].slice(0, LOCATION_AUDIT_MAX)
+    const bareIds = [...new Set(input.chassisIds ?? [])].slice(0, LOCATION_AUDIT_MAX)
     const destinationId = input.destinationLocationId
 
-    if (!ids.length && !holdBoxes.length && !holdChassis.length) {
+    if (!ids.length && !bareIds.length && !holdBoxes.length && !holdChassis.length) {
       throw createError({ statusCode: 422, statusMessage: 'Select at least one container or chassis.' })
     }
 
-    if (ids.length) {
+    if (ids.length || bareIds.length) {
       if (!destinationId) {
         throw createError({ statusCode: 422, statusMessage: 'Pick a destination.' })
       }
@@ -245,6 +246,33 @@ export async function runLocationAudit(
             message: failureMessage(error, 'Could not move that container.'),
           })
         }
+      }
+    }
+
+    for (const chassisId of bareIds) {
+      const [row] = await db.select().from(chassis).where(eq(chassis.id, chassisId)).limit(1)
+      const number = row?.number
+      try {
+        assertTenant(auth, row, 'Chassis')
+        if (row!.deletedAt) {
+          throw createError({ statusCode: 404, statusMessage: 'Chassis not found.' })
+        }
+        if (row!.currentLocationId !== location.id) {
+          throw createError({ statusCode: 409, statusMessage: 'That chassis is not at this location.' })
+        }
+        await addChassisAtLocation(db, auth, {
+          eventId: crypto.randomUUID(),
+          locationId: destinationId!,
+          chassisNumber: row!.number,
+        })
+        succeeded += 1
+      }
+      catch (error) {
+        failed.push({
+          id: chassisId,
+          number,
+          message: failureMessage(error, 'Could not move that chassis.'),
+        })
       }
     }
 
@@ -314,8 +342,9 @@ export async function runLocationAudit(
   }
   else {
     const ids = [...new Set(input.containerIds ?? [])].slice(0, LOCATION_AUDIT_MAX)
-    if (!ids.length) {
-      throw createError({ statusCode: 422, statusMessage: 'Select at least one container.' })
+    const unitIds = [...new Set(input.chassisIds ?? [])].slice(0, LOCATION_AUDIT_MAX)
+    if (!ids.length && !unitIds.length) {
+      throw createError({ statusCode: 422, statusMessage: 'Select at least one container or chassis.' })
     }
 
     for (const containerId of ids) {
@@ -337,6 +366,26 @@ export async function runLocationAudit(
           id: containerId,
           number,
           message: failureMessage(error, 'Could not delete that container.'),
+        })
+      }
+    }
+
+    for (const chassisId of unitIds) {
+      const [row] = await db.select().from(chassis).where(eq(chassis.id, chassisId)).limit(1)
+      const number = row?.number
+      try {
+        assertTenant(auth, row, 'Chassis')
+        if (row!.currentLocationId !== location.id) {
+          throw createError({ statusCode: 409, statusMessage: 'That chassis is not at this location.' })
+        }
+        await retireChassis(db, auth, chassisId)
+        succeeded += 1
+      }
+      catch (error) {
+        failed.push({
+          id: chassisId,
+          number,
+          message: failureMessage(error, 'Could not remove that chassis.'),
         })
       }
     }

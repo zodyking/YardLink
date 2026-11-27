@@ -206,6 +206,8 @@ struct TripContainer: Decodable, Hashable {
 struct TripEvent: Decodable, Identifiable, Hashable {
     let id: String
     let eventType: String
+    /// The server's wording, shared with the website. Older servers omit it.
+    let title: String?
     let occurredAt: Date?
     let notes: String?
     let locationName: String?
@@ -562,6 +564,8 @@ struct LocationExportResult: Decodable {
 struct HistoryEvent: Decodable, Identifiable, Hashable {
     let id: String
     let eventType: String
+    /// The server's wording, shared with the website. Older servers omit it.
+    let title: String?
     let occurredAt: Date?
     let tripReference: String?
     let dutyCycleId: String?
@@ -754,6 +758,7 @@ enum Words {
     /// moved both pieces of equipment at once, and says so. Hooking up to a
     /// box already on a chassis is a pickup, never a mounting.
     static func event(_ record: HistoryEvent) -> String {
+        if let title = record.title, !title.isEmpty { return title }
         let hasChassis = !(record.chassisNumber ?? "").isEmpty
         let bareChassis = record.containerId == nil && hasChassis
         switch record.eventType {
@@ -771,6 +776,7 @@ enum Words {
     /// A trip always moves a container, so a chassis on the event never
     /// makes it a bare-chassis move.
     static func event(_ record: TripEvent) -> String {
+        if let title = record.title, !title.isEmpty { return title }
         let hasChassis = !(record.chassisNumber ?? "").isEmpty
         switch record.eventType {
         case "PICKUP_CONFIRMED":
@@ -790,7 +796,7 @@ enum Words {
         case "GATE_OUT": return "Gate out"
         case "ARRIVED": return "Arrived"
         case "DEPARTED": return "Departed"
-        case "YARD_MOVE": return "Yard move"
+        case "YARD_MOVE": return "Moved"
         case "CHASSIS_ATTACH": return "Placed on chassis"
         case "CHASSIS_DETACH": return "Removed from chassis"
         case "LOADED": return "Loaded"
@@ -799,8 +805,8 @@ enum Words {
         case "DAMAGE_REPORTED": return "Damage reported"
         case "CORRECTION": return "Correction"
         case "STATUS_CHANGE": return "Status change"
-        case "RELEASED": return "Released"
-        case "ACTIVATED": return "Added to active pool"
+        case "RELEASED": return "Returned and released"
+        case "ACTIVATED": return "Added to the yard"
         case "PICKUP_CANCELLED": return "Pickup cancelled"
         default: return plain(type)
         }

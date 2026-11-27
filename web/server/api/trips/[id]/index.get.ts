@@ -3,6 +3,7 @@ import { chassis, containerEvents, containers, locations, trips, users } from '.
 import { companyTimezone, listTasksForTrip } from '../../../services/tasks'
 import { assertTenant, requireAuth } from '../../../utils/session'
 import { chassisFromEvents } from '../../../utils/trip-chassis'
+import { equipmentEventTitle, visibleTimelineEntries } from '#shared/utils/timeline'
 
 const originLocation = aliasedTable(locations, 'origin_location')
 const destinationLocation = aliasedTable(locations, 'destination_location')
@@ -66,6 +67,9 @@ export default defineEventHandler(async (event) => {
         occurredAt: containerEvents.occurredAt,
         notes: containerEvents.notes,
         payload: containerEvents.payload,
+        tripId: containerEvents.tripId,
+        containerId: containerEvents.containerId,
+        chassisId: containerEvents.chassisId,
         locationName: locations.name,
         chassisNumber: chassis.number,
         actorFirstName: users.firstName,
@@ -81,5 +85,15 @@ export default defineEventHandler(async (event) => {
     listTasksForTrip(db, auth, row!.trip, timezone),
   ])
 
-  return { ...row!, chassis: chassisRow, timeline, tasks }
+  // The words come from one place, so the app and the website agree.
+  const visible = visibleTimelineEntries(timeline.map(entry => ({
+    ...entry,
+    payload: entry.payload as Record<string, unknown> | null,
+  })))
+  const titled = visible.map(entry => ({
+    ...entry,
+    title: equipmentEventTitle(entry.eventType, entry, 'container'),
+  }))
+
+  return { ...row!, chassis: chassisRow, timeline: titled, tasks }
 })

@@ -22,8 +22,8 @@ struct LocationAuditView: View {
         var hint: String {
             switch self {
             case .check: return "Untick anything that is not on this yard. What stays ticked is confirmed here."
-            case .move: return "Tick the containers that are really at another location, then choose where."
-            case .remove: return "Tick the containers to take off this location. They go to Uncategorized."
+            case .move: return "Tick the containers and bare chassis that are really at another location, then choose where."
+            case .remove: return "Tick the containers and bare chassis to take off this location. They go to Uncategorized."
             }
         }
     }
@@ -45,6 +45,8 @@ struct LocationAuditView: View {
     private var missingContainers: [String] { containers.map(\.id).filter { !present.contains($0) } }
     private var missingChassis: [String] { chassis.map(\.id).filter { !present.contains($0) } }
     private var chosenContainers: [String] { containers.map(\.id).filter { chosen.contains($0) } }
+    private var chosenChassis: [String] { chassis.map(\.id).filter { chosen.contains($0) } }
+    private var chosenCount: Int { chosenContainers.count + chosenChassis.count }
 
     private var actionLabel: String {
         switch mode {
@@ -52,9 +54,9 @@ struct LocationAuditView: View {
             let count = missingContainers.count + missingChassis.count
             return count == 0 ? "Everything Is Here" : "Take \(count) Off This Location"
         case .move:
-            return chosenContainers.isEmpty ? "Choose Containers" : "Move \(chosenContainers.count)…"
+            return chosenCount == 0 ? "Choose Equipment" : "Move \(chosenCount)…"
         case .remove:
-            return chosenContainers.isEmpty ? "Choose Containers" : "Remove \(chosenContainers.count)"
+            return chosenCount == 0 ? "Choose Equipment" : "Remove \(chosenCount)"
         }
     }
 
@@ -62,7 +64,7 @@ struct LocationAuditView: View {
         guard !working else { return false }
         switch mode {
         case .check: return !(missingContainers.isEmpty && missingChassis.isEmpty)
-        case .move, .remove: return !chosenContainers.isEmpty
+        case .move, .remove: return chosenCount > 0
         }
     }
 
@@ -94,7 +96,7 @@ struct LocationAuditView: View {
                         )
                     }
 
-                    if mode == .check && !chassis.isEmpty {
+                    if !chassis.isEmpty {
                         SectionTitle(text: "Bare chassis (\(chassis.count))")
                         ForEach(chassis) { unit in
                             tickRow(id: unit.id, title: unit.number, detail: unit.provider ?? "")
@@ -120,7 +122,7 @@ struct LocationAuditView: View {
                 let _: OkResult = try await api.post("/api/locations/\(locationId)/audit", body: Request(
                     action: "move",
                     containerIds: chosenContainers,
-                    chassisIds: nil,
+                    chassisIds: chosenChassis,
                     destinationLocationId: location.id
                 ))
                 note = "Moved to \(location.name)."
@@ -133,8 +135,8 @@ struct LocationAuditView: View {
             message: "They move to Uncategorized, where a dispatcher can place them.",
             isPresented: $confirmingRemove,
             cancelLabel: "Keep",
-            actions: [.destructive("Remove \(chosenContainers.count)") {
-                Task { await send(Request(action: "delete", containerIds: chosenContainers, chassisIds: nil, destinationLocationId: nil), done: "Removed from this location.") }
+            actions: [.destructive("Remove \(chosenCount)") {
+                Task { await send(Request(action: "delete", containerIds: chosenContainers, chassisIds: chosenChassis, destinationLocationId: nil), done: "Removed from this location.") }
             }]
         )
         .refreshable { await load() }
