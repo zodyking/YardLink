@@ -111,7 +111,7 @@ struct ContainerDetailView: View {
                     case .photos:
                         DocumentsSheet(scope: .container(containerId), containerNumber: detail.container.number, chassisNumber: nil)
                     case .shipcsx:
-                        ShipcsxCheckView(firstContainerId: containerId) {
+                        ShipcsxCheckView(containerId: containerId) {
                             Task { await load() }
                         }
                     }

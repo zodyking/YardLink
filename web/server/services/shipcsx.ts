@@ -1,10 +1,9 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import { containerDutyCycles, containers, csxShipmentSnapshots, locations, trips } from '../database/schema'
+import { containerDutyCycles, containers, csxShipmentSnapshots, locations } from '../database/schema'
 import type { Database, DbExecutor } from '../utils/db'
 import type { AuthContext } from '../utils/session'
 import { loadCompanySettings } from '../utils/settings'
-import { LIVE_TRIP_STATUSES } from './movements'
 import { recordUnloggedCsxReturn } from './shipcsx-ingate'
 import {
   SHIPCSX_BATCH_SIZE,
@@ -44,32 +43,16 @@ function terminalFor(start: { shipcsxTerminal: string | null, name: string | nul
 }
 
 /**
- * A system-wide Check CSX: every container that is loaded, at a customer or
- * at a company yard, queued by the CSX location each came out of
- * (Settings' location when there's no history), one search per batch. A
- * container the person opened Check CSX from leads its location's queue.
+ * What a Check CSX searches: the one container named, or system-wide every
+ * container that is loaded, at a customer or at a company yard. Queued by the
+ * CSX location each came out of (Settings' location when there's no
+ * history), one search per batch.
  */
-export async function shipcsxCheckPlan(db: DbExecutor, auth: AuthContext, firstContainerId?: string | null) {
+export async function shipcsxCheckPlan(db: DbExecutor, auth: AuthContext, containerId?: string | null) {
   const settings = await loadCompanySettings(db)
   const fallback = shipcsxTerminalName(settings.shipcsxDefaultTerminal) ?? FALLBACK_TERMINAL
   const here = alias(locations, 'here')
   const start = alias(locations, 'start')
-
-  // A driver on a trip checks just the trip's container.
-  const [liveTrip] = auth.driverId
-    ? await db
-      .select({ containerId: trips.containerId })
-      .from(trips)
-      .where(and(
-        eq(trips.companyId, auth.companyId),
-        eq(trips.driverId, auth.driverId),
-        inArray(trips.status, [...LIVE_TRIP_STATUSES]),
-        isNotNull(trips.containerId),
-      ))
-      .limit(1)
-    : []
-  const tripContainerId = liveTrip?.containerId ?? null
-  if (tripContainerId) firstContainerId = tripContainerId
 
   const rows = await db
     .select({
@@ -89,13 +72,12 @@ export async function shipcsxCheckPlan(db: DbExecutor, auth: AuthContext, firstC
     .where(and(
       eq(containers.companyId, auth.companyId),
       isNull(containers.deletedAt),
-      tripContainerId ? eq(containers.id, tripContainerId) : or(
-        firstContainerId ? eq(containers.id, firstContainerId) : undefined,
-        and(
+      containerId
+        ? eq(containers.id, containerId)
+        : and(
           ne(containers.activePoolState, 'INACTIVE'),
           or(eq(containers.isLoaded, true), inArray(here.type, ['CUSTOMER', 'COMPANY_YARD'])),
         ),
-      ),
     ))
     .orderBy(asc(containers.number))
 
@@ -103,23 +85,18 @@ export async function shipcsxCheckPlan(db: DbExecutor, auth: AuthContext, firstC
   for (const row of rows) {
     const terminal = terminalFor({ shipcsxTerminal: row.startTerminal, name: row.startName, type: row.startType }) ?? fallback
     const list = byTerminal.get(terminal) ?? []
-    const box = { containerId: row.containerId, number: row.number }
-    if (row.containerId === firstContainerId) list.unshift(box)
-    else list.push(box)
+    list.push({ containerId: row.containerId, number: row.number })
     byTerminal.set(terminal, list)
   }
 
-  // The opened container's location first, then the list's own order.
-  const firstTerminal = [...byTerminal].find(([, list]) => list[0]?.containerId === firstContainerId)?.[0]
-  const known = [...SHIPCSX_TERMINALS, ...[...byTerminal.keys()].filter(name => !(SHIPCSX_TERMINALS as readonly string[]).includes(name))]
-  const order = known.sort((a, b) => Number(b === firstTerminal) - Number(a === firstTerminal))
+  const order = [...SHIPCSX_TERMINALS, ...[...byTerminal.keys()].filter(name => !(SHIPCSX_TERMINALS as readonly string[]).includes(name))]
   const checks: ShipcsxCheck[] = []
   for (const terminal of order) {
     for (const boxes of chunkShipcsxEquipment(byTerminal.get(terminal) ?? [], SHIPCSX_BATCH_SIZE)) {
       checks.push({ terminal, boxes })
     }
   }
-  return { total: rows.length, checks, tripOnly: Boolean(tripContainerId) }
+  return { total: rows.length, checks }
 }
 
 /** ShipCSX's results page, as opposed to the form, a challenge or an error. */

@@ -6,7 +6,7 @@ import SwiftUI
 struct ToolsView: View {
     @Environment(\.dismiss) private var dismiss
     let bridgeCrossingTimesEnabled: Bool
-    /// The container on the trip in hand, if there is one; Check CSX puts it first.
+    /// The container on the trip in hand, if there is one; Check CSX offers it.
     let tripContainer: TripContainer?
 
     struct TripContainer {
@@ -14,7 +14,20 @@ struct ToolsView: View {
         let number: String
     }
 
-    @State private var checking = false
+    /// What Check CSX searches: everything, or one container.
+    private enum CheckScope: Identifiable {
+        case system
+        case container(String)
+        var id: String {
+            switch self {
+            case .system: return "system"
+            case .container(let id): return id
+            }
+        }
+    }
+
+    @State private var choosingCheck = false
+    @State private var checkScope: CheckScope?
 
     var body: some View {
         NavigationStack {
@@ -59,22 +72,37 @@ struct ToolsView: View {
                     Button("Close") { dismiss() }
                 }
             }
-            .sheet(isPresented: $checking) {
-                ShipcsxCheckView(firstContainerId: tripContainer?.id)
-                    .sheetChrome()
+            .confirmationDialog("Check CSX", isPresented: $choosingCheck, titleVisibility: .visible) {
+                Button("System-wide check") { checkScope = .system }
+                if let tripContainer {
+                    Button("Trip container \(Marking.formatContainer(tripContainer.number))") {
+                        checkScope = .container(tripContainer.id)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Check every container in the system, or only the one on your trip?")
+            }
+            .sheet(item: $checkScope) { scope in
+                switch scope {
+                case .system: ShipcsxCheckView(containerId: nil).sheetChrome()
+                case .container(let id): ShipcsxCheckView(containerId: id).sheetChrome()
+                }
             }
         }
     }
 
     private var checkCsxRow: some View {
         Button {
-            checking = true
+            // On a trip, ask which; otherwise it's the system-wide check.
+            if tripContainer == nil { checkScope = .system } else { choosingCheck = true }
         } label: {
             rowLabel(
                 icon: "tram.fill",
                 title: "Check CSX",
-                detail: tripContainer.map { "\(Marking.formatContainer($0.number)), every loaded container and every one at a customer." }
-                    ?? "Every loaded container and every one at a customer."
+                detail: tripContainer == nil
+                    ? "Every container that's loaded, at a customer or at a company yard."
+                    : "The whole system, or just your trip's container."
             )
         }
         .buttonStyle(.plain)

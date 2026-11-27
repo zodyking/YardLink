@@ -12,8 +12,8 @@ import WebKit
 struct ShipcsxCheckView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    /// The container Check CSX was opened from; it leads its location's queue.
-    let firstContainerId: String?
+    /// One container to check; nil checks the whole system.
+    let containerId: String?
     /// Called after results are saved, so the screen underneath can refresh.
     var onSaved: () -> Void = {}
 
@@ -36,8 +36,6 @@ struct ShipcsxCheckView: View {
     private struct Plan: Decodable {
         let total: Int
         let checks: [Check]
-        /// On a trip: only the trip's container is checked.
-        let tripOnly: Bool?
     }
 
     private struct SavedPayload: Decodable { let results: [Saved] }
@@ -115,13 +113,13 @@ struct ShipcsxCheckView: View {
                 .padding(.top, 24)
 
                 VStack(spacing: 8) {
-                    Text(plan.checks.isEmpty ? "Nothing to check" : plan.tripOnly == true ? "Trip check" : "System-wide check")
+                    Text(plan.checks.isEmpty ? "Nothing to check" : containerId != nil ? "Container check" : "System-wide check")
                         .font(.title2.weight(.bold))
                         .foregroundColor(Brand.navy)
                     Text(plan.checks.isEmpty
                          ? "No loaded containers, or containers at customers or company yards, right now."
-                         : plan.tripOnly == true
-                            ? "You're on a trip, so only its container is checked on ShipCSX."
+                         : containerId != nil
+                            ? "You're about to check \(plan.checks.first?.boxes.first.map { Marking.formatContainer($0.number) } ?? "this container") on ShipCSX."
                             : "You're about to check every container in the system on ShipCSX.")
                         .font(.subheadline)
                         .foregroundColor(Brand.muted)
@@ -129,9 +127,11 @@ struct ShipcsxCheckView: View {
                 }
 
                 if !plan.checks.isEmpty {
+                    if containerId == nil {
                     HStack(spacing: 12) {
                         stat("\(plan.total)", plan.total == 1 ? "Container" : "Containers")
                         stat("\(plan.checks.count)", plan.checks.count == 1 ? "Check" : "Checks")
+                    }
                     }
 
                     VStack(spacing: 0) {
@@ -157,8 +157,8 @@ struct ShipcsxCheckView: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         step(1, "Tick \"Verify you are human\" if ShipCSX asks.")
-                        step(2, "The app fills in the location's containers. Tap Search.")
-                        step(3, "Results are saved and the next location loads.")
+                        step(2, containerId == nil ? "The app fills in the location's containers. Tap Search." : "The app fills in the container. Tap Search.")
+                        step(3, containerId == nil ? "Results are saved and the next location loads." : "The result is saved to the container.")
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -253,7 +253,7 @@ struct ShipcsxCheckView: View {
 
     private func loadPlan() async {
         guard plan == nil, let api = model.api else { return }
-        let query = firstContainerId.map { ["containerId": $0] } ?? [:]
+        let query = containerId.map { ["containerId": $0] } ?? [:]
         do {
             plan = try await api.get("/api/shipcsx/plan", query: query)
         } catch {
