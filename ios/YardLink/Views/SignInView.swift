@@ -16,6 +16,9 @@ struct SignInView: View {
     @State private var faceIDSaved = false
     /// A password sign-in just worked; offer to keep it behind Face ID.
     @State private var offerFaceID: FaceIDLogin.Saved?
+    @State private var creatingAccount = false
+    /// What happens next for an account just created here.
+    @State private var signupNote: String?
 
     private enum Field { case email, password }
 
@@ -44,6 +47,14 @@ struct SignInView: View {
 
                     if let errorMessage {
                         ErrorBanner(message: errorMessage)
+                    }
+
+                    if let signupNote {
+                        Card {
+                            Label(signupNote, systemImage: "checkmark.circle.fill")
+                                .font(.subheadline)
+                                .foregroundColor(Brand.navy)
+                        }
                     }
 
                     if needsConfirmation {
@@ -95,14 +106,13 @@ struct SignInView: View {
                         }
                     }
 
-                    VStack(spacing: 4) {
-                        Text("New here? Create your account in a browser at")
+                    VStack(spacing: 8) {
+                        Text("New here?")
                             .font(.footnote)
                             .foregroundColor(Brand.muted)
-                        if let server = model.serverURL {
-                            Link("\(server.host ?? server.absoluteString)/signup", destination: server.appendingPathComponent("signup"))
-                                .font(.footnote.weight(.semibold))
-                        }
+                        Button("Create an Account") { creatingAccount = true }
+                            .buttonStyle(SecondaryButtonStyle())
+                            .disabled(working)
                         Text("You will need the join code from your dispatcher.")
                             .font(.footnote)
                             .foregroundColor(Brand.muted)
@@ -116,6 +126,10 @@ struct SignInView: View {
                 .padding(20)
             }
             .scrollDismissesKeyboard(.interactively)
+        }
+        .sheet(isPresented: $creatingAccount) {
+            SignUpView(onCreated: accountCreated)
+                .environmentObject(model)
         }
         .task {
             faceIDSaved = FaceIDLogin.isSaved(for: model.serverURL)
@@ -144,6 +158,7 @@ struct SignInView: View {
         errorMessage = nil
         needsConfirmation = false
         resendNote = nil
+        signupNote = nil
         focus = nil
         Task {
             let address = email.trimmingCharacters(in: .whitespaces)
@@ -164,6 +179,33 @@ struct SignInView: View {
             }
             working = false
         }
+    }
+
+    /// Carry on from a new account: sign straight in when nothing is waiting,
+    /// otherwise say what is.
+    private func accountCreated(email address: String, password secret: String, result: SignupResult) {
+        email = address
+        errorMessage = nil
+        needsConfirmation = false
+        if !result.verificationRequired && !result.approvalRequired {
+            signupNote = nil
+            password = secret
+            submit()
+            return
+        }
+        var steps: [String] = []
+        if result.verificationRequired {
+            steps.append(result.emailSent
+                ? "Account created. Open the link we sent to \(result.email) to confirm your address."
+                : "Account created, but the confirmation email could not be sent. Send it again below.")
+            needsConfirmation = true
+        }
+        if result.approvalRequired {
+            steps.append(result.verificationRequired
+                ? "A dispatcher also needs to approve your account."
+                : "Account created. A dispatcher needs to approve it before you can sign in.")
+        }
+        signupNote = steps.joined(separator: " ")
     }
 
     private func finish(keeping saved: FaceIDLogin.Saved?) {

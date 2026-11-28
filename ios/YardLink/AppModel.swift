@@ -157,6 +157,14 @@ final class AppModel: ObservableObject {
         stage = .ready(user)
     }
 
+    /// Create an account with this employer, using the join code from a dispatcher.
+    func signUp(_ form: SignupForm) async throws -> SignupResult {
+        guard let api else {
+            throw APIError(status: 0, message: "Connect to your employer first.", flags: [:])
+        }
+        return try await api.post("/api/auth/signup", body: form)
+    }
+
     /// Ask the server to send the welcome email again. Always answers with
     /// a sentence to show under the button.
     func resendConfirmation(email: String) async -> String {

@@ -20,6 +20,7 @@
 		A1B2C3D4000000000000001D /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000001C /* Theme.swift */; };
 		A1B2C3D4000000000000001F /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000001E /* RootView.swift */; };
 		A1B2C3D40000000000000021 /* ConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000020 /* ConnectView.swift */; };
+		A1B2C3D400000000000001B1 /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000001B0 /* SignUpView.swift */; };
 		A1B2C3D40000000000000023 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000022 /* QRScannerView.swift */; };
 		A1B2C3D40000000000000025 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000024 /* SignInView.swift */; };
 		A1B2C3D40000000000000027 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000026 /* HomeView.swift */; };
@@ -143,6 +144,7 @@
 		A1B2C3D4000000000000001C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		A1B2C3D4000000000000001E /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000020 /* ConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectView.swift; sourceTree = "<group>"; };
+		A1B2C3D400000000000001B0 /* SignUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000022 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000024 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000026 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -287,6 +289,7 @@
 			children = (
 				A1B2C3D4000000000000001E /* RootView.swift */,
 				A1B2C3D40000000000000020 /* ConnectView.swift */,
+				A1B2C3D400000000000001B0 /* SignUpView.swift */,
 				A1B2C3D40000000000000022 /* QRScannerView.swift */,
 				A1B2C3D40000000000000024 /* SignInView.swift */,
 				A1B2C3D40000000000000026 /* HomeView.swift */,
@@ -578,6 +581,7 @@
 				A1B2C3D4000000000000001D /* Theme.swift in Sources */,
 				A1B2C3D4000000000000001F /* RootView.swift in Sources */,
 				A1B2C3D40000000000000021 /* ConnectView.swift in Sources */,
+				A1B2C3D400000000000001B1 /* SignUpView.swift in Sources */,
 				A1B2C3D40000000000000023 /* QRScannerView.swift in Sources */,
 				A1B2C3D40000000000000025 /* SignInView.swift in Sources */,
 				A1B2C3D40000000000000027 /* HomeView.swift in Sources */,

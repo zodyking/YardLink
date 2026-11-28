@@ -69,6 +69,27 @@ struct OkResult: Decodable {
     let ok: Bool?
 }
 
+/// A new account, as the server's sign-up endpoint takes it.
+struct SignupForm: Encodable {
+    let firstName: String
+    let lastName: String
+    let email: String
+    let mobileNumber: String
+    let password: String
+    let inviteCode: String
+    /// DRIVER or DISPATCHER.
+    let role: String
+}
+
+/// What the server says after a new account is made. There is no session
+/// yet when the email has to be confirmed or a dispatcher has to approve.
+struct SignupResult: Decodable {
+    let approvalRequired: Bool
+    let verificationRequired: Bool
+    let emailSent: Bool
+    let email: String
+}
+
 /// A sentence from the server to show as is.
 struct MessageResult: Decodable {
     let message: String

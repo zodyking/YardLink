@@ -6,15 +6,24 @@ import Foundation
 /// Screen and Dynamic Island show how far the drop-off is, how long it will
 /// take, and what is next.
 enum TripActivityCenter {
+    /// Off while the Lock Screen and Dynamic Island layout is reworked. Turn
+    /// back on to start activities again; everything below is kept as is.
+    static let isEnabled = false
+
     /// Follow the trip Home is showing: start, update or end the activity.
     static func sync(home: HomePayload) {
         guard #available(iOS 16.2, *) else { return }
+        guard isEnabled else {
+            // Clear any activity a build from before the switch left running.
+            Task { @MainActor in await Follower.shared.stop() }
+            return
+        }
         Task { @MainActor in await Follower.shared.follow(home) }
     }
 
     /// The phone moved: work out what is left to the drop-off. `speed` is the GPS speed in metres per second.
     static func moved(latitude: Double, longitude: Double, speed: Double, site: ArrivalWatch.WatchedSite) {
-        guard #available(iOS 16.2, *) else { return }
+        guard #available(iOS 16.2, *), isEnabled else { return }
         Task { @MainActor in
             await Follower.shared.moved(latitude: latitude, longitude: longitude, speed: speed, site: site)
         }
