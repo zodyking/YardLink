@@ -70,8 +70,10 @@ struct MoreView: View {
                 }
                 Section {
                     Toggle(isOn: $voicePrompts) {
-                        Label("Spoken Prompts", systemImage: "speaker.wave.2.fill")
+                        Label("Talk Back (Text to Speech)", systemImage: "speaker.wave.2.fill")
                     }
+                } header: {
+                    Text("Talk Back")
                 } footer: {
                     Text("Yard Link speaks when you sign in, when you are about a mile from the drop-off, and when you pull in. Music lowers while it talks.")
                 }
