@@ -146,6 +146,7 @@ final class AppModel: ObservableObject {
         guard let user = pendingUser else { return }
         pendingUser = nil
         stage = .ready(user)
+        Voice.shared.say(Voice.welcome(user.firstName))
     }
 
     /// Read the session again after the person changed their name or email,

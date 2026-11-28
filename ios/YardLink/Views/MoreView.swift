@@ -15,6 +15,7 @@ struct MoreView: View {
     @State private var exportError: String?
     @ObservedObject private var rootTap = TabRootTap.shared
     @State private var path = NavigationPath()
+    @AppStorage(Voice.enabledKey) private var voicePrompts = true
 
     private var version: String {
         let info = Bundle.main.infoDictionary
@@ -66,6 +67,13 @@ struct MoreView: View {
                             ? "Work, messages and account news always show up in Yard Link. Turn on email to get a copy at \(user.email) as well."
                             : "Your company has not set up email in Yard Link yet, so nothing is emailed. Your choices are saved for when it is.")
                     }
+                }
+                Section {
+                    Toggle(isOn: $voicePrompts) {
+                        Label("Spoken Prompts", systemImage: "speaker.wave.2.fill")
+                    }
+                } footer: {
+                    Text("Yard Link speaks when you sign in, when you are about a mile from the drop-off, and when you pull in. Music lowers while it talks.")
                 }
                 Section("Employer") {
                     LabeledContent("Company", value: user.companyName)

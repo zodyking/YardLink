@@ -26,6 +26,12 @@ final class ArrivalWatch: NSObject, ObservableObject {
     /// The site the phone has already told the server it is inside, so one
     /// arrival is reported once.
     private var reportedInside: String?
+    /// Sites already announced, so each prompt is spoken once per trip.
+    private var spokenApproach: String?
+    private var spokenArrival: String?
+
+    /// How far out the driver hears that the stop is near: about a mile.
+    private let approachMeters: Double = 1_600
 
     struct WatchedSite: Equatable {
         let locationId: String
@@ -103,6 +109,8 @@ final class ArrivalWatch: NSObject, ObservableObject {
         }
         watching = site
         reportedInside = nil
+        spokenApproach = nil
+        spokenArrival = nil
         guard let site else {
             stopTracking()
             return
@@ -156,13 +164,27 @@ final class ArrivalWatch: NSObject, ObservableObject {
         // who was already parked inside it.
         let gap = CLLocation(latitude: latitude, longitude: longitude)
             .distance(from: CLLocation(latitude: site.latitude, longitude: site.longitude))
+        if gap <= approachMeters, gap > max(80, site.radiusMeters), spokenApproach != site.locationId {
+            spokenApproach = site.locationId
+            Voice.shared.say(Voice.approaching(site.name))
+        }
         if gap <= max(80, site.radiusMeters) {
+            announceArrival()
             guard reportedInside != site.locationId else { return }
             reportedInside = site.locationId
             Task { await reportCrossing(at: nil) }
         } else if gap > max(80, site.radiusMeters) * 1.5 {
             reportedInside = nil
         }
+    }
+
+    /// Say once that the driver is pulling into the watched site.
+    fileprivate func announceArrival() {
+        guard let site = watching, spokenArrival != site.locationId else { return }
+        spokenArrival = site.locationId
+        // Nearing was implied by arriving; don't say it after.
+        spokenApproach = site.locationId
+        Voice.shared.say(Voice.arriving(site.name))
     }
 
     /// The driver answered the permission card: ask for the rest, and arm the
@@ -243,7 +265,10 @@ extension ArrivalWatch: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
         // The time card's site circles belong to SiteWatch.
         guard region.identifier == "yardlink.arrival" else { return }
-        Task { @MainActor in await ArrivalWatch.shared.reportCrossing(at: nil) }
+        Task { @MainActor in
+            ArrivalWatch.shared.announceArrival()
+            await ArrivalWatch.shared.reportCrossing(at: nil)
+        }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {

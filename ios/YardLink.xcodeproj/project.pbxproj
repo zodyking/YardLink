@@ -12,6 +12,7 @@
 		A1B2C3D40000000000000017 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000016 /* AppModel.swift */; };
 		A1B2C3D40000000000000071 /* Push.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000070 /* Push.swift */; };
 		A1B2C3D400000000000001AD /* SiteWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000001AC /* SiteWatch.swift */; };
+		A1B2C3D400000000000001B3 /* Voice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000000000001B2 /* Voice.swift */; };
 		A1B2C3D40000000000000076 /* ArrivalWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000075 /* ArrivalWatch.swift */; };
 		A1B2C3D40000000000000074 /* Siri.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000073 /* Siri.swift */; };
 		A1B2C3D40000000000000078 /* FaceIDLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000077 /* FaceIDLogin.swift */; };
@@ -135,6 +136,7 @@
 		A1B2C3D40000000000000016 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000070 /* Push.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Push.swift; sourceTree = "<group>"; };
 		A1B2C3D400000000000001AC /* SiteWatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteWatch.swift; sourceTree = "<group>"; };
+		A1B2C3D400000000000001B2 /* Voice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000075 /* ArrivalWatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArrivalWatch.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000077 /* FaceIDLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceIDLogin.swift; sourceTree = "<group>"; };
 		A1B2C3D40000000000000073 /* Siri.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Siri.swift; sourceTree = "<group>"; };
@@ -262,6 +264,7 @@
 				A1B2C3D40000000000000070 /* Push.swift */,
 				A1B2C3D40000000000000075 /* ArrivalWatch.swift */,
 				A1B2C3D400000000000001AC /* SiteWatch.swift */,
+				A1B2C3D400000000000001B2 /* Voice.swift */,
 				A1B2C3D4000000000000008C /* WidgetSync.swift */,
 				A1B2C3D4000000000000008E /* TripActivityCenter.swift */,
 				A1B2C3D400000000000000DA /* MessageNotification.swift */,
@@ -566,6 +569,7 @@
 				A1B2C3D40000000000000071 /* Push.swift in Sources */,
 				A1B2C3D40000000000000076 /* ArrivalWatch.swift in Sources */,
 				A1B2C3D400000000000001AD /* SiteWatch.swift in Sources */,
+				A1B2C3D400000000000001B3 /* Voice.swift in Sources */,
 				A1B2C3D400000000000000A0 /* SharedStore.swift in Sources */,
 				A1B2C3D400000000000000A1 /* WidgetClient.swift in Sources */,
 				A1B2C3D400000000000000A2 /* WidgetSync.swift in Sources */,
