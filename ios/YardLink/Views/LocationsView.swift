@@ -272,45 +272,27 @@ struct LocationDetailView: View {
     private func actions(_ location: LocationRecord) -> some View {
         HStack(spacing: 10) {
             Button { addingEquipment = true } label: {
-                actionTile("Add", symbol: "plus", primary: true)
+                ActionTile(title: "Add", symbol: "plus", primary: true)
             }
             .buttonStyle(.plain)
 
             Button { editingLocation = true } label: {
-                actionTile("Edit", symbol: "pencil")
+                ActionTile(title: "Edit", symbol: "pencil")
             }
             .buttonStyle(.plain)
 
             Button { exportingList = true } label: {
-                actionTile("Export", symbol: "square.and.arrow.up")
+                ActionTile(title: "Export", symbol: "square.and.arrow.up")
             }
             .buttonStyle(.plain)
 
             NavigationLink {
                 LocationAuditView(locationId: locationId, locationName: location.name)
             } label: {
-                actionTile("Audit", symbol: "checklist.checked")
+                ActionTile(title: "Audit", symbol: "checklist.checked")
             }
             .buttonStyle(.plain)
         }
-    }
-
-    private func actionTile(_ title: String, symbol: String, primary: Bool = false) -> some View {
-        VStack(spacing: 6) {
-            Image(systemName: symbol)
-                .font(.system(size: 18, weight: .semibold))
-                .frame(height: 22)
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-        }
-        .foregroundColor(primary ? .white : Brand.navy)
-        .frame(maxWidth: .infinity, minHeight: 68)
-        .background(primary ? Brand.linkBlue : Brand.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Brand.controlRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Brand.controlRadius, style: .continuous).stroke(primary ? Color.clear : Brand.line))
-        .shadow(color: Brand.navy.opacity(primary ? 0.18 : 0.06), radius: 6, x: 0, y: 2)
-        .contentShape(Rectangle())
     }
 
     private func actionLabel(_ title: String, symbol: String) -> some View {

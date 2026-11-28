@@ -33,9 +33,12 @@ struct ContainerDetailView: View {
                 if let errorMessage { ErrorBanner(message: errorMessage) }
 
                 if let detail {
-                    now(detail)
+                    hero(detail)
+                    facts(detail)
+                    actions
+                    shipcsx(detail)
                     cycleSection
-                    let unfiled = detail.history?.unfiled ?? []
+                    let unfiled = (detail.history?.unfiled ?? []).filter(\.isShownInHistory)
                     if !unfiled.isEmpty {
                         SectionTitle(text: "Before the first pickup")
                         Card {
@@ -44,52 +47,10 @@ struct ContainerDetailView: View {
                             }
                         }
                     }
-                    SectionTitle(text: "ShipCSX")
-                    Card {
-                        HStack {
-                            Text(detail.shipcsx?.statusLabel ?? "Not checked")
-                                .font(.body.weight(.semibold))
-                                .foregroundColor(Brand.navy)
-                            Spacer()
-                            if let checkedAt = detail.shipcsx?.checkedAt {
-                                Text(Format.dateTime(checkedAt))
-                                    .font(.caption)
-                                    .foregroundColor(Brand.muted)
-                            }
-                        }
-                        if let snapshot = detail.shipcsx {
-                            ForEach(snapshot.rows, id: \.label) { row in
-                                InfoRow(label: row.label, value: row.value)
-                            }
-                        }
-                        Button(detail.shipcsx == nil ? "Check CSX" : "Check Again") { sheet = .shipcsx }
-                            .buttonStyle(SecondaryButtonStyle())
-                    }
-
-                    SectionTitle(text: "This container")
-                    HStack(spacing: 12) {
-                        Button {
-                            sheet = .photos
-                        } label: {
-                            Label("Photos", systemImage: "photo.fill")
-                        }
-                        .buttonStyle(SecondaryButtonStyle())
-                        Button {
-                            sheet = .edit
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-                        .buttonStyle(SecondaryButtonStyle())
-                    }
-                    Button {
-                        sheet = .move
-                    } label: {
-                        Label("Move to Another Location", systemImage: "arrow.right.circle.fill")
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
                     Button(working ? "Deleting…" : "Delete Container") { confirmingDelete = true }
                         .buttonStyle(DangerTextButtonStyle())
                         .disabled(working)
+                        .padding(.top, 8)
                 } else if loading {
                     ProgressView("Loading container…").frame(maxWidth: .infinity, minHeight: 200)
                 }
@@ -97,7 +58,7 @@ struct ContainerDetailView: View {
             .padding(16)
         }
         .screenBackground()
-        .navigationTitle(Marking.formatContainer(detail?.container.number))
+        .navigationTitle("Container")
         .navigationBarTitleDisplayMode(.inline)
         .lightBar()
         .sheet(item: $sheet) { sheet in
@@ -130,23 +91,74 @@ struct ContainerDetailView: View {
         .task { await load() }
     }
 
+    private func hero(_ detail: ContainerDetail) -> some View {
+        let box = detail.container
+        return EquipmentHero(
+            kind: .container,
+            number: box.number,
+            status: Words.containerStatus(box.containerStatus),
+            tags: [
+                Words.line(box.containerType),
+                Words.size(box.equipmentType),
+                box.isLoaded.map { $0 ? "Loaded" : "Empty" },
+            ].compactMap { $0 }.filter { !$0.isEmpty }
+        )
+    }
+
+    private func facts(_ detail: ContainerDetail) -> some View {
+        FactGrid(facts: [
+            .init(label: "Location", value: detail.currentLocation?.name),
+            .init(
+                label: "Chassis",
+                value: detail.currentChassis?.number,
+                route: detail.currentChassis?.id.map { EquipmentRoute(kind: "CHASSIS", id: $0) }
+            ),
+            .init(label: "Seal", value: detail.container.sealNumber),
+            .init(label: "Driver", value: detail.currentDriver?.name),
+        ])
+    }
+
+    private var actions: some View {
+        HStack(spacing: 10) {
+            Button { sheet = .shipcsx } label: {
+                ActionTile(title: "Check CSX", symbol: "magnifyingglass", primary: true)
+            }
+            .buttonStyle(.plain)
+            Button { sheet = .move } label: {
+                ActionTile(title: "Move", symbol: "arrow.right.circle")
+            }
+            .buttonStyle(.plain)
+            Button { sheet = .photos } label: {
+                ActionTile(title: "Photos", symbol: "photo")
+            }
+            .buttonStyle(.plain)
+            Button { sheet = .edit } label: {
+                ActionTile(title: "Edit", symbol: "pencil")
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     @ViewBuilder
-    private func now(_ detail: ContainerDetail) -> some View {
+    private func shipcsx(_ detail: ContainerDetail) -> some View {
+        SectionTitle(text: "ShipCSX")
         Card {
             HStack {
-                EquipmentNumber(text: detail.container.number, label: "Container", kind: .container)
+                Text(detail.shipcsx?.statusLabel ?? "Not checked")
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(Brand.navy)
                 Spacer()
-                if let status = Words.containerStatus(detail.container.containerStatus) {
-                    StatusPill(text: status)
+                if let checkedAt = detail.shipcsx?.checkedAt {
+                    Text(Format.dateTime(checkedAt))
+                        .font(.caption)
+                        .foregroundColor(Brand.muted)
                 }
             }
-            InfoRow(label: "Line", value: Words.line(detail.container.containerType))
-            InfoRow(label: "Size", value: Words.size(detail.container.equipmentType))
-            InfoRow(label: "Cargo", value: detail.container.isLoaded.map { $0 ? "Loaded" : "Empty" })
-            InfoRow(label: "Seal", value: detail.container.sealNumber)
-            InfoRow(label: "Location", value: detail.currentLocation?.name)
-            InfoRow(label: "Driver", value: detail.currentDriver?.name)
-            InfoRow(label: "Chassis", value: detail.currentChassis?.number)
+            if let snapshot = detail.shipcsx {
+                ForEach(snapshot.rows, id: \.label) { row in
+                    InfoRow(label: row.label, value: row.value)
+                }
+            }
         }
     }
 
@@ -161,7 +173,7 @@ struct ContainerDetailView: View {
             }
         } else if let cycle = selectedCycle {
             HStack {
-                SectionTitle(text: "Duty cycle")
+                SectionTitle(text: "History")
                 if cycles.count > 1 {
                     Menu {
                         ForEach(cycles) { option in
@@ -176,17 +188,18 @@ struct ContainerDetailView: View {
                 }
             }
             Card {
-                HStack {
-                    Text("Cycle \(cycle.sequence)")
-                        .font(.headline)
-                        .foregroundColor(Brand.navy)
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Cycle \(cycle.sequence)")
+                            .font(.headline)
+                            .foregroundColor(Brand.navy)
+                        Text(cycleLine(cycle))
+                            .font(.footnote)
+                            .foregroundColor(Brand.muted)
+                    }
                     Spacer()
                     StatusPill(text: cycle.statusLabel, color: cycle.status == "ACTIVE" ? Brand.linkBlue : (cycle.status == "COMPLETED" ? Brand.ok : Brand.muted))
                 }
-                InfoRow(label: "Started", value: Format.dateTime(cycle.startedAt))
-                InfoRow(label: "From", value: cycle.startLocation?.name)
-                InfoRow(label: "Returned", value: cycle.completedAt.map { Format.dateTime($0) })
-                InfoRow(label: "To", value: cycle.endLocation?.name)
                 InfoRow(label: "Drivers", value: (cycle.drivers ?? []).joined(separator: ", "))
                 InfoRow(label: "Chassis", value: (cycle.chassis ?? []).compactMap(\.number).joined(separator: ", "))
                 if cycle.closedByNextPickup == true {
@@ -194,16 +207,22 @@ struct ContainerDetailView: View {
                         .font(.footnote)
                         .foregroundColor(Brand.muted)
                 }
-            }
-            let events = cycle.events ?? []
-            if !events.isEmpty {
-                Card {
+                let events = (cycle.events ?? []).filter(\.isShownInHistory)
+                if !events.isEmpty {
+                    Divider()
                     ForEach(events) { event in
                         row(event)
                     }
                 }
             }
         }
+    }
+
+    /// Where the cycle started and, once returned, where it ended.
+    private func cycleLine(_ cycle: DutyCycle) -> String {
+        let start = ["From \(cycle.startLocation?.name ?? "unknown")", Format.dateTime(cycle.startedAt)].joined(separator: " · ")
+        guard let completedAt = cycle.completedAt else { return start }
+        return start + "\nReturned to \(cycle.endLocation?.name ?? "unknown") · \(Format.dateTime(completedAt))"
     }
 
     private func row(_ event: HistoryEvent) -> some View {
@@ -260,18 +279,34 @@ struct ChassisDetailView: View {
                 if let errorMessage { ErrorBanner(message: errorMessage) }
 
                 if let detail {
-                    Card {
-                        HStack {
-                            EquipmentNumber(text: detail.chassis.number, label: "Chassis", kind: .chassis)
-                            Spacer()
-                            if let status = detail.chassis.status {
-                                StatusPill(text: status.replacingOccurrences(of: "_", with: " ").capitalized)
-                            }
+                    EquipmentHero(
+                        kind: .chassis,
+                        number: detail.chassis.number,
+                        status: detail.chassis.status.map { $0.replacingOccurrences(of: "_", with: " ").capitalized },
+                        tags: [detail.chassis.provider, detail.chassis.sizeCompatibility].compactMap { $0 }.filter { !$0.isEmpty }
+                    )
+                    FactGrid(facts: [
+                        .init(label: "Location", value: detail.currentLocation?.name),
+                        .init(
+                            label: "Carrying",
+                            value: detail.currentContainer?.number.map { Marking.formatContainer($0) },
+                            route: detail.currentContainer?.id.map { EquipmentRoute(kind: "CONTAINER", id: $0) }
+                        ),
+                        .init(label: "Plate", value: detail.chassis.licensePlate),
+                        .init(label: "Last handled", value: detail.history?.events.first(where: { $0.driverName != nil })?.driverName),
+                    ])
+                    HStack(spacing: 10) {
+                        Button { editing = true } label: {
+                            ActionTile(title: "Edit", symbol: "pencil", primary: true)
                         }
-                        InfoRow(label: "Provider", value: detail.chassis.provider)
-                        InfoRow(label: "Location", value: detail.currentLocation?.name)
-                        InfoRow(label: "Carrying", value: detail.currentContainer?.number)
-                        InfoRow(label: "Last handled", value: detail.history?.events.first(where: { $0.driverName != nil })?.driverName)
+                        .buttonStyle(.plain)
+                        if detail.currentContainer?.id != nil {
+                            Button { confirmingRelease = true } label: {
+                                ActionTile(title: "Release Container", symbol: "minus.circle")
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(working)
+                        }
                     }
 
                     let pairings = detail.history?.pairings ?? []
@@ -286,9 +321,9 @@ struct ChassisDetailView: View {
                         }
                     }
 
-                    let events = detail.history?.events ?? []
+                    let events = (detail.history?.events ?? []).filter(\.isShownInHistory)
                     if !events.isEmpty {
-                        SectionTitle(text: "Full history")
+                        SectionTitle(text: "History")
                         Card {
                             ForEach(events) { event in
                                 TimelineRow(
@@ -301,25 +336,10 @@ struct ChassisDetailView: View {
                         }
                     }
 
-                    SectionTitle(text: "This chassis")
-                    Button {
-                        editing = true
-                    } label: {
-                        Label("Edit", systemImage: "pencil")
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-                    if detail.currentContainer?.id != nil {
-                        Button {
-                            confirmingRelease = true
-                        } label: {
-                            Label("Release from Its Container", systemImage: "minus.circle")
-                        }
-                        .buttonStyle(SecondaryButtonStyle())
-                        .disabled(working)
-                    }
                     Button(working ? "Working…" : "Delete Chassis") { confirmingDelete = true }
                         .buttonStyle(DangerTextButtonStyle())
                         .disabled(working)
+                        .padding(.top, 8)
                 } else if loading {
                     ProgressView("Loading chassis…").frame(maxWidth: .infinity, minHeight: 200)
                 }
@@ -327,7 +347,7 @@ struct ChassisDetailView: View {
             .padding(16)
         }
         .screenBackground()
-        .navigationTitle(detail?.chassis.number ?? "Chassis")
+        .navigationTitle("Chassis")
         .navigationBarTitleDisplayMode(.inline)
         .lightBar()
         .sheet(isPresented: $editing) {
